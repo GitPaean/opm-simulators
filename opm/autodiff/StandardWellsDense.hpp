@@ -53,6 +53,8 @@
 #include <opm/material/densead/Math.hpp>
 #include <opm/material/densead/Evaluation.hpp>
 
+#include <opm/simulators/WellSwitchingLogger.hpp>
+
 namespace Opm {
 
 enum WellVariablePositions {
@@ -1148,11 +1150,12 @@ enum WellVariablePositions {
 
 
             template <class WellState>
-            void updateWellControls(WellState& xw)
+            void updateWellControls(WellState& xw) const
             {
                 if( !localWellsActive() ) return ;
 
-                std::string modestring[4] = { "BHP", "THP", "RESERVOIR_RATE", "SURFACE_RATE" };
+                wellhelpers::WellSwitchingLogger logger;
+
                 // Find, for each well, if any constraints are broken. If so,
                 // switch control to first broken constraint.
                 const int np = wells().number_of_phases;
@@ -1164,40 +1167,60 @@ enum WellVariablePositions {
                     // the current control set in the Wells struct, which
                     // is instead treated as a default.
                     int current = xw.currentControls()[w];
+
                     // Loop over all controls except the current one, and also
                     // skip any RESERVOIR_RATE controls, since we cannot
                     // handle those.
                     const int nwc = well_controls_get_num(wc);
-                    int ctrl_index = 0;
-                    for (; ctrl_index < nwc; ++ctrl_index) {
-                        if (ctrl_index == current) {
-                            // This is the currently used control, so it is
-                            // used as an equation. So this is not used as an
-                            // inequality constraint, and therefore skipped.
-                            continue;
+
+                    // There should be at least one control
+                    assert(nwc != 0);
+
+                    bool constraint_violated = false;
+                    int number_iterations = 0;
+                    const int max_iterations = 2 * nwc; // maximum allowed iterations
+                    do {
+                        updateWellStateWithTarget(wc, current, w, xw);
+                        int ctrl_index = 0;
+                        for (; ctrl_index < nwc; ++ctrl_index) {
+                            if (ctrl_index == current) {
+                                // This is the currently used control, so it is
+                                // used as an equation. So this is not used as an
+                                // inequality constraint, and therefore skipped.
+                                continue;
+                            }
+                            if (wellhelpers::constraintBroken(
+                                         xw.bhp(), xw.thp(), xw.wellRates(),
+                                         w, np, wells().type[w], wc, ctrl_index)) {
+                                // ctrl_index will be the index of the broken constraint after the loop.
+                                break;
+                            }
                         }
-                        if (wellhelpers::constraintBroken(
-                                xw.bhp(), xw.thp(), xw.wellRates(),
-                                w, np, wells().type[w], wc, ctrl_index)) {
-                            // ctrl_index will be the index of the broken constraint after the loop.
+
+                        if (ctrl_index != nwc) {
+                            // Constraint number ctrl_index was broken, switch to it.
+                            // We disregard terminal_ouput here as with it only messages
+                            // for wells on one process will be printed.
+                            logger.wellSwitched(wells().name[w],
+                                                well_controls_iget_type(wc, current),
+                                                well_controls_iget_type(wc, ctrl_index));
+
+                            xw.currentControls()[w] = ctrl_index;
+                            current = xw.currentControls()[w];
+                            // TODO: not sure whether the following is necessary
+                            // well_controls_set_current( wc, current);
+                            constraint_violated = true;
+                        } else {
+                            constraint_violated = false;
+                        }
+                        ++number_iterations;
+
+                        if (number_iterations > max_iterations) {
+                            OPM_THROW(Opm::NumericalProblem, "Could not find proper control within " << number_iterations << " iterations!");
                             break;
                         }
-                    }
-                    if (ctrl_index != nwc) {
-                        // Constraint number ctrl_index was broken, switch to it.
-                        // We disregard terminal_ouput here as with it only messages
-                        // for wells on one process will be printed.
-                        std::ostringstream ss;
-                        ss << "    Switching control mode for well " << wells().name[w]
-                           << " from " << modestring[well_controls_iget_type(wc, current)]
-                           << " to " << modestring[well_controls_iget_type(wc, ctrl_index)];
-                        OpmLog::info(ss.str());
-                        xw.currentControls()[w] = ctrl_index;
-                        current = xw.currentControls()[w];
-                        well_controls_set_current( wc, current);
+                    } while (constraint_violated);
 
-                        updateWellStateWithTarget(wc, current, w, xw);
-                    }
 
                     // update whether well is under group control
                     if (wellCollection()->groupControlActive()) {
