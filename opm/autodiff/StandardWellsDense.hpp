@@ -1207,8 +1207,7 @@ enum WellVariablePositions {
 
                             xw.currentControls()[w] = ctrl_index;
                             current = xw.currentControls()[w];
-                            // TODO: not sure whether the following is necessary
-                            // well_controls_set_current( wc, current);
+                            well_controls_set_current( wc, current);
                             constraint_violated = true;
                         } else {
                             constraint_violated = false;
@@ -1912,15 +1911,15 @@ enum WellVariablePositions {
                     double liquid = 0.0;
                     double vapour = 0.0;
 
-                    const Opm::PhaseUsage& pu = fluid_->phaseUsage();
+                    const Opm::PhaseUsage& pu = phase_usage_;
 
-                    if ((*active_)[ Water ]) {
+                    if (active_[ Water ]) {
                         aqua = xw.wellRates()[well_index*np + pu.phase_pos[ Water ] ];
                     }
-                    if ((*active_)[ Oil ]) {
+                    if (active_[ Oil ]) {
                         liquid = xw.wellRates()[well_index*np + pu.phase_pos[ Oil ] ];
                     }
-                    if ((*active_)[ Gas ]) {
+                    if (active_[ Gas ]) {
                         vapour = xw.wellRates()[well_index*np + pu.phase_pos[ Gas ] ];
                     }
 
@@ -2035,18 +2034,18 @@ enum WellVariablePositions {
                     tot_well_rate += g[p] * xw.wellRates()[np*well_index + p];
                 }
                 if(std::abs(tot_well_rate) > 0) {
-                    if ((*active_)[ Water ]) {
+                    if (active_[ Water ]) {
                         xw.wellSolutions()[WFrac*nw + well_index] = g[Water] * xw.wellRates()[np*well_index + Water] / tot_well_rate;
                     }
-                    if ((*active_)[ Gas ]) {
+                    if (active_[ Gas ]) {
                         xw.wellSolutions()[GFrac*nw + well_index] = g[Gas] * xw.wellRates()[np*well_index + Gas] / tot_well_rate ;
                     }
                  } else {
-                    if ((*active_)[ Water ]) {
+                    if (active_[ Water ]) {
                         xw.wellSolutions()[WFrac*nw + well_index] =  wells().comp_frac[np*well_index + Water];
                     }
 
-                    if ((*active_)[ Gas ]) {
+                    if (active_[ Gas ]) {
                         xw.wellSolutions()[GFrac*nw + well_index] =  wells().comp_frac[np*well_index + Gas];
                     }
                 }
