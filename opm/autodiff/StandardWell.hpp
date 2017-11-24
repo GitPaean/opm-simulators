@@ -243,6 +243,7 @@ namespace Opm
 
         // updating the well_state based on well solution dwells
         void updateWellState(const BVectorWell& dwells,
+                             const bool inner_iteration,
                              WellState& well_state) const;
 
         // calculate the properties for the well connections
@@ -303,6 +304,15 @@ namespace Opm
                          std::vector<EvalWell>& mob) const;
 
         double scalingFactor(const int comp_idx) const;
+
+        void assembleWellEqWithoutIteration(Simulator& ebosSimulator,
+                                            const double dt,
+                                            WellState& well_state,
+                                            bool only_wells);
+
+        void iterateWellEquations(Simulator& ebosSimulator,
+                                  const double dt,
+                                  WellState& well_state);
     };
 
 }
