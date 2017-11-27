@@ -608,16 +608,21 @@ namespace Opm
 
         // add vol * dF/dt + Q to the well equations;
         for (int componentIdx = 0; componentIdx < numComp; ++componentIdx) {
-            EvalWell resWell_loc = (wellSurfaceVolumeFraction(componentIdx) - F0_[componentIdx]) * volume / dt;
-            resWell_loc += getQs(componentIdx) * well_efficiency_factor_;
+            // EvalWell resWell_loc = (wellSurfaceVolumeFraction(componentIdx) - F0_[componentIdx]) * volume / dt;
+            EvalWell resWell_loc = getQs(componentIdx) * well_efficiency_factor_;
             for (int pvIdx = 0; pvIdx < numWellEq; ++pvIdx) {
                 invDuneD_[0][0][componentIdx][pvIdx] += resWell_loc.derivative(pvIdx+numEq);
             }
             resWell_[0][componentIdx] += resWell_loc.value();
         }
 
+        std::cout << " well " << name() << std::endl;
+        std::cout << " output the invDuneD_ before inverting " << std::endl;
+        std::cout << invDuneD_[0][0] << std::endl;
         // do the local inversion of D.
         invDuneD_[0][0].invert();
+        std::cout << " output the invDuneD_ after inverting " << std::endl;
+        std::cout << invDuneD_[0][0] << std::endl;
     }
 
 
