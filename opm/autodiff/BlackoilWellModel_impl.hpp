@@ -96,7 +96,16 @@ namespace Opm {
                 // while keep the well shut. More accurately, we should check if the well exisits in the Wells
                 // structure here
                 if (well->isMultiSegment(timeStepIdx) ) { // there is one well is MS well
-                    well_state_.initWellStateMSWell(wells(), wells_ecl_, timeStepIdx, phase_usage_, previous_well_state_);
+                    const int* global_cell = Opm::UgGridHelpers::globalCell(grid);
+
+                    std::map<int,int> cartesian_to_compressed;
+                    setupCompressedToCartesian(global_cell, number_of_cells_,
+                                               cartesian_to_compressed);
+
+                    const int* cart_dims = Opm::UgGridHelpers::cartDims(grid);
+
+                    well_state_.initWellStateMSWell(wells(), wells_ecl_, timeStepIdx, phase_usage_,
+                                                    previous_well_state_, cartesian_to_compressed, cart_dims);
                     break;
                 }
             }

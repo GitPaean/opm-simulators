@@ -300,7 +300,8 @@ namespace Opm
         /// init the MS well related.
         template <typename PrevWellState>
         void initWellStateMSWell(const Wells* wells, const std::vector<const Well*>& wells_ecl,
-                                 const int time_step, const PhaseUsage& pu, const PrevWellState& prev_well_state)
+                                 const int time_step, const PhaseUsage& pu, const PrevWellState& prev_well_state,
+                                 const std::map<int, int>& cartesian_to_compressed, const int* cart_dims)
         {
             // still using the order in wells
             const int nw = wells->number_of_wells;
@@ -348,16 +349,47 @@ namespace Opm
                     const CompletionSet& completion_set = well_ecl->getCompletions(time_step);
                     // number of segment for this single well
                     const int well_nseg = segment_set.numberSegment();
-                    const int nperf = completion_set.size();
                     nseg_ += well_nseg;
+
+                    const int start_perf = wells->well_connpos[w];
+                    const int start_perf_next_well = wells->well_connpos[w + 1];
+                    // number of perforations from the wells structure
+                    const int nperf = start_perf_next_well - start_perf;
+                    // number of perforations from ther parser
+                    const int nperf_parser = completion_set.size();
+
+                    assert(nperf_parser >= nperf);
+
                     // we need to know for each segment, how many perforation it has and how many segments using it as outlet_segment
                     // that is why I think we should use a well model to initialize the WellState here
                     std::vector<std::vector<int>> segment_perforations(well_nseg);
-                    for (int perf = 0; perf < nperf; ++perf) {
-                        const Completion& completion = completion_set.get(perf);
-                        const int segment_number = completion.getSegmentNumber();
-                        const int segment_index = segment_set.segmentNumberToIndex(segment_number);
-                        segment_perforations[segment_index].push_back(perf);
+                    if (nperf == nperf_parser) {
+                        for (int perf = 0; perf < nperf_parser; ++perf) {
+                            const Completion& completion = completion_set.get(perf);
+                            const int segment_number = completion.getSegmentNumber();
+                            const int segment_index = segment_set.segmentNumberToIndex(segment_number);
+                            segment_perforations[segment_index].push_back(perf);
+                        }
+                    } else { // some perforations are removed due to some reasons
+                        // building a mapping between the perforation index in opm-parser and Wells structure
+                        std::vector<int> perf_mapping(nperf_parser, -1);
+                        for (int perf = 0; perf < nperf_parser; ++perf) {
+                            const Completion& completion = completion_set.get(perf);
+                            if (completion.getState() == WellCompletion::OPEN) {
+                                const int i = completion.getI();
+                                const int j = completion.getJ();
+                                const int k = completion.getK();
+
+                                const int cart_grid_indx = i + cart_dims[0] * (j + cart_dims[1] * k);
+                                const std::map<int, int>::const_iterator cgit = cartesian_to_compressed.find(cart_grid_indx);
+                                if (cgit != cartesian_to_compressed.end()) { // found it
+                                    const int cell = cgit.second;
+                                    for (int perf_well = 0; perf_well < nperf; ++perf_well) {
+                                        if (wells->
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     std::vector<std::vector<int>> segment_inlets(well_nseg);
