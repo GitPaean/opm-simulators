@@ -413,59 +413,11 @@ namespace Opm
     {
         assert(int(B_avg.size()) == num_components_);
 
-        // checking if any residual is NaN or too large. The two large one is only handled for the well flux
-        std::vector<std::vector<double>> abs_residual(numberOfSegments(), std::vector<double>(numWellEq, 0.0));
-        for (int seg = 0; seg < numberOfSegments(); ++seg) {
-            for (int eq_idx = 0; eq_idx < numWellEq; ++eq_idx) {
-                abs_residual[seg][eq_idx] = std::abs(resWell_[seg][eq_idx]);
-            }
-        }
-
         std::vector<double> maximum_residual(numWellEq, 0.0);
 
         ConvergenceReport report;
-        // TODO: the following is a little complicated, maybe can be simplified in some way?
-        for (int seg = 0; seg < numberOfSegments(); ++seg) {
-            for (int eq_idx = 0; eq_idx < numWellEq; ++eq_idx) {
-                if (eq_idx < num_components_) { // phase or component mass equations
-                    const double flux_residual = B_avg[eq_idx] * abs_residual[seg][eq_idx];
-                    // TODO: the report can not handle the segment number yet.
-                    if (std::isnan(flux_residual)) {
-                        report.nan_residual_found = true;
-                        const auto& compName = FluidSystem::componentName(Indices::activeToCanonicalComponentIndex(eq_idx));
-                        const typename ConvergenceReport::ProblemWell problem_well = {name(), compName};
-                        report.nan_residual_wells.push_back(problem_well);
-                    } else if (flux_residual > param_.max_residual_allowed_) {
-                        report.too_large_residual_found = true;
-                        const auto& compName = FluidSystem::componentName(Indices::activeToCanonicalComponentIndex(eq_idx));
-                        const typename ConvergenceReport::ProblemWell problem_well = {name(), compName};
-                        report.nan_residual_wells.push_back(problem_well);
-                    } else { // it is a normal residual
-                        if (flux_residual > maximum_residual[eq_idx]) {
-                            maximum_residual[eq_idx] = flux_residual;
-                        }
-                    }
-                } else { // pressure equation
-                    // TODO: we should distinguish the rate control equations, bhp control equations
-                    // and the oridnary pressure equations
-                    const double pressure_residal = abs_residual[seg][eq_idx];
-                    const std::string eq_name("Pressure");
-                    if (std::isnan(pressure_residal)) {
-                        report.nan_residual_found = true;
-                        const typename ConvergenceReport::ProblemWell problem_well = {name(), eq_name};
-                        report.nan_residual_wells.push_back(problem_well);
-                    } else if (std::isinf(pressure_residal)) {
-                        report.too_large_residual_found = true;
-                        const typename ConvergenceReport::ProblemWell problem_well = {name(), eq_name};
-                        report.nan_residual_wells.push_back(problem_well);
-                    } else { // it is a normal residual
-                        if (pressure_residal > maximum_residual[eq_idx]) {
-                            maximum_residual[eq_idx] = pressure_residal;
-                        }
-                    }
-                }
-            }
-        }
+
+        getMaxResiduals(B_avg, maximum_residual, report);
 
         if ( !(report.nan_residual_found || report.too_large_residual_found) ) { // no abnormal residual value found
             // check convergence for flux residuals
@@ -1862,4 +1814,65 @@ namespace Opm
         }
     }
 
+
+
+
+
+    template<typename TypeTag>
+    void
+    MultisegmentWell<TypeTag>::
+    getMaxResiduals(const std::vector<double>& B_avg,
+                    std::vector<double>& maximum_residual,
+                    ConvergenceReport& report) const
+    {
+        // checking if any residual is NaN or too large. The too large one is only handled for the well flux
+        std::vector<std::vector<double>> abs_residual(numberOfSegments(), std::vector<double>(numWellEq, 0.0));
+        for (int seg = 0; seg < numberOfSegments(); ++seg) {
+            for (int eq_idx = 0; eq_idx < numWellEq; ++eq_idx) {
+                abs_residual[seg][eq_idx] = std::abs(resWell_[seg][eq_idx]);
+            }
+        }
+
+        for (int seg = 0; seg < numberOfSegments(); ++seg) {
+            for (int eq_idx = 0; eq_idx < numWellEq; ++eq_idx) {
+                if (eq_idx < num_components_) { // phase or component mass equations
+                    const double flux_residual = B_avg[eq_idx] * abs_residual[seg][eq_idx];
+                    // TODO: the report can not handle the segment number yet.
+                    if (std::isnan(flux_residual)) {
+                        report.nan_residual_found = true;
+                        const auto& compName = FluidSystem::componentName(Indices::activeToCanonicalComponentIndex(eq_idx));
+                        const typename ConvergenceReport::ProblemWell problem_well = {name(), compName};
+                        report.nan_residual_wells.push_back(problem_well);
+                    } else if (flux_residual > param_.max_residual_allowed_) {
+                        report.too_large_residual_found = true;
+                        const auto& compName = FluidSystem::componentName(Indices::activeToCanonicalComponentIndex(eq_idx));
+                        const typename ConvergenceReport::ProblemWell problem_well = {name(), compName};
+                        report.nan_residual_wells.push_back(problem_well);
+                    } else { // it is a normal residual
+                        if (flux_residual > maximum_residual[eq_idx]) {
+                            maximum_residual[eq_idx] = flux_residual;
+                        }
+                    }
+                } else { // pressure equation
+                    // TODO: we should distinguish the rate control equations, bhp control equations
+                    // and the oridnary pressure equations
+                    const double pressure_residal = abs_residual[seg][eq_idx];
+                    const std::string eq_name("Pressure");
+                    if (std::isnan(pressure_residal)) {
+                        report.nan_residual_found = true;
+                        const typename ConvergenceReport::ProblemWell problem_well = {name(), eq_name};
+                        report.nan_residual_wells.push_back(problem_well);
+                    } else if (std::isinf(pressure_residal)) {
+                        report.too_large_residual_found = true;
+                        const typename ConvergenceReport::ProblemWell problem_well = {name(), eq_name};
+                        report.nan_residual_wells.push_back(problem_well);
+                    } else { // it is a normal residual
+                        if (pressure_residal > maximum_residual[eq_idx]) {
+                            maximum_residual[eq_idx] = pressure_residal;
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

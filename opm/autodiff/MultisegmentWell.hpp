@@ -348,6 +348,10 @@ namespace Opm
                                             const double dt,
                                             WellState& well_state,
                                             bool only_wells);
+
+        void getMaxResiduals(const std::vector<double>& B_avg,
+                             std::vector<double>& maximum_residual,
+                             ConvergenceReport& report) const;
     };
 
 }
