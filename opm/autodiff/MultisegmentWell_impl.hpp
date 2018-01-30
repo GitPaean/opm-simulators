@@ -978,13 +978,19 @@ namespace Opm
 
         // Pressure drawdown (also used to determine direction of flow)
         // TODO: not 100% sure about the sign of the seg_perf_press_diff
-        const EvalWell drawdown = (pressure_cell + cell_perf_press_diff) - (segment_pressure + perf_seg_press_diff);
+        EvalWell drawdown = (pressure_cell + cell_perf_press_diff) - (segment_pressure + perf_seg_press_diff);
+
+        // when the crossflow is banned, when crossflow is happening for some connections, we give a small
+        // value of drawdown instead of giving a zero rate directly.
+        // from test, it looks like help to obtain more stable results when a lot of crossflow is happening.
+        const double mini_drawdown = 300.0; // pascal
 
         // producing perforations
         if ( drawdown > 0.0) {
             // Do nothing is crossflow is not allowed
             if (!allow_cf && well_type_ == INJECTOR) {
-                return;
+                // TODO: actaully, we did not have a case to test if it is the same case for injectors
+                drawdown = -mini_drawdown;
             }
 
             // compute component volumetric rates at standard conditions
@@ -1004,7 +1010,7 @@ namespace Opm
         } else { // injecting perforations
             // Do nothing if crossflow is not allowed
             if (!allow_cf && well_type_ == PRODUCER) {
-                return;
+                drawdown = mini_drawdown;
             }
 
             // for injecting perforations, we use total mobility
@@ -1847,10 +1853,11 @@ namespace Opm
                             duneB_[seg][cell_idx][comp_idx][pv_idx] -= cq_s_effective.derivative(pv_idx);
                         }
                     }
+                    // TODO: we should save the perforation pressure and preforation rates?
+                    // we do not use it in the simulation for now, while we might need them if
+                    // we handle the pressure in SEG mode.
+                    well_state.perfPhaseRates()[(first_perf_ + perf) * number_of_phases_ + ebosCompIdxToFlowCompIdx(comp_idx)] = cq_s[comp_idx].value();
                 }
-                // TODO: we should save the perforation pressure and preforation rates?
-                // we do not use it in the simulation for now, while we might need them if
-                // we handle the pressure in SEG mode.
             }
 
             // the fourth dequation, the pressure drop equation
