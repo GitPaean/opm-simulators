@@ -733,6 +733,54 @@ namespace Opm
     template <typename TypeTag>
     void
     MultisegmentWell<TypeTag>::
+    updateWellState(const BVectorWell& dwells,
+                    WellState& well_state) const
+    {
+
+        const double dFLimit = param_.dwell_fraction_max_;
+        const double max_pressure_change = param_.max_pressure_change_ms_wells_;
+        const std::vector<std::array<double, numWellEq> > old_primary_variables = primary_variables_;
+
+        for (int seg = 0; seg < numberOfSegments(); ++seg) {
+            if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
+                const int sign = dwells[seg][WFrac] > 0. ? 1 : -1;
+                const double dx_limited = sign * std::min(std::abs(dwells[seg][WFrac]), dFLimit);
+                primary_variables_[seg][WFrac] = old_primary_variables[seg][WFrac] - dx_limited;
+            }
+
+            if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
+                const int sign = dwells[seg][GFrac] > 0. ? 1 : -1;
+                const double dx_limited = sign * std::min(std::abs(dwells[seg][GFrac]), dFLimit);
+                primary_variables_[seg][GFrac] = old_primary_variables[seg][GFrac] - dx_limited;
+            }
+
+            // handling the overshooting or undershooting of the fractions
+            processFractions(seg);
+
+            // update the segment pressure
+            {
+                const int sign = dwells[seg][SPres] > 0.? 1 : -1;
+                const double dx_limited = sign * std::min(std::abs(dwells[seg][SPres]), max_pressure_change);
+                primary_variables_[seg][SPres] = old_primary_variables[seg][SPres] - dx_limited;
+            }
+
+            // update the total rate // TODO: should we have a limitation of the total rate change?
+            {
+                primary_variables_[seg][GTotal] = old_primary_variables[seg][GTotal] - dwells[seg][GTotal];
+            }
+
+        }
+
+        updateWellStateFromPrimaryVariables(well_state);
+    }
+
+
+
+
+
+    template <typename TypeTag>
+    void
+    MultisegmentWell<TypeTag>::
     calculateExplicitQuantities(const Simulator& ebosSimulator,
                                 const WellState& /* well_state */)
     {
@@ -1686,11 +1734,99 @@ namespace Opm
                 break;
             }
 
-            updateWellState(dx_well, true, well_state);
-
-            initPrimaryVariablesEvaluation();
+            lineSearch(ebosSimulator, B, dx_well, dt, well_state);
         }
         // TODO: maybe we should not use these values if they are not converged.
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    void
+    MultisegmentWell<TypeTag>::
+    lineSearch(Simulator& ebosSimulator, const std::vector<double>& B_avg, const BVectorWell& dx_well,
+               const double dt, WellState& well_state)
+    {
+        // among all the several residuals, the residuals of the pressure equation is the one has the highest
+        // priority
+        // If the pressure equation gets converged, how we should handle the residuals of the rest of the residuals?
+
+        ConvergenceReport report0;
+        std::vector<double> maximum_residual0(numWellEq, 0.0);
+        getMaxResiduals(B_avg, maximum_residual0, report0);
+        std::cout << "original maximum residual is " << maximum_residual0[0] << " " << maximum_residual0[1]
+                  << " " << maximum_residual0[2] << " " << maximum_residual0[3] << std::endl;
+
+        if (report0.foundAbnormalResiduals()) {
+            OPM_THROW(std::runtime_error, "there are bad values in the original residuals during lineSearch");
+        }
+        std::vector<bool> convergence_individuals0(numWellEq);
+        const bool converged0 = checkWellIndividualConvergences(maximum_residual0, convergence_individuals0);
+
+        if (converged0) {
+            OPM_THROW(std::runtime_error, "the original solution is already converged, no need to do linearSearch anymore");
+        }
+
+        const WellState well_state0 = well_state;
+        const std::vector<std::array<double, numWellEq> > primary_variables0 = primary_variables_;
+
+        const double reduction_factor = 0.7;
+        double factor = 1.0;
+
+        const double min_factor = 0.05;
+
+        while (factor > min_factor) {
+            std::cout << " factor = " << factor << std::endl;
+            BVectorWell dx = dx_well;
+            std::cout << " dx " << std::endl;
+            for (int seg = 0; seg < numberOfSegments(); ++seg) {
+                for (int eq_idx = 0; eq_idx < numWellEq; ++eq_idx) {
+                    dx[seg][eq_idx] *= factor;
+                    std::cout << dx[seg][eq_idx] << " ";
+                }
+                std::cout << std::endl;
+            }
+            updateWellState(dx, well_state);
+            initPrimaryVariablesEvaluation();
+
+            assembleWellEqWithoutIteration(ebosSimulator, dt, well_state, true);
+
+            ConvergenceReport report;
+            std::vector<double> maximum_residual(numWellEq, 0.0);
+            getMaxResiduals(B_avg, maximum_residual, report);
+
+            const bool solution_accepted = !report.foundAbnormalResiduals() &&
+                                           acceptNewSolution(maximum_residual, maximum_residual0, convergence_individuals0);
+
+            std::cout << " updated maximum_residual is " << maximum_residual[0] << " " << maximum_residual[1]
+                      << " " << maximum_residual[2] << " " << maximum_residual[3] << std::endl;;
+
+            if (solution_accepted) {
+                return;
+            }
+
+            factor *= reduction_factor;
+            well_state = well_state0;
+            primary_variables_ = primary_variables0;
+        }
+
+        // did not find good solution, so we just update with the min_factor
+        // TODO: probably the repeated code can be put in the function updateWellState
+        {
+            std::cout << "lineSearch did not manage to find a good solution, we use the min_factor here to update " << std::endl;
+            BVectorWell dx = dx_well;
+            for (int seg = 0; seg < numberOfSegments(); ++seg) {
+                for (int eq_idx = 0; eq_idx < numWellEq; ++eq_idx) {
+                    dx[seg][eq_idx] *= min_factor;
+                }
+            }
+            updateWellState(dx, well_state);
+            initPrimaryVariablesEvaluation();
+        }
+
+        // OPM_THROW(Opm::NumericalProblem, "lineSearch does not manage to find better solution");
     }
 
 
@@ -1873,6 +2009,90 @@ namespace Opm
                     }
                 }
             }
+        }
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    bool
+    MultisegmentWell<TypeTag>::
+    checkWellIndividualConvergences(const std::vector<double>& maximum_residual,
+                                    std::vector<bool>& convergence_individuals) const
+    {
+        bool converged = true;
+        // for each mass balance equations
+        for (int comp_idx = 0; comp_idx < num_components_; ++comp_idx) {
+            convergence_individuals[comp_idx] = maximum_residual[comp_idx] < param_.tolerance_wells_;
+            converged = converged && convergence_individuals[comp_idx];
+        }
+
+        // for the pressure equation
+        convergence_individuals[SPres] = maximum_residual[SPres] < param_.tolerance_pressure_ms_wells_;
+        converged = converged && convergence_individuals[SPres];
+
+        return converged;
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    bool
+    MultisegmentWell<TypeTag>::
+    acceptNewSolution(const std::vector<double>& maximum_residual,
+                      const std::vector<double>& maximum_residual0,
+                      const std::vector<bool>& convergence_individuals0) const
+    {
+        std::vector<bool> convergence_individuals(numWellEq);
+        const bool converged = checkWellIndividualConvergences(maximum_residual, convergence_individuals);
+
+        // if the new solution get converged, for sure, we can accept it.
+        if (converged) {
+            return true;
+        }
+
+        // if originally, the pressure equation is not converged, we give priority to the pressure equation first
+        if ( !convergence_individuals0[SPres] ) {
+            if (maximum_residual[SPres] < maximum_residual0[SPres]) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        // if originally, the pressure equation gets converged, while new solution,
+        // pressure equation does not get converged, we will not accept it.
+        if (convergence_individuals0[SPres] && !convergence_individuals[SPres]) {
+            return false;
+        }
+
+        // if the pressure equation get converged for the old state and new state, we check the residuals of the mass balance equations
+        // at the moment, we check the biggest residual, the goal is to reduce that residual, while hopefully,
+        // it will not make other residuals worse.
+        // TODO: this can be prolematic, we should find a better standard about what is a better solution here. For example, it makes one residual better, while
+        // make other residual worse.
+        // the component index with the maximum residual
+        int comp_idx_max_residual = -1;
+        double comp_max_residual = 0.; // all the residuals should be bigger or equal than zero
+        for (int comp = 0; comp < num_components_; ++comp) {
+            if (!convergence_individuals0[comp]) {
+                if (maximum_residual0[comp] > comp_max_residual) {
+                    comp_max_residual = maximum_residual0[comp];
+                    comp_idx_max_residual = comp;
+                }
+            }
+        }
+
+        assert(comp_idx_max_residual >= 0);
+
+        if (maximum_residual[comp_idx_max_residual] < maximum_residual0[comp_idx_max_residual]) {
+            return true;
+        } else {
+            return false;
         }
     }
 }

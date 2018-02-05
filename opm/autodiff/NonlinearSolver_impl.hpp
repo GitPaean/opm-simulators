@@ -184,7 +184,7 @@ namespace Opm
         relax_max_       = 0.5;
         relax_increment_ = 0.1;
         relax_rel_tol_   = 0.2;
-        max_iter_        = 10;
+        max_iter_        = 20;
         min_iter_        = 1;
     }
 

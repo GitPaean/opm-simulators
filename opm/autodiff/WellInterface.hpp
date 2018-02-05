@@ -158,6 +158,10 @@ namespace Opm
                 }
                 return *this;
             }
+
+            bool foundAbnormalResiduals() {
+                return nan_residual_found || too_large_residual_found;
+            }
         };
 
         virtual ConvergenceReport getWellConvergence(const std::vector<double>& B_avg) const = 0;

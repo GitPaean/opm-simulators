@@ -271,6 +271,9 @@ namespace Opm
                              const bool inner_iteration,
                              WellState& well_state) const;
 
+        void updateWellState(const BVectorWell& dwells,
+                             WellState& well_state) const;
+
         // initialize the segment rates with well rates
         // when there is no more accurate way to initialize the segment rates, we initialize
         // the segment rates based on well rates with a simple strategy
@@ -352,6 +355,16 @@ namespace Opm
         void getMaxResiduals(const std::vector<double>& B_avg,
                              std::vector<double>& maximum_residual,
                              ConvergenceReport& report) const;
+
+        void lineSearch(Simulator& ebosSimulator, const std::vector<double>& B_avg, const BVectorWell& dx_well,
+                        const double dt, WellState& well_state);
+
+        bool checkWellIndividualConvergences(const std::vector<double>& maximum_residual,
+                                             std::vector<bool>& convergence_individuals) const;
+
+        bool acceptNewSolution(const std::vector<double>& maximum_residual,
+                               const std::vector<double>& maximum_residual0,
+                               const std::vector<bool>& convergence_individuals0) const;
     };
 
 }

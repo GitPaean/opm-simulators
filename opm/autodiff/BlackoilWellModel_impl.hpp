@@ -522,6 +522,12 @@ namespace Opm {
             }
         }
 
+        if (converged) {
+            std::cout << " solveWellEq gets converged !" << std::endl;
+        } else {
+            std::cout << " solveWellEq DID NOT get converged !" << std::endl;
+        }
+
         SimulatorReport report;
         report.converged = converged;
         report.total_well_iterations = it;

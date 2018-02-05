@@ -87,7 +87,7 @@ namespace Opm
         max_welleq_iter_ = 15;
         max_pressure_change_ms_wells_ = unit::convert::from(2.0, unit::barsa); // 2.0 bar
         use_inner_iterations_ms_wells_ = true;
-        max_inner_iter_ms_wells_ = 10;
+        max_inner_iter_ms_wells_ = 20;
         maxSinglePrecisionTimeStep_ = unit::convert::from( 20.0, unit::day );
         solve_welleq_initially_ = true;
         update_equations_scaling_ = false;
