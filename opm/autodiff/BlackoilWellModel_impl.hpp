@@ -176,6 +176,9 @@ namespace Opm {
         // and connections due to economical limits
         // Used by the wellManager
         updateListEconLimited(dynamic_list_econ_limited_);
+        if (numWells() > 0) {
+            well_state_.output(wells());
+        }
     }
 
     // called at the end of a report step

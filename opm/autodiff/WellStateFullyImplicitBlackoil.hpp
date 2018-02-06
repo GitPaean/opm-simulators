@@ -35,6 +35,8 @@
 #include <algorithm>
 #include <array>
 
+#include <iostream>
+
 namespace Opm
 {
 
@@ -588,6 +590,67 @@ namespace Opm
             assert(w < int(top_segment_index_.size()) );
 
             return top_segment_index_[w];
+        }
+
+        void output(const Wells* wells) const {
+            const int nw = wells->number_of_wells;
+            if (nw == 0) {
+                std::cout << " nw == 0 " << std::endl;
+                return;
+            }
+            const int np = numPhases();
+            for (int w = 0; w < nw; ++w) {
+                std::cout << " outputting the well state for well " << wells->name[w] << std::endl;
+                const auto it = wellMap().find(wells->name[w]);
+
+                if (it == wellMap().end()) {
+                    std::cout << " could not find well " << wells->name[w] << std::endl;
+                }
+
+                if (it->second[0] != w) {
+                    std::cout << " it->second[0] " << it->second[0] << " w " << w << std::endl;
+                }
+                const int first_perf = wells->well_connpos[w];
+                const int num_perf_this_well = wells->well_connpos[w + 1] - wells->well_connpos[w];
+                std::cout << " bhp " << bhp()[w] / 1.e5;
+                std::cout << " well rates ";
+                for (int p = 0; p < np; ++p) {
+                    std::cout << wellRates()[p] * 86400. << " ";
+                }
+                std::cout << std::endl;
+
+                std::cout << " perforation phase rates " << std::endl;
+                for (int perf = 0; perf < num_perf_this_well; ++perf) {
+                    const int perf_index = perf + first_perf;
+                    for (int p = 0; p < np; ++p) {
+                        std::cout << "  " << perfPhaseRates()[np * perf_index + p] * 86400.;
+                    }
+                    std::cout << std::endl;
+                }
+
+                if (!top_segment_index_.empty()) {
+                    const int first_seg = top_segment_index_[w];
+                    int nseg;
+                    if (w < nw - 1 ) {
+                        nseg = top_segment_index_[w+1] - top_segment_index_[w];
+                    } else {
+                        nseg = nseg_ - top_segment_index_[w];
+                    }
+                    std::cout << " output the segment rates " << std::endl;
+                    for (int seg = 0;  seg < nseg; ++seg) {
+                        const int seg_index = first_seg + seg;
+                        for (int p = 0; p < np; ++p) {
+                            std::cout << "  " << segRates()[np * seg_index + p] * 86400.;
+                        }
+                        std::cout << std::endl;
+                    }
+                    std::cout << " output the segment pressure " << std::endl;
+                    for (int seg = 0; seg < nseg; ++seg) {
+                        const int seg_index = first_seg + seg;
+                        std::cout << " " << segPress()[seg_index] / 1.e5 << std::endl;
+                    }
+                }
+            }
         }
 
     private:
