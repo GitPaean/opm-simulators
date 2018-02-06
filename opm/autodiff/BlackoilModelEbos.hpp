@@ -42,7 +42,7 @@
 #include <opm/common/OpmLog/OpmLog.hpp>
 #include <opm/parser/eclipse/Units/Units.hpp>
 #include <opm/simulators/timestepping/SimulatorTimer.hpp>
-#include <opm/core/utility/parameters/ParameterGroup.hpp>
+#include <opm/common/utility/parameters/ParameterGroup.hpp>
 #include <opm/parser/eclipse/EclipseState/EclipseState.hpp>
 #include <opm/parser/eclipse/EclipseState/Tables/TableManager.hpp>
 
@@ -527,12 +527,20 @@ namespace Opm {
           typedef Dune::CollectiveCommunication< Grid > communication_type;
 #endif
 
+#if DUNE_VERSION_NEWER(DUNE_ISTL, 2, 6)
+          Dune::SolverCategory::Category category() const override
+          {
+            return overlapping ?
+                   Dune::SolverCategory::overlapping : Dune::SolverCategory::sequential;
+          }
+#else
           enum {
             //! \brief The solver category.
             category = overlapping ?
                 Dune::SolverCategory::overlapping :
                 Dune::SolverCategory::sequential
           };
+#endif
 
           //! constructor: just store a reference to a matrix
           WellModelMatrixAdapter (const M& A, const WellModel& wellMod, const boost::any& parallelInformation = boost::any() )
