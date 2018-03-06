@@ -527,7 +527,8 @@ namespace Opm {
                     auto& pv  = ra.pv;
 
                     // sum p, rs, rv, and T.
-                    double hydrocarbonPV = pv_cell*hydrocarbon;
+                    // double hydrocarbonPV = pv_cell*hydrocarbon;
+                    double hydrocarbonPV = pv_cell;
                     pv += hydrocarbonPV;
                     p += fs.pressure(FluidSystem::oilPhaseIdx).value()*hydrocarbonPV;
                     rs += fs.Rs().value()*hydrocarbonPV;
