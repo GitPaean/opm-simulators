@@ -553,13 +553,13 @@ inline VFPEvaluation bhp(const VFPInjTable* table,
  * Returns the table from the map if found, or throws an exception
  */
 template <typename T>
-const T* getTable(const std::map<int, T*> tables, int table_id) {
+const T* getTable(const std::map<int, T> tables, int table_id) {
     auto entry = tables.find(table_id);
     if (entry == tables.end()) {
         OPM_THROW(std::invalid_argument, "Nonexistent table " << table_id << " referenced.");
     }
     else {
-        return entry->second;
+        return &(entry->second);
     }
 }
 

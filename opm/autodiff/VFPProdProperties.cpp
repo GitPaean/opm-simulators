@@ -29,6 +29,7 @@
 #include <opm/autodiff/VFPHelpers.hpp>
 
 
+#include <utility>
 
 namespace Opm {
 
@@ -41,17 +42,13 @@ VFPProdProperties::VFPProdProperties() {
 
 
 
-VFPProdProperties::VFPProdProperties(const VFPProdTable* table){
-    m_tables[table->getTableNum()] = table;
+VFPProdProperties::VFPProdProperties(const VFPProdTable* table) {
+    const int table_id = table->getTableNum();
+    m_tables.insert(std::make_pair(table_id, *table));
 }
 
-
-
-
-VFPProdProperties::VFPProdProperties(const std::map<int, VFPProdTable>& tables) {
-    for (const auto& table : tables) {
-        m_tables[table.first] = &(table.second);
-    }
+VFPProdProperties::VFPProdProperties(const std::map<int, VFPProdTable>& tables)
+  : m_tables(std::move(tables)) {
 }
 
 VFPProdProperties::ADB VFPProdProperties::bhp(const std::vector<int>& table_id,

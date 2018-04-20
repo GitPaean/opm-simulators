@@ -29,14 +29,14 @@ namespace Opm {
 VFPProperties::VFPProperties() {
 }
 
-VFPProperties::VFPProperties(const VFPInjTable* inj_table, const VFPProdTable* prod_table) {
+/* VFPProperties::VFPProperties(const VFPInjTable* inj_table, const VFPProdTable* prod_table) {
     if (inj_table != NULL) {
         m_inj.reset(new VFPInjProperties(inj_table));
     }
     if (prod_table != NULL) {
         m_prod.reset(new VFPProdProperties(prod_table));
     }
-}
+} */
 
 VFPProperties::VFPProperties(const std::map<int, VFPInjTable>& inj_tables,
                              const std::map<int, VFPProdTable>& prod_tables) {

@@ -44,7 +44,7 @@ public:
      * @param inj_table  A *single* VFPINJ table or NULL (no table)
      * @param prod_table A *single* VFPPROD table or NULL (no table)
      */
-    explicit VFPProperties(const VFPInjTable* inj_table, const VFPProdTable* prod_table);
+    // explicit VFPProperties(const VFPInjTable* inj_table, const VFPProdTable* prod_table);
 
     /**
      * Constructor

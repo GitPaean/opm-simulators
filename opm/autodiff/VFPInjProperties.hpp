@@ -193,7 +193,7 @@ public:
 
 private:
     // Map which connects the table number with the table itself
-    std::map<int, const VFPInjTable*> m_tables;
+    std::map<int, VFPInjTable> m_tables;
 };
 
 

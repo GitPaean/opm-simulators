@@ -31,6 +31,8 @@
 
 #include <opm/autodiff/VFPHelpers.hpp>
 
+#include <utility>
+
 
 
 namespace Opm {
@@ -54,17 +56,16 @@ VFPInjProperties::VFPInjProperties() {
 
 
 
-VFPInjProperties::VFPInjProperties(const VFPInjTable* table){
-    m_tables[table->getTableNum()] = table;
+VFPInjProperties::VFPInjProperties(const VFPInjTable* table) {
+    const int table_id = table->getTableNum();
+    m_tables.insert(std::make_pair(table_id, *table));
 }
 
 
 
 
-VFPInjProperties::VFPInjProperties(const std::map<int, VFPInjTable>& tables) {
-    for (const auto& table : tables) {
-        m_tables[table.first] = &(table.second);
-    }
+VFPInjProperties::VFPInjProperties(const std::map<int, VFPInjTable>& tables)
+  : m_tables(std::move(tables)) {
 }
 
 VFPInjProperties::ADB VFPInjProperties::bhp(const std::vector<int>& table_id,

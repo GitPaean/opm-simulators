@@ -212,7 +212,7 @@ public:
 
 private:
     // Map which connects the table number with the table itself
-    std::map<int, const VFPProdTable*> m_tables;
+    std::map<int, VFPProdTable> m_tables;
 };
 
 
