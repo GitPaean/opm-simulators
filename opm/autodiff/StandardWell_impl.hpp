@@ -2046,6 +2046,29 @@ namespace Opm
 
 
 
+    template<typename TypeTag>
+    double
+    StandardWell<TypeTag>::
+    computeBhpFromThpIterative(const Simulator& ebosSimulator,
+                               const WellState& well_state,
+                               const double thp) const
+    {
+        // in the code to calculate well potential with THP, if we have an available well rates
+        // (Not from the simple initialization as a new well), we begin with the well rates
+        // Otherwise, we calculate the well rates based on one BHP value then use very small values of it.
+        // Based on this, it can mean we might should use a small value of the well rates while keep some reasonable ratios
+        // But here, we need to have a reasonable guess for the BHP value.
+        // We can put a guess of BHP value from the reservoir or from the VFP table based on some analysis (based on the THP value).
+        // The residual equation will be p_bhp - VFP(thp, rates(p_bhp)) = 0, p_bhp is the unkown and only primary variable.
+        // As a result, it will need the Evaluation1.
+        // And a few related functions need to change to be more template not only handle EvalWell, but also other Evaluation or even pure
+        // double.
+    }
+
+
+
+
+
 
 
     template<typename TypeTag>

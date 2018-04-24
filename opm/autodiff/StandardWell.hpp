@@ -309,6 +309,19 @@ namespace Opm
         void updateWaterMobilityWithPolymer(const Simulator& ebos_simulator,
                                             const int perf,
                                             std::vector<EvalWell>& mob_water) const;
+
+        // TODO: remove Iterative later when the implementation is confirmed
+        // TODO: maybe we should also output/update the well rates, so we will change the function name to be something like
+        // updateWellStateWithTHPTarget()
+        //
+        // Currently there is one another simple version of calculateBhpFromThp there, which is not iterative
+        // 1. ebosSimulator used to get the pressure for the perforated cells, which will be used to initialize the bhp value.
+        // 2. we need an initial fluid composition withthin the wellbore to initialize the pressure drop between perforations, and also
+        //    calculate the perforation densities?
+        // 3. thp, is the thp target value the well is currently under
+        double computeBhpFromThpIterative(const Simulator& ebosSimulator,
+                                          const WellState& well_state,
+                                          const double thp) const;
     };
 
 }
