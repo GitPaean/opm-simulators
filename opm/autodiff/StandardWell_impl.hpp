@@ -376,7 +376,7 @@ namespace Opm
     template<typename TypeTag>
     typename StandardWell<TypeTag>::EvalWell
     StandardWell<TypeTag>::
-    extendEval(const Eval& in) const
+    extendEval(const Eval& in)
     {
         EvalWell out = 0.0;
         out.setValue(in.value());
@@ -404,9 +404,12 @@ namespace Opm
             cmix_s[componentIdx] = wellSurfaceVolumeFraction(componentIdx);
         }
         const auto& fs = intQuants.fluidState();
-        const EvalWell pressure = extendEval(fs.pressure(FluidSystem::oilPhaseIdx));
-        const EvalWell rs = extendEval(fs.Rs());
-        const EvalWell rv = extendEval(fs.Rv());
+        EvalWell pressure;
+        convertEvalType(fs.pressure(FluidSystem::oilPhaseIdx), pressure);
+        EvalWell rs;
+        convertEvalType(fs.Rs(), rs);
+        EvalWell rv;
+        convertEvalType(fs.Rv(), rv);
         std::vector<EvalWell> b_perfcells_dense(num_components_, 0.0);
         for (unsigned phaseIdx = 0; phaseIdx < FluidSystem::numPhases; ++phaseIdx) {
             if (!FluidSystem::phaseIsActive(phaseIdx)) {

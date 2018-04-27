@@ -237,7 +237,12 @@ namespace Opm
 
         EvalWell wellSurfaceVolumeFraction(const int phase) const;
 
-        EvalWell extendEval(const Eval& in) const;
+        static EvalWell extendEval(const Eval& in);
+
+        template<typename TargetType>
+        static void convertEvalType(const Eval& in, TargetType& out) {}
+
+        static void convertEvalType(const Eval& in, double& out) {}
 
         bool crossFlowAllowed(const Simulator& ebosSimulator) const;
 
