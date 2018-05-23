@@ -730,6 +730,8 @@ namespace Opm
             }
             resWell_[0][componentIdx] += resWell_loc.value();
         }
+
+        linsolver_invdx_ = Dune::UMFPack<DiagMatWell>(duneD_, 0);
     }
 
 
@@ -1613,7 +1615,7 @@ namespace Opm
     {
         // We assemble the well equations, then we check the convergence,
         // which is why we do not put the assembleWellEq here.
-        const BVectorWell dx_well = wellhelpers::invDXDirect(duneD_, resWell_);
+        const BVectorWell dx_well = wellhelpers::invDXDirect(linsolver_invdx_, resWell_);
 
         updateWellState(dx_well, well_state);
     }
@@ -1668,7 +1670,7 @@ namespace Opm
         // Bx_ = duneB_ * x
         duneB_.mv(x, Bx_);
         // invDBx = duneD_^-1 * Bx_
-        const BVectorWell invDBx = wellhelpers::invDXDirect(duneD_, Bx_);
+        const BVectorWell invDBx = wellhelpers::invDXDirect(linsolver_invdx_, Bx_);
 
         // Ax = Ax - duneC_^T * invDBx
         duneC_.mmtv(invDBx,Ax);
@@ -1685,7 +1687,7 @@ namespace Opm
         assert( invDrw_.size() == duneD_.N() );
 
         // invDrw_ = duneD_^-1 * resWell_
-        invDrw_ = wellhelpers::invDXDirect(duneD_, resWell_);
+        invDrw_ = wellhelpers::invDXDirect(linsolver_invdx_, resWell_);
         // r = r - duneC_^T * invDrw_
         duneC_.mmtv(invDrw_, r);
     }
@@ -1703,7 +1705,7 @@ namespace Opm
         // resWell = resWell - B * x
         duneB_.mmv(x, resWell);
         // xw = D^-1 * resWell
-        xw = wellhelpers::invDXDirect(duneD_, resWell);
+        xw = wellhelpers::invDXDirect(linsolver_invdx_, resWell);
     }
 
 

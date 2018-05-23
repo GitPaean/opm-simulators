@@ -221,6 +221,9 @@ namespace Opm
         // residuals of the well equations
         mutable BVectorWell resWell_;
 
+        // director linear solver for D^-1 x
+        mutable Dune::UMFPack<DiagMatWell> linsolver_invdx_;
+
         // the values for the primary varibles
         // based on different solutioin strategies, the wells can have different primary variables
         mutable std::vector<std::array<double, numWellEq> > primary_variables_;

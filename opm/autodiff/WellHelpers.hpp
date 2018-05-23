@@ -26,9 +26,7 @@
 
 #include <vector>
 
-#if HAVE_UMFPACK
 #include <dune/istl/umfpack.hh>
-#endif // HAVE_UMFPACK
 
 namespace Opm {
 
@@ -196,15 +194,13 @@ namespace Opm {
 
 
         // obtain y = D^-1 * x with a direct solver
-        template <typename MatrixType, typename VectorType>
+        // the decompostion of D is stored in linsolver
+        template <typename SolverType, typename VectorType>
         VectorType
-        invDXDirect(const MatrixType& D, VectorType x)
+        invDXDirect(SolverType& linsolver, VectorType x)
         {
-#if HAVE_UMFPACK
             VectorType y(x.size());
             y = 0.;
-
-            Dune::UMFPack<MatrixType> linsolver(D, 0);
 
             // Object storing some statistics about the solving process
             Dune::InverseOperatorResult res;
@@ -223,10 +219,6 @@ namespace Opm {
             }
 
             return y;
-#else
-            OPM_THROW(std::runtime_error, "Cannot use invDXDirect() without UMFPACK. "
-                      "Reconfigure opm-simulator with SuiteSparse/UMFPACK support and recompile.");
-#endif // HAVE_UMFPACK
         }
 
     } // namespace wellhelpers
