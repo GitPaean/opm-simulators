@@ -731,7 +731,7 @@ namespace Opm
             resWell_[0][componentIdx] += resWell_loc.value();
         }
 
-        linsolver_invdx_ = Dune::UMFPack<DiagMatWell>(duneD_, 0);
+        linsolver_invdx_.setMatrix(duneD_);
     }
 
 
