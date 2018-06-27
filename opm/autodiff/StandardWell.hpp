@@ -28,6 +28,13 @@
 #include <opm/autodiff/ISTLSolver.hpp>
 #include <opm/autodiff/RateConverter.hpp>
 
+#include <opm/material/densead/MathV.hpp>
+#include <opm/material/densead/EvaluationV.hpp>
+
+#include <dune/common/dynvector.hh>
+#include <dune/common/dynmatrix.hh>
+
+
 namespace Opm
 {
 
@@ -103,19 +110,16 @@ namespace Opm
         // B  D ]   x_well]      res_well]
 
         // the vector type for the res_well and x_well
-        typedef Dune::FieldVector<Scalar, numWellEq> VectorBlockWellType;
+        typedef Dune::DynamicVector<Scalar> VectorBlockWellType;
         typedef Dune::BlockVector<VectorBlockWellType> BVectorWell;
 
         // the matrix type for the diagonal matrix D
-        typedef Dune::FieldMatrix<Scalar, numWellEq, numWellEq > DiagMatrixBlockWellType;
+        // since we will resize all the matrices individually, one single type
+        // for the three matrices will be okay
+        typedef Dune::DynamicMatrix<Scalar> MatrixBlockWellType;
+        typedef Dune::BCRSMatrix <MatrixBlockWellType> MatWell;
 
-        typedef Dune::BCRSMatrix <DiagMatrixBlockWellType> DiagMatWell;
-
-        // the matrix type for the non-diagonal matrix B and C^T
-        typedef Dune::FieldMatrix<Scalar, numWellEq, numEq>  OffDiagMatrixBlockWellType;
-        typedef Dune::BCRSMatrix<OffDiagMatrixBlockWellType> OffDiagMatWell;
-
-        typedef DenseAd::Evaluation<double, /*size=*/numEq + numWellEq> EvalWell;
+        typedef DenseAd::EvaluationV<Scalar> EvalWell;
 
         using Base::contiSolventEqIdx;
         using Base::contiPolymerEqIdx;
@@ -223,10 +227,10 @@ namespace Opm
         BVectorWell resWell_;
 
         // two off-diagonal matrices
-        OffDiagMatWell duneB_;
-        OffDiagMatWell duneC_;
+        MatWell duneB_;
+        MatWell duneC_;
         // diagonal matrix for the well
-        DiagMatWell invDuneD_;
+        MatWell invDuneD_;
 
         // several vector used in the matrix calculation
         mutable BVectorWell Bx_;
