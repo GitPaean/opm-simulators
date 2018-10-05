@@ -333,6 +333,10 @@ namespace Opm
 
         bool wellHasTHPConstraints() const;
 
+        double getTHPConstraint() const;
+
+        int getTHPControlIndex() const;
+
         // Component fractions for each phase for the well
         const std::vector<double>& compFrac() const;
 

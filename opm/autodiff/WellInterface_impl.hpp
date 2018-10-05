@@ -379,16 +379,44 @@ namespace Opm
     WellInterface<TypeTag>::
     wellHasTHPConstraints() const
     {
-        const int nwc = well_controls_get_num(well_controls_);
-        for (int ctrl_index = 0; ctrl_index < nwc; ++ctrl_index) {
-            if (well_controls_iget_type(well_controls_, ctrl_index) == THP) {
-                return true;
-            }
-        }
-        return false;
+        return getTHPControlIndex() >= 0;
     }
 
 
+
+
+    template<typename TypeTag>
+    double
+    WellInterface<TypeTag>::
+    getTHPConstraint() const
+    {
+        const int thp_control_index = getTHPControlIndex();
+
+        if (thp_control_index >= 0) {
+            return well_controls_iget_target(well_controls_, thp_control_index);
+        } else {
+            // TODO: better way to handle this?
+            // assert before this?
+            return -1.e100;
+        }
+    }
+
+
+
+
+    template<typename TypeTag>
+    int
+    WellInterface<TypeTag>::
+    getTHPControlIndex() const
+    {
+        const int nwc = well_controls_get_num(well_controls_);
+        for (int ctrl_index = 0; ctrl_index < nwc; ++ctrl_index) {
+            if (well_controls_iget_type(well_controls_, ctrl_index) == THP) {
+                return ctrl_index;
+            }
+        }
+        return -1;
+    }
 
 
 
