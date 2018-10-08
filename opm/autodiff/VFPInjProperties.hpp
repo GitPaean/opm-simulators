@@ -22,6 +22,8 @@
 
 #include <opm/parser/eclipse/EclipseState/Schedule/VFPInjTable.hpp>
 #include <opm/core/wells.h>
+// TODO: this one not sure should be here.
+#include <opm/core/props/BlackoilPhases.hpp>
 #include <opm/material/densead/Math.hpp>
 #include <opm/material/densead/Evaluation.hpp>
 #include <opm/autodiff/VFPHelpers.hpp>
@@ -190,6 +192,106 @@ public:
     bool empty() const {
         return m_tables.empty();
     }
+
+
+    /**
+     * Return the bhp value based on the input flo rate
+     */
+    double bhp(const int table_id,
+               const double& flo,
+               const double& thp) const {
+
+        //Get the table
+        const VFPInjTable* table = detail::getTable(m_tables, table_id);
+
+        //First, find the values to interpolate between
+        //Value of FLO is negative in OPM for producers, but positive in VFP table
+        const auto flo_i = detail::findInterpData(flo, table->getFloAxis());
+        const auto thp_i = detail::findInterpData(thp, table->getTHPAxis()); // assume constant
+
+        const detail::VFPEvaluation bhp_val = detail::interpolate(table->getTable(), flo_i, thp_i);
+
+        return bhp_val.value;
+    }
+
+    // TODO: might need to be moved to cpp file
+    double calculateBhpWithTHPTarget(const std::vector<double>& rates1,
+                                     const std::vector<double>& rates2,
+                                     // bhp2 is the bhp limit, the bhp1 is the middle af bhp2 and cell pressure
+                                     const double bhp1,
+                                     const double bhp2,
+                                     const double dp,
+                                     const int table_id,
+                                     const double thp) const
+    {
+        assert(table_id > 0);
+
+        const VFPInjTable* table = detail::getTable(m_tables, table_id);
+
+        const int Water = BlackoilPhases::Aqua;
+        const int Oil = BlackoilPhases::Liquid;
+        const int Gas = BlackoilPhases::Vapour;
+
+        // FLO is the rate
+        const double aqua1 = rates1[Water];
+        const double liquid1 = rates1[Oil];
+        const double vapour1 = rates1[Gas];
+        const double flo_rate1 = detail::getFlo(aqua1, liquid1, vapour1, table->getFloType());
+
+        const double aqua2 = rates2[Water];
+        const double liquid2 = rates2[Oil];
+        const double vapour2 = rates2[Gas];
+        const double flo_rate2 = detail::getFlo(aqua2, liquid2, vapour2, table->getFloType());
+
+        /* std::cout << "flo_rate1 is " << flo_rate1 << std::endl;
+        std::cout << " bhp1 is " << bhp1 << std::endl;
+
+        std::cout << "flo_rate2 is " << flo_rate2 << std::endl;
+        std::cout << " bhp2 is " << bhp2 << std::endl; */
+
+        const int sample_number = 1000;
+        std::vector<double> bhp_samples(sample_number);
+        std::vector<double> rate_samples(sample_number, 0.);
+
+        // rate sampling interval
+        const double rate_iterval = flo_rate2 / (sample_number - 1);
+        for (int i = 0; i < sample_number; ++i) {
+            rate_samples[i] =  i * rate_iterval;
+        }
+
+        // based on all the rate samples, let us calculate the bhp_samples
+        for (int i = 0; i < sample_number; ++i) {
+            bhp_samples[i] = bhp(table_id, rate_samples[i], thp) - dp;
+        }
+
+        /* std::cout << " the rate and bhp samples " << std::endl;
+        for (int i = 0; i < sample_number; ++i) {
+            std::cout << rate_samples[i] << " " << bhp_samples[i] << std::endl;
+        } */
+
+        double return_bhp = 1.e-100;
+        // interface needs to be resigned
+        const bool found = detail::findIntersectionForBhp(rate_samples, bhp_samples, flo_rate1, flo_rate2, bhp1, bhp2, return_bhp);
+
+        // TODO: we need to do some sanity check of the value of the return_bhp. It can be negative. Or even below the reservoir pressure
+        // is not allowed, since it means it can not inject under this THP constraint. But the value of dp is not very accurate here, it can
+        // result in the situation wrongly.
+
+        // std::cout << " return_bhp " << return_bhp << std::endl;
+
+        if (!found) {
+            std::cout << " COULD NOT find an Intersection point, the well might need to be closed " << std::endl;
+            std::cin.ignore();
+        }
+
+        if (return_bhp < 1.0e5) {
+            std::cout << " a non-realistic bhp is obtained, we need to check it " << std::endl;
+            std::cin.ignore();
+        }
+
+        return return_bhp;
+    }
+
 
 private:
     // Map which connects the table number with the table itself

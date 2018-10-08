@@ -22,6 +22,8 @@
 
 #include <opm/parser/eclipse/EclipseState/Schedule/VFPProdTable.hpp>
 #include <opm/core/wells.h>
+// TODO: this one not sure should be here.
+#include <opm/core/props/BlackoilPhases.hpp>
 #include <opm/material/densead/Math.hpp>
 #include <opm/material/densead/Evaluation.hpp>
 #include <opm/autodiff/VFPHelpers.hpp>
@@ -135,8 +137,13 @@ public:
 
         //Find interpolation variables
         EvalWell flo = detail::getFlo(aqua, liquid, vapour, table->getFloType());
-        EvalWell wfr = detail::getWFR(aqua, liquid, vapour, table->getWFRType());
-        EvalWell gfr = detail::getGFR(aqua, liquid, vapour, table->getGFRType());
+        EvalWell wfr = detail::getWFR(aqua, liquid, vapour, table);
+        EvalWell gfr = detail::getGFR(aqua, liquid, vapour, table);
+        /* std::cout << " flo " << flo << std::endl;
+        std::cout << " wfr " << wfr << std::endl;
+        std::cout << " gfr " << gfr << std::endl;
+        std::cout << " thp " << thp << std::endl;
+        std::cout << " alq " << alq << std::endl; */
 
         //Compute the BHP for each well independently
         if (table != nullptr) {
@@ -144,13 +151,27 @@ public:
             //Value of FLO is negative in OPM for producers, but positive in VFP table
             auto flo_i = detail::findInterpData(-flo.value(), table->getFloAxis());
             auto thp_i = detail::findInterpData( thp, table->getTHPAxis()); // assume constant
+            // std::cout << " Looking FOR WFR_I here with wfr " << wfr.value() << std::endl;
             auto wfr_i = detail::findInterpData( wfr.value(), table->getWFRAxis());
+            // std::cout << " Looking FOR GFR_I here with gfr " << gfr.value() << std::endl;
             auto gfr_i = detail::findInterpData( gfr.value(), table->getGFRAxis());
+            // std::cout << " Looking FOR ALQ_I here with alq  value " << alq << std::endl;
             auto alq_i = detail::findInterpData( alq, table->getALQAxis()); //assume constant
+
+            /* std::cout << " flo_i " << std::endl << flo_i << std::endl;
+            std::cout << " thp_i " << std::endl << thp_i << std::endl;
+            std::cout << " wfr_i " << std::endl << wfr_i << std::endl;
+            std::cout << " gfr_i " << std::endl << gfr_i << std::endl;
+            std::cout << " alq_i " << std::endl << alq_i << std::endl; */
 
             detail::VFPEvaluation bhp_val = detail::interpolate(table->getTable(), flo_i, thp_i, wfr_i, gfr_i, alq_i);
 
+            std::cout << " bhp_val " << bhp_val.value << std::endl;
+
             bhp = (bhp_val.dwfr * wfr) + (bhp_val.dgfr * gfr) - (bhp_val.dflo * flo);
+            /* std::cout << "(bhp_val.dwfr * wfr) " << (bhp_val.dwfr * wfr) << std::endl;
+            std::cout << "(bhp_val.dgfr * gfr) " << (bhp_val.dgfr * gfr) << std::endl;
+            std::cout << "(bhp_val.dflo * flo) " << (bhp_val.dflo * flo) << std::endl; */
             bhp.setValue(bhp_val.value);
         }
         else {
@@ -158,6 +179,25 @@ public:
         }
         return bhp;
     }
+
+
+    double bhpwithflo(const int table_id,
+                      const double flo,
+                      const double wfr,
+                      const double gfr,
+                      const double thp,
+                      const double alq) const;
+
+
+    double calculateBhpWithTHPTarget(const std::vector<double>& rates1,
+                                     const std::vector<double>& rates2,
+                                     // bhp2 is the bhp limit, the bhp1 is the middle af bhp2 and cell pressure
+                                     const double bhp1,
+                                     const double bhp2,
+                                     const double dp,
+                                     const int table_id,
+                                     const double thp,
+                                     const double alq) const;
 
     /**
      * Linear interpolation of bhp as a function of the input parameters

@@ -53,6 +53,19 @@ inline EvalWell zeroIfNan(const EvalWell& value) {
     return (std::isnan(value.value())) ? 0.0 : value;
 }
 
+// TODO: maybe some improvement can be done for the followng two functions
+inline double processedInfNanValue(const std::vector<double>& table_values,
+                                   const double& value) {
+    return std::isnan(value) ? table_values.front() :
+          ( std::isinf(value) ? table_values.back() : value );
+}
+
+template <class EvalWell>
+inline EvalWell processedInfNanValue(const std::vector<double>& table_values,
+                                     const EvalWell& value) {
+    return std::isnan(value.value()) ? table_values.front() :
+          ( std::isinf(value.value()) ? table_values.back() : value );
+}
 
 
 /**
@@ -134,6 +147,65 @@ static T getFlo(const T& aqua, const T& liquid, const T& vapour,
  */
 template <typename T>
 static T getWFR(const T& aqua, const T& liquid, const T& vapour,
+                  const VFPProdTable* table) {
+
+    const auto type = table->getWFRType();
+    switch(type) {
+        case VFPProdTable::WFR_WOR: {
+            //Water-oil ratio = water / oil
+            T wor = aqua / liquid;
+            return processedInfNanValue(table->getWFRAxis(), wor);
+        }
+        case VFPProdTable::WFR_WCT:
+            //Water cut = water / (water + oil)
+            return processedInfNanValue(table->getWFRAxis(), aqua / (aqua + liquid));
+        case VFPProdTable::WFR_WGR:
+            //Water-gas ratio = water / gas
+            return processedInfNanValue(table->getWFRAxis(), aqua / vapour);
+        case VFPProdTable::WFR_INVALID: //Intentional fall-through
+        default:
+            OPM_THROW(std::logic_error, "Invalid WFR_TYPE: '" << type << "'");
+    }
+}
+
+
+
+
+
+
+/**
+ * Computes the gfr parameter according to the gfr_type_
+ * @return Production rate of oil, gas or liquid.
+ */
+template <typename T>
+static T getGFR(const T& aqua, const T& liquid, const T& vapour,
+                  const VFPProdTable* table) {
+
+    const auto type = table->getGFRType();
+    switch(type) {
+        case VFPProdTable::GFR_GOR:
+            // Gas-oil ratio = gas / oil
+            return processedInfNanValue(table->getGFRAxis(), vapour / liquid);
+        case VFPProdTable::GFR_GLR:
+            // Gas-liquid ratio = gas / (oil + water)
+            return processedInfNanValue(table->getGFRAxis(), vapour / liquid + aqua);
+        case VFPProdTable::GFR_OGR:
+            // Oil-gas ratio = oil / gas
+            return processedInfNanValue(table->getGFRAxis(), liquid / vapour);
+        case VFPProdTable::GFR_INVALID: //Intentional fall-through
+        default:
+            OPM_THROW(std::logic_error, "Invalid GFR_TYPE: '" << type << "'");
+    }
+}
+
+
+
+/**
+ * Computes the wfr parameter according to the wfr_type_
+ * @return Production rate of oil, gas or liquid.
+ */
+template <typename T>
+static T getWFR(const T& aqua, const T& liquid, const T& vapour,
                   const VFPProdTable::WFR_TYPE& type) {
     switch(type) {
         case VFPProdTable::WFR_WOR: {
@@ -152,8 +224,6 @@ static T getWFR(const T& aqua, const T& liquid, const T& vapour,
             OPM_THROW(std::logic_error, "Invalid WFR_TYPE: '" << type << "'");
     }
 }
-
-
 
 
 
@@ -194,6 +264,11 @@ struct InterpData {
     int ind_[2]; //[First element greater than or equal to value, Last element smaller than or equal to value]
     double inv_dist_; // 1 / distance between the two end points of the segment. Used to calculate derivatives and uses 1.0 / 0.0 = 0.0 as a convention
     double factor_; // Interpolation factor
+
+    friend std::ostream& operator<<(std::ostream& out, const InterpData& data) {
+        return out << " ind_[0] " << data.ind_[0] << " ind_[1] " << data.ind_[1]
+                   << " inv_dist_ " << data.inv_dist_ << " factor_ " << data.factor_ << std::endl;
+    }
 };
 
 
@@ -207,7 +282,18 @@ struct InterpData {
  *  @param values Sorted list of values to search for value in.
  *  @return Data required to find the interpolated value
  */
-inline InterpData findInterpData(const double& value, const std::vector<double>& values) {
+inline InterpData findInterpData(const double& input_value, const std::vector<double>& values) {
+
+    double value = input_value;
+
+    if (std::isinf(input_value)) {
+        value = values.back();
+    }
+
+    if (std::isnan(input_value)) {
+        value = values.front();
+    }
+
     InterpData retval;
 
     const int nvalues = values.size();
@@ -245,6 +331,8 @@ inline InterpData findInterpData(const double& value, const std::vector<double>&
         const double start = values[retval.ind_[0]];
         const double end   = values[retval.ind_[1]];
 
+        // std::cout << " start " << start << " end " << end << std::endl;
+
         //Find interpolation ratio
         if (end > start) {
             //FIXME: Possible source for floating point error here if value and floor are large,
@@ -257,6 +345,7 @@ inline InterpData findInterpData(const double& value, const std::vector<double>&
             retval.factor_ = 0.0;
         }
     }
+    // std::cout << " retval " << retval << std::endl;
 
     return retval;
 }
@@ -336,6 +425,7 @@ inline VFPEvaluation interpolate(
     VFPEvaluation nn[2][2][2][2][2];
 
 
+    // std::cout << " nn values " << std::endl;
     //Pick out nearest neighbors (nn) to our evaluation point
     //This is not really required, but performance-wise it may pay off, since the 32-elements
     //we copy to (nn) will fit better in cache than the full original table for the
@@ -355,11 +445,13 @@ inline VFPEvaluation interpolate(
 
                         //Copy element
                         nn[t][w][g][a][f].value = array[ti][wi][gi][ai][fi];
+                        // std::cout << t << w << g << a << f << nn[t][w][g][a][f].value << std::endl;
                     }
                 }
             }
         }
     }
+
 
     //Calculate derivatives
     //Note that the derivative of the two end points of a line aligned with the
@@ -390,6 +482,8 @@ inline VFPEvaluation interpolate(
     // Example: going from 3D to 2D to 1D, we start by interpolating along
     // the z axis first, leaving a 2D problem. Then interpolating along the y
     // axis, leaving a 1D, problem, etc.
+    // std::cout << " nn values after remove flo_i " << std::endl;;
+    // std::cout << " t2 " << t2 << std::endl;
     t2 = flo_i.factor_;
     t1 = (1.0-t2);
     for (int t=0; t<=1; ++t) {
@@ -397,38 +491,51 @@ inline VFPEvaluation interpolate(
             for (int g=0; g<=1; ++g) {
                 for (int a=0; a<=1; ++a) {
                     nn[t][w][g][a][0] = t1*nn[t][w][g][a][0] + t2*nn[t][w][g][a][1];
+                    // std::cout << t << w << g << a << " " << nn[t][w][g][a][0].value << std::endl;
                 }
             }
         }
     }
 
+    // std::cout << " nn values after remove alq_i " << std::endl;;
     t2 = alq_i.factor_;
     t1 = (1.0-t2);
+    // std::cout << " t2 " << t2 << std::endl;
     for (int t=0; t<=1; ++t) {
         for (int w=0; w<=1; ++w) {
             for (int g=0; g<=1; ++g) {
                 nn[t][w][g][0][0] = t1*nn[t][w][g][0][0] + t2*nn[t][w][g][1][0];
+                    // std::cout << t << w << g << " " << nn[t][w][g][0][0].value << std::endl;
             }
         }
     }
 
+    // std::cout << " nn values after remove gfr " << std::endl;;
     t2 = gfr_i.factor_;
     t1 = (1.0-t2);
+    // std::cout << " t2 " << t2 << std::endl;
     for (int t=0; t<=1; ++t) {
         for (int w=0; w<=1; ++w) {
             nn[t][w][0][0][0] = t1*nn[t][w][0][0][0] + t2*nn[t][w][1][0][0];
+                    // std::cout << t << w << " " << nn[t][w][0][0][0].value << std::endl;
         }
     }
 
+    // std::cout << " nn values after remove wfr " << std::endl;;
     t2 = wfr_i.factor_;
     t1 = (1.0-t2);
+    // std::cout << " t2 " << t2 << std::endl;
     for (int t=0; t<=1; ++t) {
         nn[t][0][0][0][0] = t1*nn[t][0][0][0][0] + t2*nn[t][1][0][0][0];
+                    // std::cout << t << " " << nn[t][0][0][0][0].value << std::endl;
     }
 
+    // std::cout << " nn values after  remove thp " << std::endl;
     t2 = thp_i.factor_;
     t1 = (1.0-t2);
+    // std::cout << " t2 " << t2 << std::endl;
     nn[0][0][0][0][0] = t1*nn[0][0][0][0][0] + t2*nn[1][0][0][0][0];
+    // std::cout << nn[0][0][0][0][0].value << std::endl;
 
     return nn[0][0][0][0][0];
 }
@@ -839,6 +946,19 @@ inline double findTHP(
         const std::vector<double>& bhp_array,
         const std::vector<double>& thp_array,
         double bhp) {
+    /* std::cout <<  " bhp_array " << std::endl;
+    for (const double value : bhp_array) {
+        std::cout << value << " ";
+    }
+    std::cout << std::endl;
+    std::cout << " thp_array " << std::endl;
+    for (const double value : thp_array) {
+        std::cout << value << " ";
+    }
+    std::cout << std::endl;
+
+    std::cout << " bhp " << bhp << std::endl; */
+
     int nthp = thp_array.size();
 
     double thp = -1e100;
@@ -950,8 +1070,113 @@ inline double findTHP(
 }
 
 
+// a data type use to do the intersection calculation to get the intial bhp under THP control
+struct DataPoint {
+    double rate;
+    double bhp;
+};
+
+// looking for a intersection point a line segment and a line, they are both defined with two points
+// it is copied from #include <opm/polymer/Point2D.hpp>, which should be removed since it is only required by the lagacy polymer
+inline bool findIntersection(const std::array<DataPoint, 2>& line_segment, const std::array<DataPoint, 2>& line, double& bhp) {
+    const double x1 = line_segment[0].rate;
+    const double y1 = line_segment[0].bhp;
+    const double x2 = line_segment[1].rate;
+    const double y2 = line_segment[1].bhp;
+
+    const double x3 = line[0].rate;
+    const double y3 = line[0].bhp;
+    const double x4 = line[1].rate;
+    const double y4 = line[1].bhp;
+
+    const double d = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+
+    if (d == 0.) {
+        return false;
+    }
+
+    const double x = ((x3 - x4) * (x1 * y2 - y1 * x2) - (x1 - x2) * (x3 * y4 - y3 * x4)) / d;
+    const double y = ((y3 - y4) * (x1 * y2 - y1 * x2) - (y1 - y2) * (x3 * y4 - y3 * x4)) / d;
+
+    if (x >= std::min(x1,x2) && x <= std::max(x1,x2)) {
+        bhp = y;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+inline bool findIntersectionForBhp(const std::vector<double>&rate_samples,
+                                   const std::vector<double>&bhp_samples,
+                                   const double flo_rate1,
+                                   const double flo_rate2,
+                                   const double bhp1,
+                                   const double bhp2,
+                                   double& bhp)
+{
+    // there possibly two intersection point, then we choose the bigger one
+    // we choose the bigger one, then it will be the later one in the rate_samples
+
+    const size_t num_samples = rate_samples.size();
+    assert(num_samples == bhp_samples.size());
+
+    assert(flo_rate1 != flo_rate2);
+
+    const double line_slope = (bhp2 - bhp1) / (flo_rate2 - flo_rate1);
+    // line equation will be
+    // bhp - bhp1 - line_slope * (flo_rate - flo_rate1) = 0
+    auto flambda = [&](const double flo_rate, const double bhp) {
+        return bhp - bhp1 - line_slope * (flo_rate - flo_rate1);
+    };
+
+    int number_intersection_found = 0;
+    int index_segment = 0; // the intersection segment that intersection happens
+    for (size_t i = 0; i < rate_samples.size() - 1; ++i) {
+        const double temp1 = flambda(rate_samples[i], bhp_samples[i]);
+        const double temp2 = flambda(rate_samples[i+1], bhp_samples[i+1]);
+        if (temp1 * temp2 <= 0.) { // intersection happens
+            // in theory there should be maximu two intersection points
+            // while considering the situation == 0. here, we might find more
+            // we always use the last one, which is the one has the biggest rate
+            ++number_intersection_found;
+            index_segment = i;
+        }
+    }
+
+    std::cout << " number_intersection_found " << number_intersection_found << std::endl;
+
+    if (number_intersection_found == 0) { // there is not intersection point
+        return false;
+    }
+
+    /* if (number_intersection_found == 1) { // we need to check this. numerically it is difficult to only find one
+        std::cout << " flo_rate1 " << flo_rate1 << " bhp1 " << bhp1 << " flo_rate2 " << flo_rate2 << " bhp2 " << bhp2 << std::endl;
+        std::cout << " the rate and bhp samples " << std::endl;
+        const int sample_number = bhp_samples.size();
+        for (int i = 0; i < sample_number; ++i) {
+            std::cout << rate_samples[i] << " " << bhp_samples[i] << std::endl;
+        }
+        std::cin.ignore();
+    } */
 
 
+    // then we need to calculate the intersection point
+    const std::array<DataPoint, 2> line_segment{ DataPoint{rate_samples[index_segment], bhp_samples[index_segment]},
+                                                 DataPoint{rate_samples[index_segment + 1], bhp_samples[index_segment + 1]} };
+
+    const std::array<DataPoint, 2> line { DataPoint{flo_rate1, bhp1},
+                                          DataPoint{flo_rate2, bhp2} };
+
+    const bool inter_section_found = findIntersection(line_segment, line, bhp);
+
+    if (inter_section_found) {
+        std::cout << " found a bhp is " << bhp << std::endl;
+        return true;
+    } else {
+        std::cout << " did not find the intersection point " << std::endl;
+        return false;
+    }
+}
 
 
 
