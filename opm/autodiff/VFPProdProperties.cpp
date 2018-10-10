@@ -359,40 +359,44 @@ calculateBhpWithTHPTarget(const std::vector<double>& ipr_a,
 
     std::cout << " wfr " << wfr << " gfr " << gfr << std::endl;
 
-    constexpr int sample_number = 500;
+    std::cout << " outputting the flo_sample points based on the points from the table " << std::endl;
+    std::vector<double> flo_samples = table->getFloAxis();
 
-    std::vector<double> bhp_samples(sample_number);
-    std::vector<double> rate_samples(sample_number, 0.);
-
-    // rate sampling interval
-    const double rate_interval = flo_bhp_limit / (sample_number - 1);
-    for (int i = 0; i < sample_number; ++i) {
-        rate_samples[i] = i * rate_interval;
+    if (flo_samples[0] > 0.) {
+        flo_samples.insert(flo_samples.begin(), 0.);
     }
 
-    // based on all the rate samples, let us calculate the bhp samples
-    for (int i = 0; i < sample_number; ++i) {
-        bhp_samples[i] = bhpwithflo(thp_table_id, rate_samples[i], wfr, gfr, thp_limit, alq) - dp;
+    if (flo_samples.back() < std::abs(flo_bhp_limit)) {
+        flo_samples.push_back(std::abs(flo_bhp_limit));
     }
 
-    std::cout << " the rate and bhp samples " << std::endl;
-    for (int i = 0; i < sample_number; ++i) {
-        std::cout << rate_samples[i] << " " << bhp_samples[i] << std::endl;
+    for (double& value : flo_samples) {
+        value = -value;
     }
+
+    std::vector<double> bhp_flo_samples(flo_samples.size());
+    for (int i = 0; i < flo_samples.size(); ++i) {
+        bhp_flo_samples[i] = bhpwithflo(thp_table_id, flo_samples[i], wfr, gfr, thp_limit, alq) - dp;
+    }
+
+    std::cout << " the rate and bhp samples based on the points in the table " << std::endl;
+    for (int i = 0; i < flo_samples.size(); ++i) {
+        std::cout << flo_samples[i] << " " << bhp_flo_samples[i] << std::endl;
+    }
+    std::cout << std::endl;
 
     std::cout << " the rate and bhp from the IPR line " << std::endl;
     std::cout << flo_bhp_middle << " " << bhp_middle << std::endl
                << flo_bhp_limit << " " << bhp_limit << std::endl;
 
     double return_bhp = 0.;
-    obtain_solution_with_thp_limit = detail::findIntersectionForBhp(rate_samples, bhp_samples, flo_bhp_middle, flo_bhp_limit,
+    obtain_solution_with_thp_limit = detail::findIntersectionForBhp(flo_samples, bhp_flo_samples, flo_bhp_middle, flo_bhp_limit,
                                                       bhp_middle, bhp_limit, return_bhp);
 
     if (obtain_solution_with_thp_limit) {
         violate_bhp_limit_with_thp_limit = (return_bhp < bhp_limit);
     } else {
         std::cout << " COULD NOT find an Intersection point, the well might need to be closed " << std::endl;
-        // std::cin.ignore();
     }
 }
 
