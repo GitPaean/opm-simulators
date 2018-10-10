@@ -2350,7 +2350,7 @@ namespace Opm
         }
 
         // debugging output for the IPR relationship
-        /* std::cout << " the inflow performance relationship curves for the well " << name() << std::endl;
+        std::cout << " the inflow performance relationship curves for the well " << name() << std::endl;
         std::cout << " ipr_a ";
         for (const double value : ipr_a_) {
             std::cout << " " << value * 86400.;
@@ -2360,7 +2360,7 @@ namespace Opm
         for (const double value : ipr_b_) {
             std::cout << " " << value * 86400.;
         }
-        std::cout << std::endl; */
+        std::cout << std::endl;
 
         // TODO: we should be able to consider rs, rv and b for this, assuming we do not need to consider
         // cross-flow here, since h_perf should be relatively small value compared with reservoir pressure
@@ -2386,11 +2386,11 @@ namespace Opm
 
         bool well_operable = true;
 
-        // checking BHP limit
-        if (well_operable) {
-            const double bhp_limit = mostStrictBhpFromBhpLimits();
+        bool operable_under_bhp_limit = true;
 
-            bool operable_under_bhp_limit = true;
+        // checking BHP limit
+        {
+            const double bhp_limit = mostStrictBhpFromBhpLimits();
 
             for (int p = 0; p < number_of_phases_; ++p) {
                 const double temp = ipr_a_[p] - ipr_b_[p] * bhp_limit;
@@ -2398,35 +2398,62 @@ namespace Opm
                     operable_under_bhp_limit = false;
                 }
             }
+        }
 
-            // checking whether running under BHP limit will violate THP limit
-            if (operable_under_bhp_limit && this->wellHasTHPConstraints()) {
-                // option 1: calculate well rates based on the BHP limit.
-                // option 2: stick with the above IPR curve
-                std::vector<double> well_rates_bhp_limit;
-                computeWellRatesWithBhp(ebos_simulator, bhp_limit, well_rates_bhp_limit);
+        // checking whether running under BHP limit will violate THP limit
+        bool violate_thp_limit_under_bhp_limit = false;
+        if (operable_under_bhp_limit && this->wellHasTHPConstraints()) {
+            // option 1: calculate well rates based on the BHP limit.
+            // option 2: stick with the above IPR curve
+            const double bhp_limit = mostStrictBhpFromBhpLimits();
+            std::vector<double> well_rates_bhp_limit;
+            computeWellRatesWithBhp(ebos_simulator, bhp_limit, well_rates_bhp_limit);
+            std::cout << " well " << name() << " well rates under Bhp limit " << well_rates_bhp_limit[0] << " "
+                      << well_rates_bhp_limit[1] << " " << well_rates_bhp_limit[2] << std::endl;
 
-                const int thp_control_index = this->getTHPControlIndex();
+            const int thp_control_index = this->getTHPControlIndex();
 
-                const double thp = calculateThpFromBhp(well_rates_bhp_limit, thp_control_index, bhp_limit);
+            const double thp = calculateThpFromBhp(well_rates_bhp_limit, thp_control_index, bhp_limit);
+            std::cout << " thp value under bhp limit is " << thp / 1.e5 << std::endl;
 
-                const double thp_limit = this->getTHPConstraint();
+            const double thp_limit = this->getTHPConstraint();
 
-                if (thp < thp_limit) {
-                    std::cout << " well " << name() << " violate the THP limit " << thp_limit
-                              << " when running under bhp limit " << bhp_limit << " with thp value " <<  thp << std::endl;
+            if (thp < thp_limit) {
+                std::cout << " well " << name() << " violate the THP limit " << thp_limit
+                          << " when running under bhp limit " << bhp_limit << " with thp value " <<  thp << std::endl;
 
-                    operable_under_bhp_limit = false;
-                }
-            }
-
-            if (!operable_under_bhp_limit) {
-                std::cout << " well " << name() << " not operatable under BHP limit " << bhp_limit << std::endl;
-                well_operable = false;
-            } else {
-                // std::cout << " well " << name() << " working well with BHP limit " << bhp_limit << std::endl;
+                violate_thp_limit_under_bhp_limit = true;
             }
         }
+
+
+        // checking whether the well can operate under the THP constraints.
+        bool obtain_solution_with_thp_limit = true;
+        bool violate_bhp_limit_with_thp_limit = false;
+        if (this->wellHasTHPConstraints()) {
+            operableUnderTHPLimit(ebos_simulator, obtain_solution_with_thp_limit, violate_bhp_limit_with_thp_limit);
+        }
+
+        std::cout << " for well " << name() << " with bhp limit " << mostStrictBhpFromBhpLimits() / 1.e5;
+        if (this->wellHasTHPConstraints()) {
+            std::cout << " and thp limit " << this->getTHPConstraint() / 1.e5;
+        }
+        std::cout << std::endl;
+        std::cout << " operable_under_bhp_limit " << operable_under_bhp_limit
+                  << " violate_thp_limit_under_bhp_limit " << violate_thp_limit_under_bhp_limit;
+        if (this->wellHasTHPConstraints()) {
+            std::cout << " obtain_solution_with_thp_limit " << obtain_solution_with_thp_limit
+                      << " violate_bhp_limit_with_thp_limit " << violate_bhp_limit_with_thp_limit;
+        }
+        std::cout << std::endl;
+        std::cout << std::endl;
+
+        /* if (!operable_under_bhp_limit) {
+            std::cout << " well " << name() << " not operatable under BHP limit " << bhp_limit << std::endl;
+            well_operable = false;
+        } else {
+            // std::cout << " well " << name() << " working well with BHP limit " << bhp_limit << std::endl;
+        } */
 
         // checking whether operable with current bhp value
         /* if (well_operable) {
@@ -2487,6 +2514,35 @@ namespace Opm
 
 
 
+    /* template<typename TypeTag>
+    double
+    StandardWell<TypeTag>::
+    computeBhpAtTHPConstraint(const Simulator& ebos_simulator) const
+    {
+        // We will use IPR to make the rates for now
+        const double  bhp_limit = mostStrictBhpFromBhpLimits();
+        const double thp_limit = this->getTHPConstraint();
+        const double thp_control_index = this->getTHPControlIndex();
+        const  int thp_table_id = well_controls_iget_vfp(well_controls_, thp_control_index);
+        const double alq = well_controls_iget_alq(well_controls_, thp_control_index);
+
+        double vfp_ref_depth = 0.;
+
+        // not considering injectors for now
+        vfp_ref_depth = vfp_properties_->getProd()->getTable(thp_table_id)->getDatumDepth();
+
+        // the density of the top perforation
+        const double rho = perf_densities_[0];
+
+        const double dp = (vfp_ref_depth - ref_depth_) * rho * gravity_;
+
+        const double obtain_bhp = vfp_properties_->getProd()->calculateBhpWithTHPTarget(ipr_a_, ipr_b_, bhp_limit,
+                                                                     dp, thp_table_id, thp_limit, alq, dp);
+
+        return obtain_bhp;
+    } */
+
+
 
     template<typename TypeTag>
     bool
@@ -2500,11 +2556,34 @@ namespace Opm
 
 
     template<typename TypeTag>
-    bool
+    void
     StandardWell<TypeTag>::
-    operableUnderTHPLimit(const Simulator& ebos_simulator) const
+    operableUnderTHPLimit(const Simulator& ebos_simulator,
+                          bool& obtain_solution_with_thp_limit,
+                          bool& violate_bhp_limit_with_thp_limit) const
     {
-        return true;
+        // We will use IPR to make the rates for now
+        const double  bhp_limit = mostStrictBhpFromBhpLimits();
+        const double thp_limit = this->getTHPConstraint();
+        const double thp_control_index = this->getTHPControlIndex();
+        const  int thp_table_id = well_controls_iget_vfp(well_controls_, thp_control_index);
+        const double alq = well_controls_iget_alq(well_controls_, thp_control_index);
+
+        double vfp_ref_depth = 0.;
+
+        // not considering injectors for now
+        vfp_ref_depth = vfp_properties_->getProd()->getTable(thp_table_id)->getDatumDepth();
+
+        // the density of the top perforation
+        const double rho = perf_densities_[0];
+
+        const double dp = (vfp_ref_depth - ref_depth_) * rho * gravity_;
+
+        vfp_properties_->getProd()->calculateBhpWithTHPTarget(ipr_a_, ipr_b_, bhp_limit,
+                                           thp_table_id, thp_limit, alq, dp,
+                                           obtain_solution_with_thp_limit,
+                                           violate_bhp_limit_with_thp_limit);
+
     }
 
 }

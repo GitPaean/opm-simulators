@@ -363,8 +363,11 @@ namespace Opm
         bool operableUnderBHPLimit(const Simulator& ebos_simulator) const;
 
         // check whether the well is operable under THP limit with current reservoir condition
-        bool operableUnderTHPLimit(const Simulator& ebos_simulator) const;
+        void operableUnderTHPLimit(const Simulator& ebos_simulator,
+                                   bool& obtain_solution_with_thp_limit,
+                                   bool& violate_bhp_limit_with_thp_limit) const;
 
+        // double computeBhpAtTHPConstraint(const Simulator& ebos_simulator) const;
     };
 
 }

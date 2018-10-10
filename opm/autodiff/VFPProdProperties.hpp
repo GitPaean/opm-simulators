@@ -199,6 +199,16 @@ public:
                                      const double thp,
                                      const double alq) const;
 
+    void calculateBhpWithTHPTarget(const std::vector<double>& ipr_a,
+                                   const std::vector<double>& ipr_b,
+                                   const double bhp_limit,
+                                   const double thp_table_id,
+                                   const double thp_limit,
+                                   const double alq,
+                                   const double dp,
+                                   bool& obtain_solution_with_thp_limit,
+                                   bool& voilate_bhp_limit_with_thp_limit) const;
+
     /**
      * Linear interpolation of bhp as a function of the input parameters
      * @param table_id Table number to use

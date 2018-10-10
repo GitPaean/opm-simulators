@@ -287,6 +287,114 @@ double VFPProdProperties::
 }
 
 
+void VFPProdProperties::
+calculateBhpWithTHPTarget(const std::vector<double>& ipr_a,
+                          const std::vector<double>& ipr_b,
+                          const double bhp_limit,
+                          const double thp_table_id,
+                          const double thp_limit,
+                          const double alq,
+                          const double dp,
+                          bool& obtain_solution_with_thp_limit,
+                          bool& violate_bhp_limit_with_thp_limit) const
+{
+    // let us find a safe highest bhp to use based on IPR
+
+    // begin with a big value
+    double bhp_safe_limit = 1.e100;
+    for (size_t i = 0; i < ipr_a.size(); ++i) {
+        if (ipr_b[i] == 0.) continue;
+
+        const double bhp = ipr_a[i] / ipr_b[i];
+        if (bhp < bhp_safe_limit) {
+            bhp_safe_limit = bhp;
+        }
+    }
+
+
+    std::cout << " bhp_safe_limit " << bhp_safe_limit <<  std::endl;
+
+    const double bhp_middle = (bhp_limit + bhp_safe_limit) / 2.0;
+
+    // FLO is the rate
+    // The two points correspond to the bhp values of bhp_limit and bhp_safe_limit
+
+    // for producers, the rates are negative actually
+    std::vector<double> rates_bhp_limit(ipr_a.size());
+    std::vector<double> rates_bhp_middle(ipr_a.size());
+    for (size_t i = 0; i < rates_bhp_limit.size(); ++i) {
+        rates_bhp_limit[i] = bhp_limit * ipr_b[i] - ipr_a[i];
+        rates_bhp_middle[i] = bhp_middle * ipr_b[i] - ipr_a[i];
+    }
+
+    // TODO: we need to be careful that there is nothings wrong related to the indices here
+    const int Water = BlackoilPhases::Aqua;
+    const int Oil = BlackoilPhases::Liquid;
+    const int Gas = BlackoilPhases::Vapour;
+
+    const VFPProdTable* table = detail::getTable(m_tables, thp_table_id);
+    // FLO is the rate
+    /* const double aqua_bhp_limit = rates_bhp_limit[Water];
+    const double liquid_bhp_limit = rates_bhp_limit[Oil]; */
+    const double aqua_bhp_limit = rates_bhp_limit[Oil];
+    const double liquid_bhp_limit = rates_bhp_limit[Water];
+    const double vapour_bhp_limit = rates_bhp_limit[Gas];
+    const double flo_bhp_limit = detail::getFlo(aqua_bhp_limit, liquid_bhp_limit, vapour_bhp_limit, table->getFloType() );
+
+    std::cout << " aqua_bhp_limit " << aqua_bhp_limit << " liquid_bhp_limit " << liquid_bhp_limit
+              << " vapour_bhp_limit " << vapour_bhp_limit << " flo " << flo_bhp_limit << std::endl;
+
+    /* const double aqua_bhp_middle = rates_bhp_middle[Water];
+    const double liquid_bhp_middle = rates_bhp_middle[Oil]; */
+    const double aqua_bhp_middle = rates_bhp_middle[Oil];
+    const double liquid_bhp_middle = rates_bhp_middle[Water];
+    const double vapour_bhp_middle = rates_bhp_middle[Gas];
+    const double flo_bhp_middle = detail::getFlo(aqua_bhp_middle, liquid_bhp_middle, vapour_bhp_middle, table->getFloType() );
+
+    std::cout << " aqua_bhp_middle " << aqua_bhp_middle << " liquid_bhp_middle " << liquid_bhp_middle
+              << " vapour_bhp_middle " << vapour_bhp_middle << " flo " << flo_bhp_middle << std::endl;
+
+    const double wfr = detail::getWFR(aqua_bhp_middle, liquid_bhp_middle, vapour_bhp_middle, table);
+    const double gfr = detail::getGFR(aqua_bhp_middle, liquid_bhp_middle, vapour_bhp_middle, table);
+
+    std::cout << " wfr " << wfr << " gfr " << gfr << std::endl;
+
+    constexpr int sample_number = 500;
+
+    std::vector<double> bhp_samples(sample_number);
+    std::vector<double> rate_samples(sample_number, 0.);
+
+    // rate sampling interval
+    const double rate_interval = flo_bhp_limit / (sample_number - 1);
+    for (int i = 0; i < sample_number; ++i) {
+        rate_samples[i] = i * rate_interval;
+    }
+
+    // based on all the rate samples, let us calculate the bhp samples
+    for (int i = 0; i < sample_number; ++i) {
+        bhp_samples[i] = bhpwithflo(thp_table_id, rate_samples[i], wfr, gfr, thp_limit, alq) - dp;
+    }
+
+    std::cout << " the rate and bhp samples " << std::endl;
+    for (int i = 0; i < sample_number; ++i) {
+        std::cout << rate_samples[i] << " " << bhp_samples[i] << std::endl;
+    }
+
+    std::cout << " the rate and bhp from the IPR line " << std::endl;
+    std::cout << flo_bhp_middle << " " << bhp_middle << std::endl
+               << flo_bhp_limit << " " << bhp_limit << std::endl;
+
+    double return_bhp = 0.;
+    obtain_solution_with_thp_limit = detail::findIntersectionForBhp(rate_samples, bhp_samples, flo_bhp_middle, flo_bhp_limit,
+                                                      bhp_middle, bhp_limit, return_bhp);
+
+    if (obtain_solution_with_thp_limit) {
+        violate_bhp_limit_with_thp_limit = (return_bhp < bhp_limit);
+    } else {
+        std::cout << " COULD NOT find an Intersection point, the well might need to be closed " << std::endl;
+        // std::cin.ignore();
+    }
+}
 
 
 double VFPProdProperties::thp(int table_id,

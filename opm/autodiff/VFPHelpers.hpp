@@ -1135,11 +1135,12 @@ inline bool findIntersectionForBhp(const std::vector<double>&rate_samples,
         const double temp1 = flambda(rate_samples[i], bhp_samples[i]);
         const double temp2 = flambda(rate_samples[i+1], bhp_samples[i+1]);
         if (temp1 * temp2 <= 0.) { // intersection happens
-            // in theory there should be maximu two intersection points
+            // in theory there should be maximum two intersection points
             // while considering the situation == 0. here, we might find more
             // we always use the last one, which is the one has the biggest rate
             ++number_intersection_found;
             index_segment = i;
+            std::cout << " temp1 " << temp1 << " temp2 " << temp2 << std::endl;
         }
     }
 
