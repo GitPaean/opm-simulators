@@ -301,6 +301,7 @@ calculateBhpWithTHPTarget(const std::vector<double>& ipr_a,
     // let us find a safe highest bhp to use based on IPR
 
     // begin with a big value
+    // TODO: remove the usage of bhp_safe_limit
     double bhp_safe_limit = 1.e100;
     for (size_t i = 0; i < ipr_a.size(); ++i) {
         if (ipr_b[i] == 0.) continue;
@@ -435,6 +436,20 @@ double VFPProdProperties::thp(int table_id,
         auto thp_i = detail::findInterpData(thp_array[i], thp_array);
         bhp_array[i] = detail::interpolate(data, flo_i, thp_i, wfr_i, gfr_i, alq_i).value;
     }
+
+    std::cout << " thp_array " << std::endl;
+    for (const double value : thp_array) {
+        std::cout << " " << value;
+    }
+    std::cout << std::endl;
+
+    std::cout << " bhp_array " << std::endl;
+    for (const double value : bhp_array) {
+        std::cout << " " << value;
+    }
+    std::cout << std::endl;
+
+    std::cout << " bhp_arg " << bhp_arg << std::endl;
 
     double retval = detail::findTHP(bhp_array, thp_array, bhp_arg);
     return retval;

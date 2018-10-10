@@ -56,6 +56,12 @@ inline EvalWell zeroIfNan(const EvalWell& value) {
 // TODO: maybe some improvement can be done for the followng two functions
 inline double processedInfNanValue(const std::vector<double>& table_values,
                                    const double& value) {
+    if (std::isnan(value) ) {
+        std::cout << " processing NAN value " << std::endl;
+    }
+    if (std::isinf(value) ) {
+        std::cout << " processing INF value " << std::endl;
+    }
     return std::isnan(value) ? table_values.front() :
           ( std::isinf(value) ? table_values.back() : value );
 }
@@ -63,6 +69,13 @@ inline double processedInfNanValue(const std::vector<double>& table_values,
 template <class EvalWell>
 inline EvalWell processedInfNanValue(const std::vector<double>& table_values,
                                      const EvalWell& value) {
+    if (std::isnan(value.value()) ) {
+        std::cout << " processing NAN EvalWell value " << std::endl;
+
+    }
+    if (std::isinf(value.value()) ) {
+        std::cout << " processing INF EvalWell value " << std::endl;
+    }
     return std::isnan(value.value()) ? table_values.front() :
           ( std::isinf(value.value()) ? table_values.back() : value );
 }

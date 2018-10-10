@@ -2130,11 +2130,15 @@ namespace Opm
         const double liquid = rates[Oil];
         const double vapour = rates[Gas];
 
+        std::cout << " aqua " << aqua << " liquid " << liquid << " vapour " << vapour << " for well " << name() << std::endl;
+
         const int vfp        = well_controls_iget_vfp(well_controls_, control_index);
         const double& alq    = well_controls_iget_alq(well_controls_, control_index);
 
         // pick the density in the top layer
         const double rho = perf_densities_[0];
+
+        std::cout << "alq " << alq << " rho " << rho << std::endl;
 
         double thp = 0.0;
         if (well_type_ == INJECTOR) {
@@ -2148,6 +2152,7 @@ namespace Opm
              const double vfp_ref_depth = vfp_properties_->getProd()->getTable(vfp)->getDatumDepth();
 
              const double dp = wellhelpers::computeHydrostaticCorrection(ref_depth_, vfp_ref_depth, rho, gravity_);
+             std::cout << "ref_depth_ " << ref_depth_ << " vfp_ref_depth " << vfp_ref_depth << " dp " << dp << std::endl;
 
              thp = vfp_properties_->getProd()->thp(vfp, aqua, liquid, vapour, bhp + dp, alq);
          }
@@ -2384,13 +2389,12 @@ namespace Opm
         // if they are not used outside this checkWhetherOperable function
         updateIPR(ebos_simulator);
 
-        bool well_operable = true;
-
         bool operable_under_bhp_limit = true;
+        bool violate_thp_limit_under_bhp_limit = false;
 
         // checking BHP limit
-        {
-            const double bhp_limit = mostStrictBhpFromBhpLimits();
+        const double bhp_limit = mostStrictBhpFromBhpLimits();
+        // if (bhp_limit > 1.5e5 || !this->wellHasTHPConstraints()) { // non-defaulted BHP
 
             for (int p = 0; p < number_of_phases_; ++p) {
                 const double temp = ipr_a_[p] - ipr_b_[p] * bhp_limit;
@@ -2398,13 +2402,19 @@ namespace Opm
                     operable_under_bhp_limit = false;
                 }
             }
+
+        if ( !operable_under_bhp_limit ) {
+            std::cout << " well " << name() << " can not work with its bhp limit "
+                      << mostStrictBhpFromBhpLimits() << ", it should be SHUT " << std::endl;
+            is_well_operable_ = false;
+            return;
         }
 
         // checking whether running under BHP limit will violate THP limit
-        bool violate_thp_limit_under_bhp_limit = false;
         if (operable_under_bhp_limit && this->wellHasTHPConstraints()) {
             // option 1: calculate well rates based on the BHP limit.
             // option 2: stick with the above IPR curve
+            // TODO: most likely, we can use IPR here
             const double bhp_limit = mostStrictBhpFromBhpLimits();
             std::vector<double> well_rates_bhp_limit;
             computeWellRatesWithBhp(ebos_simulator, bhp_limit, well_rates_bhp_limit);
@@ -2414,9 +2424,10 @@ namespace Opm
             const int thp_control_index = this->getTHPControlIndex();
 
             const double thp = calculateThpFromBhp(well_rates_bhp_limit, thp_control_index, bhp_limit);
-            std::cout << " thp value under bhp limit is " << thp / 1.e5 << std::endl;
+            std::cout << " thp value under bhp limit is " << thp / 1.e5 << " with bhp limit " << bhp_limit << std::endl;
 
             const double thp_limit = this->getTHPConstraint();
+            std::cout << " thp_limit is " << thp_limit / 1.e5 << std::endl;
 
             if (thp < thp_limit) {
                 std::cout << " well " << name() << " violate the THP limit " << thp_limit
@@ -2426,6 +2437,10 @@ namespace Opm
             }
         }
 
+        /* } else { // defaulted BHP
+            operable_under_bhp_limit = true;
+            violate_thp_limit_under_bhp_limit = true;
+        } */
 
         // checking whether the well can operate under the THP constraints.
         bool obtain_solution_with_thp_limit = true;
@@ -2447,6 +2462,9 @@ namespace Opm
         }
         std::cout << std::endl;
         std::cout << std::endl;
+
+        const bool well_operable = (operable_under_bhp_limit && !violate_thp_limit_under_bhp_limit)
+                                || (obtain_solution_with_thp_limit && !violate_bhp_limit_with_thp_limit);
 
         /* if (!operable_under_bhp_limit) {
             std::cout << " well " << name() << " not operatable under BHP limit " << bhp_limit << std::endl;
