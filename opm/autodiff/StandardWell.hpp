@@ -360,7 +360,9 @@ namespace Opm
         void checkWellOperatability(const Simulator& ebos_simulator);
 
         // check whether the well is operable under BHP limit with current reservoir condition
-        bool operableUnderBHPLimit(const Simulator& ebos_simulator) const;
+        bool operableUnderBHPLimit(const Simulator& ebos_simulator,
+                                   bool& operable_under_bhp_limit,
+                                   bool& violate_thp_limit_under_bhp_limit) const;
 
         // check whether the well is operable under THP limit with current reservoir condition
         void operableUnderTHPLimit(const Simulator& ebos_simulator,

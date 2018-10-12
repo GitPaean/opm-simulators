@@ -166,7 +166,7 @@ public:
 
             detail::VFPEvaluation bhp_val = detail::interpolate(table->getTable(), flo_i, thp_i, wfr_i, gfr_i, alq_i);
 
-            std::cout << " bhp_val " << bhp_val.value << std::endl;
+            // std::cout << " bhp_val " << bhp_val.value << std::endl;
 
             bhp = (bhp_val.dwfr * wfr) + (bhp_val.dgfr * gfr) - (bhp_val.dflo * flo);
             /* std::cout << "(bhp_val.dwfr * wfr) " << (bhp_val.dwfr * wfr) << std::endl;
