@@ -238,9 +238,9 @@ namespace Opm {
                 well->initPrimaryVariablesEvaluation();
 
                 bool testWell = true;
-        // if a well is closed because all completions are closed, we need to check each completion
-        // individually. We first open all completions, then we close one by one by calling updateWellTestState
-        // untill the number of closed completions do not increase anymore. 
+                // if a well is closed because all completions are closed, we need to check each completion
+                // individually. We first open all completions, then we close one by one by calling updateWellTestState
+                // untill the number of closed completions do not increase anymore. 
                 while (testWell) {
                     const size_t numberOfClosedCompletions = wellTestStateForTheWellTest.sizeCompletions();
                     well->solveWellForTesting(ebosSimulator_, wellStateCopy, B_avg, terminal_output_);
@@ -338,6 +338,9 @@ namespace Opm {
                 // well is closed due to economical reasons
                 if ( wellTestState_.hasWell(well_name, WellTestConfig::Reason::ECONOMIC) ||
                      wellTestState_.hasWell(well_name, WellTestConfig::Reason::PHYSICAL) ) {
+#if 1
+                    std::cout << " well " << well_name << " will not in well_container_ since it was shut " << std::endl;
+#endif
                     if( well_ecl->getAutomaticShutIn() ) {
                         // shut wells are not added to the well container
                         well_state_.thp()[w] = 0.;
@@ -367,6 +370,9 @@ namespace Opm {
                 }
             }
         }
+#if 1
+        std::cout << " numWells() from wells() is " << numWells() << " well_container_ contains " << well_container_.size() << " wells " << std::endl;
+#endif
         return well_container;
     }
 
@@ -585,7 +591,6 @@ namespace Opm {
     BlackoilWellModel<TypeTag>::
     solveWellEq(const double dt)
     {
-        const int nw = numWells();
         WellState well_state0 = well_state_;
 
         const int numComp = numComponents();
@@ -599,7 +604,6 @@ namespace Opm {
         do {
             assembleWellEq(dt, true);
 
-            //std::cout << "well convergence only wells " << std::endl;
             converged = getWellConvergence(B_avg);
 
             // checking whether the group targets are converged
@@ -631,16 +635,18 @@ namespace Opm {
         if (converged) {
             if ( terminal_output_ ) {
                 OpmLog::debug("Well equation solution gets converged with " + std::to_string(it) + " iterations");
+                std::cout << "Well equation solution gets converged with " + std::to_string(it) + " iterations" << std::endl;
             }
         } else {
             if ( terminal_output_ ) {
                 OpmLog::debug("Well equation solution failed in getting converged with " + std::to_string(it) + " iterations");
+                std::cout << "Well equation solution failed in getting converged with " + std::to_string(it) + " iterations" << std::endl;
             }
 
             well_state_ = well_state0;
             updatePrimaryVariables();
             // also recover the old well controls
-            for (int w = 0; w < nw; ++w) {
+            for (size_t w = 0; w < well_container_.size(); ++w) {
                 WellControls* wc = well_container_[w]->wellControls();
                 well_controls_set_current(wc, well_state_.currentControls()[w]);
             }
@@ -664,7 +670,7 @@ namespace Opm {
         ConvergenceReport report;
 
         for (const auto& well : well_container_) {
-            if ( well->isWellOperable() ) {
+            if ( well->isOperable() ) {
                 report += well->getWellConvergence(B_avg);
             }
         }
@@ -721,7 +727,7 @@ namespace Opm {
     BlackoilWellModel<TypeTag>::
     calculateExplicitQuantities() const
     {
-        // TODO: checking isWellOperable() ?
+        // TODO: checking isOperable() ?
         for (auto& well : well_container_) {
             well->calculateExplicitQuantities(ebosSimulator_, well_state_);
         }
@@ -747,7 +753,7 @@ namespace Opm {
         wellhelpers::WellSwitchingLogger logger;
 
         for (const auto& well : well_container_) {
-            well->updateWellControl(well_state_, logger);
+            well->updateWellControl(ebosSimulator_, well_state_, logger);
         }
 
         updateGroupControls();
@@ -811,6 +817,10 @@ namespace Opm {
         // with the wellControls from the deck when we create well_state at the beginning of the report step
         resetWellControlFromState();
 
+        for (const auto& well : well_container_) {
+            well->checkWellOperatability(ebosSimulator_);
+        }
+
         // process group control related
         prepareGroupControl();
 
@@ -818,11 +828,37 @@ namespace Opm {
         for (const auto& well : well_container_) {
             const int w = well->indexOfWell();
             WellControls* wc = well->wellControls();
+#if 1
+        if (well->wellType() == PRODUCER) {
+            const auto& well_state = well_state_;
+            const std::string modestring[4] = { "BHP", "THP", "RESERVOIR_RATE", "SURFACE_RATE" };
+            const int np = numPhases();
+            std::cout << " well " << well->name() << " in prepareTimeStep before updateWellStateWithTarget  " << std::endl;
+            std::cout << " current control mode is "
+                      << modestring[well_controls_iget_type(wc, well_state_.currentControls()[w])] << std::endl;
+            std::cout << " bhp " << well_state.bhp()[w] << " thp " << well_state.thp()[w] << std::endl;
+            std::cout << " well rates " << well_state.wellRates()[np * w] << " " << well_state.wellRates()[np * w + 1]
+                      << " " << well_state.wellRates()[np * w + 2] << std::endl;
+        }
+#endif
             const int control = well_controls_get_current(wc);
             well_state_.currentControls()[w] = control;
             // TODO: for VFP control, the perf_densities are still zero here, investigate better
             // way to handle it later.
-            well->updateWellStateWithTarget(well_state_);
+            well->updateWellStateWithTarget(ebosSimulator_, well_state_);
+#if 1
+            if (well->wellType() == PRODUCER) {
+                const auto& well_state = well_state_;
+                const std::string modestring[4] = { "BHP", "THP", "RESERVOIR_RATE", "SURFACE_RATE" };
+                const int np = numPhases();
+                std::cout << " well " << well->name() << " in prepareTimeStep after updateWellStateWithTarget  " << std::endl;
+                std::cout << " current control mode is "
+                          << modestring[well_controls_iget_type(wc, well_state_.currentControls()[w])] << std::endl;
+                std::cout << " bhp " << well_state.bhp()[w] << " thp " << well_state.thp()[w] << std::endl;
+                std::cout << " well rates " << well_state.wellRates()[np * w] << " " << well_state.wellRates()[np * w + 1]
+                          << " " << well_state.wellRates()[np * w + 2] << std::endl;
+            }
+#endif
 
             // The wells are not considered to be newly added
             // for next time step
@@ -1068,7 +1104,7 @@ namespace Opm {
             wellCollection().updateWellTargets(well_state_.wellRates());
 
             for (auto& well : well_container_) {
-                well->updateWellStateWithTarget(well_state_);
+                well->updateWellStateWithTarget(ebosSimulator_, well_state_);
             }
         }
     }

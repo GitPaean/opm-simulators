@@ -374,6 +374,8 @@ namespace Opm
 
                     // If in the new step, there is no THP related target/limit anymore, its thp value should be
                     // set to zero.
+                    // TODO: it might be wrong. It is more likely to be that if there is no associated VFP table, then
+                    // we do not update THP anymore, then we set it to be zero.
                     const WellControls* ctrl = wells->ctrls[w];
                     const int nwc = well_controls_get_num(ctrl);
                     int ctrl_index = 0;

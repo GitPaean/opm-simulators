@@ -249,7 +249,8 @@ namespace Opm
     template <typename TypeTag>
     void
     MultisegmentWell<TypeTag>::
-    updateWellStateWithTarget(WellState& well_state) const
+    updateWellStateWithTarget(const Simulator& /* ebos_simulator */,
+                              WellState& well_state) const
     {
         // Updating well state bas on well control
         // Target values are used as initial conditions for BHP, THP, and SURFACE_RATE
@@ -1609,6 +1610,20 @@ namespace Opm
         if ( FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx) ) {
             primary_variables_[seg][GFrac] = fractions[pu.phase_pos[Gas]];
         }
+    }
+
+
+
+
+
+    template <typename TypeTag>
+    void
+    MultisegmentWell<TypeTag>::
+    checkWellOperatability(const Simulator& ebos_simulator)
+    {
+        std::string msg = "Support of well operatability checking for mutlisegment wells is not yet, checkWellOperatability() for "
+                        + name() + " will do nothing";
+        OpmLog::warning("NO_OPERATABILITY_CHECKING_MS_WELLS", msg);
     }
 
 

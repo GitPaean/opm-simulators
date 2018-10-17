@@ -295,16 +295,43 @@ double VFPProdProperties::
 }
 
 
+// TODO: this function should change name to more related to well operability under THP target
+// TODO: these two functions will share a lot in common, some re-orgnization is needed to reduce
+// TODO: code duplicity
 void VFPProdProperties::
+operabilityCheckingUnderTHP(const std::vector<double>& ipr_a,
+                            const std::vector<double>& ipr_b,
+                            const double bhp_limit,
+                            const double thp_table_id,
+                            const double thp_limit,
+                            const double alq,
+                            const double dp,
+                            bool& obtain_solution_with_thp_limit,
+                            bool& violate_bhp_limit_with_thp_limit) const
+{
+    const double obtain_bhp = calculateBhpWithTHPTarget(ipr_a, ipr_b, bhp_limit, thp_table_id, thp_limit, alq, dp);
+
+    if (obtain_bhp > 0.) {
+        obtain_solution_with_thp_limit = true;
+
+        violate_bhp_limit_with_thp_limit = (obtain_bhp < bhp_limit);
+
+    } else {
+        obtain_solution_with_thp_limit = false;
+        std::cout << " COULD NOT find an Intersection point, the well might need to be closed " << std::endl;
+        violate_bhp_limit_with_thp_limit = false;
+    }
+}
+
+
+double VFPProdProperties::
 calculateBhpWithTHPTarget(const std::vector<double>& ipr_a,
                           const std::vector<double>& ipr_b,
                           const double bhp_limit,
                           const double thp_table_id,
                           const double thp_limit,
                           const double alq,
-                          const double dp,
-                          bool& obtain_solution_with_thp_limit,
-                          bool& violate_bhp_limit_with_thp_limit) const
+                          const double dp) const
 {
     // For producers, bhp_safe_limit is the highest BHP value that can still produce based on IPR
     double bhp_safe_limit = 1.e100;
@@ -316,7 +343,6 @@ calculateBhpWithTHPTarget(const std::vector<double>& ipr_a,
             bhp_safe_limit = bhp;
         }
     }
-
 
 #if 0
     std::cout << " bhp_safe_limit " << bhp_safe_limit <<  std::endl;
@@ -407,22 +433,26 @@ calculateBhpWithTHPTarget(const std::vector<double>& ipr_a,
                << flo_bhp_limit << " " << bhp_limit << std::endl;
 #endif
 
-    double return_bhp = 0.;
-    obtain_solution_with_thp_limit = detail::findIntersectionForBhp(flo_samples, bhp_flo_samples, flo_bhp_middle, flo_bhp_limit,
-                                                   bhp_middle, bhp_limit, return_bhp);
+    // TODO: maybe the function findIntersectionForBhp() can be changed a little bit
+    double obtain_bhp = 0.;
+    const bool obtain_solution_with_thp_limit = detail::findIntersectionForBhp(flo_samples, bhp_flo_samples,
+                                                         flo_bhp_middle, flo_bhp_limit, bhp_middle, bhp_limit, obtain_bhp);
 
-    if (obtain_solution_with_thp_limit) {
-        violate_bhp_limit_with_thp_limit = (return_bhp < bhp_limit);
+    // \Note: assuming not that negative BHP does not make sense
+    if (obtain_solution_with_thp_limit && obtain_bhp > 0.) {
+        // getting too high bhp that might cause negative rates (rates in the undesired direction)
+        if (obtain_bhp >= bhp_safe_limit) {
+            std::cout << " Look like we are getting a too high BHP value from the THP constraint "
+                      << " which might cause problems later " << std::endl;
+
+            std::cout << " obtain_bhp " << obtain_bhp << " bhp_safe_limit " << bhp_safe_limit << std::endl;
+        }
+        return obtain_bhp;
     } else {
-        std::cout << " COULD NOT find an Intersection point, the well might need to be closed " << std::endl;
-    }
-
-    if (return_bhp >= bhp_safe_limit) {
-        std::cout << " Look like we are getting a too high BHP value from the THP constraint "
-                  << " which might cause problems later " << std::endl;
+        std::cout << " COULD NOT find an Intersection point " << std::endl;
+        return -100.;
     }
 }
-
 
 double VFPProdProperties::thp(int table_id,
         const double& aqua,

@@ -120,7 +120,8 @@ namespace Opm
 
         /// updating the well state based the control mode specified with current
         // TODO: later will check wheter we need current
-        virtual void updateWellStateWithTarget(WellState& well_state) const;
+        virtual void updateWellStateWithTarget(const Simulator& ebos_simulator,
+                                               WellState& well_state) const;
 
         /// check whether the well equations get converged for this well
         virtual ConvergenceReport getWellConvergence(const std::vector<double>& B_avg) const;
@@ -330,6 +331,9 @@ namespace Opm
 
         // handling the overshooting and undershooting of the fractions
         void processFractions(const int seg) const;
+
+        // checking the operability of the well based on current reservoir condition
+        virtual void checkWellOperatability(const Simulator& ebos_simulator);
 
         void updateWellStateFromPrimaryVariables(WellState& well_state) const;
 

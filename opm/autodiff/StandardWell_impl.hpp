@@ -442,7 +442,7 @@ namespace Opm
 
         checkWellOperatability(ebosSimulator);
 
-        if (!is_well_operable_) return;
+        if (!this->isOperable()) return;
 
         const int np = number_of_phases_;
 
@@ -858,7 +858,7 @@ namespace Opm
     updateWellState(const BVectorWell& dwells,
                     WellState& well_state) const
     {
-        if (!is_well_operable_) return;
+        if (!this->isOperable()) return;
 
         updatePrimaryVariablesNewton(dwells, well_state);
 
@@ -875,29 +875,61 @@ namespace Opm
     updatePrimaryVariablesNewton(const BVectorWell& dwells,
                                  const WellState& well_state) const
     {
+#if 1
+        if (well_type_ == PRODUCER) {
+            std::cout << " outputting the primary_variables_ for well " << name()
+                      << " at the beginning of updatePrimaryVariablesNewton() " << std::endl;
+            for (const double value : primary_variables_) {
+                std::cout << value << " ";
+            }
+            std::cout << std::endl;
+        }
+#endif
+
         const double dFLimit = param_.dwell_fraction_max_;
 
         const std::vector<double> old_primary_variables = primary_variables_;
 
+        const double relaxation_factor = (well_type_ == PRODUCER) ? determineRelaxationFractor(old_primary_variables, dwells) : 1.0;
+
+        std::cout << " well " << name() << " gets relaxation_factor " << relaxation_factor << std::endl;
+
         // update the second and third well variable (The flux fractions)
         if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
             const int sign2 = dwells[0][WFrac] > 0 ? 1: -1;
-            const double dx2_limited = sign2 * std::min(std::abs(dwells[0][WFrac]),dFLimit);
+            const double dx2_limited = sign2 * std::min(std::abs(dwells[0][WFrac] * relaxation_factor), dFLimit);
+            // primary_variables_[WFrac] = old_primary_variables[WFrac] - dx2_limited;
             primary_variables_[WFrac] = old_primary_variables[WFrac] - dx2_limited;
+#if 1
+            std::cout << " WATER Frac dx " << dwells[0][WFrac] << " dx2_limited " << dx2_limited << std::endl;
+#endif
         }
 
         if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
             const int sign3 = dwells[0][GFrac] > 0 ? 1: -1;
-            const double dx3_limited = sign3 * std::min(std::abs(dwells[0][GFrac]),dFLimit);
+            const double dx3_limited = sign3 * std::min(std::abs(dwells[0][GFrac] * relaxation_factor), dFLimit);
             primary_variables_[GFrac] = old_primary_variables[GFrac] - dx3_limited;
+#if 1
+            std::cout << " GAS Frac dx " << dwells[0][GFrac] << " dx3_limited " << dx3_limited << std::endl;
+#endif
         }
 
         if (has_solvent) {
             const int sign4 = dwells[0][SFrac] > 0 ? 1: -1;
-            const double dx4_limited = sign4 * std::min(std::abs(dwells[0][SFrac]),dFLimit);
+            const double dx4_limited = sign4 * std::min(std::abs(dwells[0][SFrac]) * relaxation_factor, dFLimit);
             primary_variables_[SFrac] = old_primary_variables[SFrac] - dx4_limited;
         }
 
+#if 1
+        if (well_type_ == PRODUCER) {
+            std::cout << " outputting the primary_variables_ for well " << name()
+                      << " before processFractions " << std::endl;
+            for (const double value : primary_variables_) {
+                 std::cout << value << " ";
+            }
+            std::cout << std::endl;
+        }
+#endif
         processFractions();
 
         // updating the total rates G_t
@@ -911,6 +943,16 @@ namespace Opm
             // 1e5 to make sure bhp will not be below 1bar
             primary_variables_[Bhp] = std::max(old_primary_variables[Bhp] - dx1_limited, 1e5);
         }
+#if 1
+        if (well_type_ == PRODUCER) {
+            std::cout << " outputting the primary_variables_ for well " << name()
+                      << " at the END of updatePrimaryVariablesNewton() " << std::endl;
+            for (const double value : primary_variables_) {
+                std::cout << value << " ";
+            }
+            std::cout << std::endl;
+        }
+#endif
     }
 
 
@@ -1065,6 +1107,20 @@ namespace Opm
         }
 
         updateThp(well_state);
+#if 1
+        if (well_type_ == PRODUCER) {
+            const std::string modestring[4] = { "BHP", "THP", "RESERVOIR_RATE", "SURFACE_RATE" };
+            const int np = number_of_phases_;
+            const int w = index_of_well_;
+            const auto wc = well_controls_;
+            const int control_index = well_state.currentControls()[w];
+            std::cout << " well " << name() << " at the end of updateWellControl() " << std::endl;
+            std::cout << " current control mode is " << modestring[well_controls_iget_type(wc, control_index)] << std::endl;
+            std::cout << " bhp " << well_state.bhp()[w] << " thp " << well_state.thp()[w] << std::endl;
+            std::cout << " well rates " << well_state.wellRates()[np * w] << " " << well_state.wellRates()[np * w + 1]
+                      << " " << well_state.wellRates()[np * w + 2] << std::endl;
+        }
+#endif
     }
 
 
@@ -1123,7 +1179,8 @@ namespace Opm
     template<typename TypeTag>
     void
     StandardWell<TypeTag>::
-    updateWellStateWithTarget(WellState& well_state) const
+    updateWellStateWithTarget(const Simulator& ebos_simulator,
+                              WellState& well_state) const
     {
         // number of phases
         const int np = number_of_phases_;
@@ -1140,27 +1197,13 @@ namespace Opm
             // TODO: similar to the way below to handle THP
             // we should not something related to thp here when there is thp constraint
             // or when can calculate the THP (table avaiable or requested for output?)
+            // TODO: we should address this in a function updateWellStateWithBHPTarget.
+            // TODO: however, the reason that this one minght not be that critical with
+            // TODO: the effects remaining to be investigated.
             break;
 
         case THP: {
-            // TODO: this will be the big task here.
-            // p_bhp = BHP(THP, rates(p_bhp))
-            // more sophiscated techniques is required to obtain the bhp and rates here
-            well_state.thp()[well_index] = target;
-
-            const Opm::PhaseUsage& pu = phaseUsage();
-            std::vector<double> rates(3, 0.0);
-            if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
-                rates[ Water ] = well_state.wellRates()[well_index*np + pu.phase_pos[ Water ] ];
-            }
-            if (FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx)) {
-                 rates[ Oil ] = well_state.wellRates()[well_index*np + pu.phase_pos[ Oil ] ];
-            }
-            if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
-                rates[ Gas ] = well_state.wellRates()[well_index*np + pu.phase_pos[ Gas ] ];
-            }
-
-            well_state.bhp()[well_index] = calculateBhpFromThp(rates, current);
+            updateWellStateWithTHPTargetIPR(ebos_simulator, well_state);
             break;
         }
 
@@ -1584,9 +1627,17 @@ namespace Opm
             // check convergence
             for ( int compIdx = 0; compIdx < num_components_; ++compIdx )
             {
-                report.converged = report.converged && (well_flux_residual[compIdx] < tol_wells) && control_eq_converged;
+                report.converged = report.converged && (well_flux_residual[compIdx] < tol_wells);
             }
+
+            if (!report.converged || !control_eq_converged) {
+                std::cout << " well " << name() << " mass balance converged? " << report.converged << " control_eq_converged? " << control_eq_converged << std::endl;
+            }
+
+            report.converged = report.converged && control_eq_converged;
+
         } else { // abnormal values found and no need to check the convergence
+            std::cout << " well " << name() << " has NaN residual or too large residual " << std::endl;
             report.converged = false;
         }
 
@@ -1656,7 +1707,7 @@ namespace Opm
     StandardWell<TypeTag>::
     solveEqAndUpdateWellState(WellState& well_state)
     {
-        if (!is_well_operable_) return;
+        if (!this->isOperable()) return;
 
         // We assemble the well equations, then we check the convergence,
         // which is why we do not put the assembleWellEq here.
@@ -1703,7 +1754,7 @@ namespace Opm
     StandardWell<TypeTag>::
     apply(const BVector& x, BVector& Ax) const
     {
-        if (!is_well_operable_) return;
+        if (!this->isOperable()) return;
 
         if ( param_.matrix_add_well_contributions_ )
         {
@@ -1733,7 +1784,7 @@ namespace Opm
     StandardWell<TypeTag>::
     apply(BVector& r) const
     {
-        if (!is_well_operable_) return;
+        if (!this->isOperable()) return;
 
         assert( invDrw_.size() == invDuneD_.N() );
 
@@ -1752,7 +1803,7 @@ namespace Opm
     StandardWell<TypeTag>::
     recoverSolutionWell(const BVector& x, BVectorWell& xw) const
     {
-        if (!is_well_operable_) return;
+        if (!this->isOperable()) return;
 
         BVectorWell resWell = resWell_;
         // resWell = resWell - B * x
@@ -1771,7 +1822,7 @@ namespace Opm
     recoverWellSolutionAndUpdateWellState(const BVector& x,
                                           WellState& well_state) const
     {
-        if (!is_well_operable_) return;
+        if (!this->isOperable()) return;
 
         BVectorWell xw(1);
         recoverSolutionWell(x, xw);
@@ -1977,7 +2028,7 @@ namespace Opm
     StandardWell<TypeTag>::
     updatePrimaryVariables(const WellState& well_state) const
     {
-        if (!is_well_operable_) return;
+        if (!this->isOperable()) return;
 
         const int well_index = index_of_well_;
         const int np = number_of_phases_;
@@ -2105,7 +2156,7 @@ namespace Opm
              const double vfp_ref_depth = vfp_properties_->getProd()->getTable(vfp)->getDatumDepth();
 
              const double dp = wellhelpers::computeHydrostaticCorrection(ref_depth_, vfp_ref_depth, rho, gravity_);
-#if 0
+#if 1
              std::cout << " well " << name() << " aqua " << aqua << " liquid " << liquid << " vapour " << vapour
                        << " alq " << alq << " rho " << rho << " dp " << dp << std::endl;
 #endif
@@ -2399,23 +2450,22 @@ namespace Opm
             return;
         }
 
+        const bool old_well_operable = this->operability_status_.isOperable();
+
+        this->operability_status_.reset();
+
         // TODO: it might mean the ipr_a_ and ipr_b_ can be something local in this function
         // if they are not used outside this checkWhetherOperable function
         updateIPR(ebos_simulator);
 
-        bool operable_under_bhp_limit = true;
-        bool violate_thp_limit_under_bhp_limit = false;
-
         // checking the BHP limit related
-        operableUnderBHPLimit(ebos_simulator, operable_under_bhp_limit, violate_thp_limit_under_bhp_limit);
+        checkOperabilityUnderBHPLimit(ebos_simulator);
 
         // TODO: if the BHP limit does not work anyway, we do not need to do the following
         // We do it now for studying purpose.
         // checking whether the well can operate under the THP constraints.
-        bool obtain_solution_with_thp_limit = true;
-        bool violate_bhp_limit_with_thp_limit = false;
         if (this->wellHasTHPConstraints()) {
-            operableUnderTHPLimit(ebos_simulator, obtain_solution_with_thp_limit, violate_bhp_limit_with_thp_limit);
+            checkOperabilityUnderTHPLimit(ebos_simulator);
         }
 
 #if 1
@@ -2424,33 +2474,24 @@ namespace Opm
             std::cout << " and thp limit " << this->getTHPConstraint() / 1.e5;
         }
         std::cout << std::endl;
-        std::cout << " operable_under_bhp_limit " << operable_under_bhp_limit
-                  << " violate_thp_limit_under_bhp_limit " << violate_thp_limit_under_bhp_limit;
+        std::cout << " operable_under_only_bhp_limit " << this->operability_status_.operable_under_only_bhp_limit
+                  << " violate_thp_limit_under_bhp_limit " << this->operability_status_.violate_thp_limit_under_bhp_limit;
         if (this->wellHasTHPConstraints()) {
-            std::cout << " obtain_solution_with_thp_limit " << obtain_solution_with_thp_limit
-                      << " violate_bhp_limit_with_thp_limit " << violate_bhp_limit_with_thp_limit;
+            std::cout << " obtain_solution_with_thp_limit " << this->operability_status_.obtain_solution_with_thp_limit
+                      << " violate_bhp_limit_with_thp_limit " << this->operability_status_.violate_bhp_limit_with_thp_limit;
         }
         std::cout << std::endl;
         std::cout << std::endl;
 #endif
-        const bool well_operable = (operable_under_bhp_limit && !violate_thp_limit_under_bhp_limit)
-                                || (obtain_solution_with_thp_limit && !violate_bhp_limit_with_thp_limit);
+        const bool well_operable = this->operability_status_.isOperable();
 
-        if (!well_operable) {
 #if 1
-            if (is_well_operable_) {
-                std::cout << " well " << name() << " gets SHUT during iteration " << std::endl;
-            }
-#endif
-            is_well_operable_ = well_operable;
-        } else {
-#if 1
-            if (!is_well_operable_) {
-                std::cout << " well " << name() << " gets REVIVED during iteration " << std::endl;
-            }
-#endif
-            is_well_operable_ = true;
+        if (!well_operable && old_well_operable) {
+            std::cout << " well " << name() << " gets SHUT during iteration " << std::endl;
+        } else if (well_operable && !old_well_operable) {
+            std::cout << " well " << name() << " gets REVIVED during iteration " << std::endl;
         }
+#endif
     }
 
 
@@ -2489,28 +2530,24 @@ namespace Opm
 
 
     template<typename TypeTag>
-    bool
+    void
     StandardWell<TypeTag>::
-    operableUnderBHPLimit(const Simulator& ebos_simulator,
-                          bool& operable_under_bhp_limit,
-                          bool& violate_thp_limit_under_bhp_limit) const
+    checkOperabilityUnderBHPLimit(const Simulator& ebos_simulator)
     {
         const double bhp_limit = mostStrictBhpFromBhpLimits();
-        if (bhp_limit > 1.5e5 || !this->wellHasTHPConstraints()) { // non-defaulted BHP
+        // TODO: a better way to detect whether the BHP is defaulted or not
+        if ( !(bhp_limit < 1.5e5 && this->wellHasTHPConstraints()) ) {
+            // NOT (if defaulted BHP and there is a THP constraint, which requires some special treatment in else section)
 
             for (int p = 0; p < number_of_phases_; ++p) {
                 const double temp = ipr_a_[p] - ipr_b_[p] * bhp_limit;
                 if (temp < 0.) {
-                    operable_under_bhp_limit = false;
+                    this->operability_status_.operable_under_only_bhp_limit = false;
                 }
             }
 
-            if ( !operable_under_bhp_limit ) {
-                operable_under_bhp_limit = false;
-            }
-
             // checking whether running under BHP limit will violate THP limit
-            if (operable_under_bhp_limit && this->wellHasTHPConstraints()) {
+            if (this->operability_status_.operable_under_only_bhp_limit && this->wellHasTHPConstraints()) {
                 // option 1: calculate well rates based on the BHP limit.
                 // option 2: stick with the above IPR curve
                 // TODO: most likely, we can use IPR here
@@ -2528,7 +2565,6 @@ namespace Opm
 #if 1
                 std::cout << " thp value under bhp limit is " << thp / 1.e5 << " with bhp limit " << bhp_limit << std::endl;
 #endif
-
                 const double thp_limit = this->getTHPConstraint();
 #if 1
                 std::cout << " thp_limit is " << thp_limit / 1.e5 << std::endl;
@@ -2539,27 +2575,28 @@ namespace Opm
                     std::cout << " well " << name() << " violate the THP limit " << thp_limit
                               << " when running under bhp limit " << bhp_limit << " with thp value " <<  thp << std::endl;
 #endif
-                    violate_thp_limit_under_bhp_limit = true;
+                    this->operability_status_.violate_thp_limit_under_bhp_limit = true;
                 }
             }
-        } else { // defaulted BHP and there is THP constraints
-            // default BHP is about 1.03 bar.
+        } else {
+            // defaulted BHP and there is THP constraints
+            // default BHP limit is about 1.03 bar.
             // when applied the hydrostatic pressure correction,
-            // most likely we get a negative bhp value to search in the VFP table.
-            operable_under_bhp_limit = true;
-            violate_thp_limit_under_bhp_limit = true;
+            // most likely we get a negative bhp value to search in the VFP table,
+            // which is not desirable
+            this->operability_status_.operable_under_only_bhp_limit = true;
+            this->operability_status_.violate_thp_limit_under_bhp_limit = true;
         }
-        return true;
     }
+
+
 
 
 
     template<typename TypeTag>
     void
     StandardWell<TypeTag>::
-    operableUnderTHPLimit(const Simulator& ebos_simulator,
-                          bool& obtain_solution_with_thp_limit,
-                          bool& violate_bhp_limit_with_thp_limit) const
+    checkOperabilityUnderTHPLimit(const Simulator& ebos_simulator)
     {
         // We will use IPR to make the rates for now
         const double  bhp_limit = mostStrictBhpFromBhpLimits();
@@ -2578,11 +2615,184 @@ namespace Opm
 
         const double dp = (vfp_ref_depth - ref_depth_) * rho * gravity_;
 
-        vfp_properties_->getProd()->calculateBhpWithTHPTarget(ipr_a_, ipr_b_, bhp_limit,
+        vfp_properties_->getProd()->operabilityCheckingUnderTHP(ipr_a_, ipr_b_, bhp_limit,
                                            thp_table_id, thp_limit, alq, dp,
-                                           obtain_solution_with_thp_limit,
-                                           violate_bhp_limit_with_thp_limit);
+                                           this->operability_status_.obtain_solution_with_thp_limit,
+                                           this->operability_status_.violate_bhp_limit_with_thp_limit );
 
     }
 
+
+
+
+
+    template<typename TypeTag>
+    void
+    StandardWell<TypeTag>::
+    updateWellStateWithTHPTargetIPR(const Simulator& ebos_simulator,
+                                    WellState& well_state) const
+    {
+        const WellControls* wc = well_controls_;
+        const int current = well_state.currentControls()[index_of_well_];
+        const double thp_target = well_controls_iget_target(wc, current);
+
+        well_state.thp()[index_of_well_] = thp_target;
+
+        // TODO: not handling injectors for now
+        if (well_type_ == INJECTOR) {
+            return;
+        }
+
+        const double bhp = calculateBHPWithTHPTargetIPR();
+
+        well_state.bhp()[index_of_well_] = bhp;
+
+        // update rates
+        // here, we caulcate the rates based IPR.
+        // TODO: using simulator to calculate rates will require initialization of primary variables and so on.
+        // TODO: we are not sure whether to do here
+        // \Note, the rates with IPR do not work. It is something similar with using bhp value to determine the operability of well
+        /* for (size_t p = 0; p < ipr_a_.size(); ++p) {
+            // for producers, rates have negative values
+            const double rate = ipr_b_[p] * bhp - ipr_a_[p];
+            assert(rate <= 0.);
+            well_state.wellRates()[number_of_phases_ * index_of_well_ + ebosCompIdxToFlowCompIdx(p)] = rate;
+        } */
+
+        // TODO: some checking about the primary variables here
+        updatePrimaryVariables(well_state);
+        initPrimaryVariablesEvaluation();
+
+        std::vector<double> rates;
+        computeWellRatesWithBhp(ebos_simulator, bhp, rates);
+
+        for (size_t p = 0; p < number_of_phases_; ++p) {
+            well_state.wellRates()[number_of_phases_ * index_of_well_ + p] = rates[p];
+        }
+
+        // TODO: there will be something need to be done for the cases not the defaulted 3 phases,
+        // like 2 phases or solvent, polymer, etc
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    double
+    StandardWell<TypeTag>::
+    calculateBHPWithTHPTargetIPR() const
+    {
+        const double thp_target = this->getTHPConstraint();
+        const double thp_control_index = this->getTHPControlIndex();
+        const  int thp_table_id = well_controls_iget_vfp(well_controls_, thp_control_index);
+        const double alq = well_controls_iget_alq(well_controls_, thp_control_index);
+
+        // not considering injectors for now
+        const double vfp_ref_depth = vfp_properties_->getProd()->getTable(thp_table_id)->getDatumDepth();
+
+        // the density of the top perforation
+        // TODO: make sure this is properly initialized
+        // TODO: with IPR, it should be possible, even this well is a new well, we do not have
+        // TODO: any information of previous rates
+        // TODO: but let us not do more work related now to see what will happen
+        const double rho = perf_densities_[0];
+
+        // TODO: call a/the function for dp
+        const double dp = (vfp_ref_depth - ref_depth_) * rho * gravity_;
+
+        const double  bhp_limit = mostStrictBhpFromBhpLimits();
+
+        const double obtain_bhp = vfp_properties_->getProd()->calculateBhpWithTHPTarget(ipr_a_, ipr_b_,
+                                             bhp_limit, thp_table_id, thp_target, alq, dp);
+
+        // we should have made sure that this well should be operable under THP limit now
+        assert(obtain_bhp > 0.);
+
+        return obtain_bhp;
+    }
+
+
+
+
+    template<typename TypeTag>
+    double
+    StandardWell<TypeTag>::
+    relaxationFactorFraction(const double old_value,
+                             const double dx) {
+        // may adding a tolerance?
+        assert(old_value >= 0. && old_value <= 1.0);
+
+        // to avoid to get negative value or value above 1
+        double relaxation_factor = 1.;
+
+        bool relaxation_avoid_negative = false;
+        bool relaxation_avoid_over_one = false;
+        {
+            const double possible_updated_value = old_value - dx;
+            relaxation_avoid_negative = possible_updated_value < 0.;
+            relaxation_avoid_over_one = possible_updated_value > 1.0;
+
+            if (!relaxation_avoid_negative && !relaxation_avoid_over_one) {
+                return relaxation_factor; // 1.0
+            }
+        }
+
+        // we will not be this step if dx == 0.
+        assert(dx != 0.0);
+
+        if (relaxation_avoid_negative) {
+            relaxation_factor = std::abs(old_value / dx) * 0.95;
+        } else if (relaxation_avoid_over_one) {
+            relaxation_factor = std::abs((1. - old_value) / dx) * 0.95;
+        }
+
+        assert(relaxation_factor >= 0. && relaxation_factor <= 1.);
+        return relaxation_factor;
+    }
+
+
+
+
+    template<typename TypeTag>
+    double
+    StandardWell<TypeTag>::
+    determineRelaxationFractor(const std::vector<double>& primary_variables,
+                               const BVectorWell& dwells)
+    {
+        // TODO: not considering solvent yet
+
+        double relaxation_factor = 1.0;
+
+        if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
+            const double relaxation_factor_w = relaxationFactorFraction(primary_variables[WFrac], dwells[0][WFrac]);
+            if (relaxation_factor_w < relaxation_factor) {
+                relaxation_factor = relaxation_factor_w;
+            }
+        }
+
+        if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
+            const double relaxation_factor_g = relaxationFactorFraction(primary_variables[GFrac], dwells[0][GFrac]);
+            if (relaxation_factor_g < relaxation_factor) {
+                relaxation_factor = relaxation_factor_g;
+            }
+        }
+
+        if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx) && FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
+            // We need to make sure the even with the relaxation_factor, the sum of F_w and F_g is below one, so there will
+            // not be negative oil fraction later
+            const double original_sum = primary_variables[WFrac] + primary_variables[GFrac];
+            const double relaxed_update = (dwells[0][WFrac] + dwells[0][GFrac]) * relaxation_factor;
+            const double possible_updated_sum = original_sum - relaxed_update;
+
+            if (possible_updated_sum > 1.0) {
+                assert(relaxed_update != 0.);
+
+                const double further_relaxation_factor = std::abs((1. - original_sum) / relaxed_update) * 0.95;
+                relaxation_factor *= further_relaxation_factor;
+            }
+        }
+
+        return relaxation_factor;
+    }
 }

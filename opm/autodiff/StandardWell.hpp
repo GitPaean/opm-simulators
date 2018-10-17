@@ -142,7 +142,8 @@ namespace Opm
 
         /// updating the well state based the control mode specified with current
         // TODO: later will check wheter we need current
-        virtual void updateWellStateWithTarget(WellState& well_state) const;
+        virtual void updateWellStateWithTarget(const Simulator& ebos_simulator,
+                                               WellState& well_state) const;
 
         /// check whether the well equations get converged for this well
         virtual ConvergenceReport getWellConvergence(const std::vector<double>& B_avg) const;
@@ -213,8 +214,6 @@ namespace Opm
         using Base::perf_rep_radius_;
         using Base::perf_length_;
         using Base::bore_diameters_;
-
-        using Base::is_well_operable_;
 
         // densities of the fluid in each perforation
         std::vector<double> perf_densities_;
@@ -357,19 +356,32 @@ namespace Opm
         // What if the BHP we obtained for this iteration is too high, while the well can work under
         // BHP limit or THP limit, then how should we handle this,
         // TODO: maybe we should switch to the less strict one between BHP limit and THP limit?
-        void checkWellOperatability(const Simulator& ebos_simulator);
+        virtual void checkWellOperatability(const Simulator& ebos_simulator);
 
         // check whether the well is operable under BHP limit with current reservoir condition
-        bool operableUnderBHPLimit(const Simulator& ebos_simulator,
-                                   bool& operable_under_bhp_limit,
-                                   bool& violate_thp_limit_under_bhp_limit) const;
+        void checkOperabilityUnderBHPLimit(const Simulator& ebos_simulator);
 
         // check whether the well is operable under THP limit with current reservoir condition
-        void operableUnderTHPLimit(const Simulator& ebos_simulator,
-                                   bool& obtain_solution_with_thp_limit,
-                                   bool& violate_bhp_limit_with_thp_limit) const;
+        void checkOperabilityUnderTHPLimit(const Simulator& ebos_simulator);
 
         // double computeBhpAtTHPConstraint(const Simulator& ebos_simulator) const;
+
+        // update WellState based on IPR and associated VFP table
+        void updateWellStateWithTHPTargetIPR(const Simulator& ebos_simulator,
+                                             WellState& well_state) const;
+
+        // calculate the BHP from THP target based on IPR
+        // TODO: we need to check the operablility here first, if not operable, then maybe there is
+        // no point to do this
+        double calculateBHPWithTHPTargetIPR() const;
+
+        static double relaxationFactorFraction(const double old_value,
+                                               const double dx);
+
+        // calculate a relaxation factor to avoid overshoot of the fractions
+        // which will result in negative rates
+        static double determineRelaxationFractor(const std::vector<double>& primary_variables,
+                                                 const BVectorWell& dwells);
     };
 
 }

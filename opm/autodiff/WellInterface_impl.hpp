@@ -37,7 +37,6 @@ namespace Opm
     , rateConverter_(rate_converter)
     , pvtRegionIdx_(pvtRegionIdx)
     , num_components_(num_components)
-    , is_well_operable_(true) // TODO: should it be State value?
     {
         if (!well) {
             OPM_THROW(std::invalid_argument, "Null pointer of Well is used to construct WellInterface");
@@ -210,16 +209,6 @@ namespace Opm
     wellEcl() const
     {
         return well_ecl_;
-    }
-
-
-
-    template<typename TypeTag>
-    bool
-    WellInterface<TypeTag>::
-    isWellOperable() const
-    {
-        return is_well_operable_;
     }
 
 
@@ -423,11 +412,12 @@ namespace Opm
     template<typename TypeTag>
     void
     WellInterface<TypeTag>::
-    updateWellControl(WellState& well_state,
+    updateWellControl(const Simulator& ebos_simulator,
+                      WellState& well_state,
                       wellhelpers::WellSwitchingLogger& logger) const
     {
         // well is shut for this iteration
-        if (!is_well_operable_) return;
+        if (!isOperable()) return;
 
         const int np = number_of_phases_;
         const int w = index_of_well_;
@@ -445,6 +435,16 @@ namespace Opm
         // the current control index
         int current = well_state.currentControls()[w];
         int ctrl_index = 0;
+#if 1
+        if (well_type_ == PRODUCER) {
+            const std::string modestring[4] = { "BHP", "THP", "RESERVOIR_RATE", "SURFACE_RATE" };
+            std::cout << " well " << name() << " before constraintBroken checking " << std::endl;
+            std::cout << " current control mode is " << modestring[well_controls_iget_type(wc, old_control_index)] << std::endl;
+            std::cout << " bhp " << well_state.bhp()[w] << " thp " << well_state.thp()[w] << std::endl;
+            std::cout << " well rates " << well_state.wellRates()[np * w] << " " << well_state.wellRates()[np * w + 1]
+                      << " " << well_state.wellRates()[np * w + 2] << std::endl;
+        }
+#endif
         for (; ctrl_index < nwc; ++ctrl_index) {
             if (ctrl_index == current) {
                 // This is the currently used control, so it is
@@ -478,8 +478,18 @@ namespace Opm
         }
 
         if (updated_control_index != old_control_index) { //  || well_collection_->groupControlActive()) {
-            updateWellStateWithTarget(well_state);
+            updateWellStateWithTarget(ebos_simulator, well_state);
         }
+#if 1
+        if (well_type_ == PRODUCER) {
+            const std::string modestring[4] = { "BHP", "THP", "RESERVOIR_RATE", "SURFACE_RATE" };
+            std::cout << " well " << name() << " at the end of updateWellControl() " << std::endl;
+            std::cout << " current control mode is " << modestring[well_controls_iget_type(wc, updated_control_index)] << std::endl;
+            std::cout << " bhp " << well_state.bhp()[w] << " thp " << well_state.thp()[w] << std::endl;
+            std::cout << " well rates " << well_state.wellRates()[np * w] << " " << well_state.wellRates()[np * w + 1]
+                      << " " << well_state.wellRates()[np * w + 2] << std::endl;
+        }
+#endif
     }
 
 
@@ -693,7 +703,7 @@ namespace Opm
 
         const std::string well_name = name();
 
-        if (!is_well_operable_) {
+        if (!isOperable()) {
             wellTestState.addClosedWell(well_name, WellTestConfig::Reason::PHYSICAL, simulationTime);
             // TODO: considering auto shut in?
             const std::string msg = "well " + well_name
@@ -701,6 +711,8 @@ namespace Opm
             OpmLog::info(msg);
             // TODO: should we return?
         }
+
+        // TODO: this function need to be split to be several different testing functions based on different closing reasons
 
         // flag to check if the mim oil/gas rate limit is violated
         bool rate_limit_violated = false;
@@ -995,7 +1007,7 @@ namespace Opm
             solveEqAndUpdateWellState(well_state);
 
             wellhelpers::WellSwitchingLogger logger;
-            updateWellControl(well_state, logger);
+            updateWellControl(ebosSimulator, well_state, logger);
             initPrimaryVariablesEvaluation();
         } while (it < max_iter);
 
@@ -1008,5 +1020,16 @@ namespace Opm
                 OpmLog::debug("WellTest: Well equation for well" +name() + " solution failed in getting converged with " + std::to_string(it) + " iterations");
             }
         }
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    bool
+    WellInterface<TypeTag>::
+    isOperable() const {
+        return operability_status_.isOperable();
     }
 }
