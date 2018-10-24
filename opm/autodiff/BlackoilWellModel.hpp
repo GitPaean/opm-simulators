@@ -133,7 +133,7 @@ namespace Opm {
                 if (nw > 0) {
                     auto phaseUsage = phaseUsageFromDeck(eclState());
                     size_t numCells = Opm::UgGridHelpers::numCells(grid());
-                    well_state_.resize(wells, numCells, phaseUsage); //Resize for restart step
+                    well_state_.resize(wells, numCells); //Resize for restart step
                     wellsToState(restartValues.wells, phaseUsage, well_state_);
                     previous_well_state_ = well_state_;
                 }

@@ -89,7 +89,7 @@ namespace Opm {
             const double p = fs.pressure(FluidSystem::oilPhaseIdx).value();
             cellPressures[cellIdx] = p;
         }
-        well_state_.init(wells(), cellPressures, &previous_well_state_, phase_usage_);
+        well_state_.init(wells(), cellPressures, wells_ecl_, timeStepIdx, &previous_well_state_, phase_usage_);
 
         // handling MS well related
         if (param_.use_multisegment_well_) { // if we use MultisegmentWell model
@@ -845,7 +845,12 @@ namespace Opm {
             well_state_.currentControls()[w] = control;
             // TODO: for VFP control, the perf_densities are still zero here, investigate better
             // way to handle it later.
-            well->updateWellStateWithTarget(ebosSimulator_, well_state_);
+
+            if (well_state_.effectiveEventsHappen(w) ) {
+                well->updateWellStateWithTarget(ebosSimulator_, well_state_);
+            }
+
+            updatePrimaryVariables();
 #if 1
             if (well->wellType() == PRODUCER) {
                 const auto& well_state = well_state_;
@@ -860,10 +865,10 @@ namespace Opm {
             }
 #endif
 
-            // The wells are not considered to be newly added
-            // for next time step
-            if (well_state_.isNewWell(w) ) {
-                well_state_.setNewWell(w, false);
+            // there is no new well control change input within a report step,
+            // so next time step, the well does not consider to have effective events anymore
+            if (well_state_.effectiveEventsHappen(w) ) {
+                well_state_.setEffeciveEventHappen(w, false);
             }
         }  // end of for (int w = 0; w < nw; ++w)
 
