@@ -266,6 +266,8 @@ namespace Opm
 
         bool crossFlowAllowed(const Simulator& ebosSimulator) const;
 
+        bool allDrawDownWrongDirection(const Simulator& ebosSimulator) const;
+
         // xw = inv(D)*(rw - C*x)
         void recoverSolutionWell(const BVector& x, BVectorWell& xw) const;
 
@@ -370,6 +372,9 @@ namespace Opm
         void updateWellStateWithTHPTargetIPR(const Simulator& ebos_simulator,
                                              WellState& well_state) const;
 
+        void updateWellStateWithTHPTargetIPRProducer(const Simulator& ebos_simulator,
+                                                     WellState& well_state) const;
+
         // calculate the BHP from THP target based on IPR
         // TODO: we need to check the operablility here first, if not operable, then maybe there is
         // no point to do this
@@ -382,6 +387,9 @@ namespace Opm
         // which will result in negative rates
         static double determineRelaxationFractor(const std::vector<double>& primary_variables,
                                                  const BVectorWell& dwells);
+
+        static double determineRelaxationFractorInjector(const std::vector<double>& primary_variables,
+                                                         const BVectorWell& dwells);
     };
 
 }

@@ -652,7 +652,13 @@ namespace Opm
                     rates[ Gas ] = getQs(flowPhaseToEbosCompIdx(Gas));
                 }
                 const int current = well_controls_get_current(well_controls_);
-                control_eq = getBhp() - calculateBhpFromThp(rates, current);
+
+                // control_eq = getBhp() - calculateBhpFromThp(rates, current);
+                const auto bhp = getBhp();
+                const auto bhp_from_thp = calculateBhpFromThp(rates, current);
+                std::cout << " well " << name() << " water " << rates[Water] << " oil " << rates[Oil] << " gas " << rates[Gas]
+                          << " getBhp() " << bhp << " calculateBhpFromThp " << bhp_from_thp << std::endl;
+                control_eq = bhp - bhp_from_thp;
                 break;
             }
             case BHP:
@@ -783,6 +789,40 @@ namespace Opm
 
 
 
+    // TODO: maybe we should put bhp as a parameter, and we change the operability_status_ inside
+    // this function directly
+    template<typename TypeTag>
+    bool
+    StandardWell<TypeTag>::
+    allDrawDownWrongDirection(const Simulator& ebosSimulator) const
+    {
+        bool all_drawdown_wrong_direction = true;
+
+        for (int perf = 0; perf < number_of_perforations_; ++perf) {
+            const int cell_idx = well_cells_[perf];
+            const auto& intQuants = *(ebosSimulator.model().cachedIntensiveQuantities(cell_idx, /*timeIdx=*/0));
+            const auto& fs = intQuants.fluidState();
+
+            const EvalWell pressure = extendEval(fs.pressure(FluidSystem::oilPhaseIdx));
+            const EvalWell& bhp = getBhp();
+
+            // Pressure drawdown (also used to determine direction of flow)
+            const EvalWell well_pressure = bhp + perf_pressure_diffs_[perf];
+            const EvalWell drawdown = pressure - well_pressure;
+
+            if ( (drawdown.value() < 0 && well_type_ == INJECTOR) ||
+                 (drawdown.value() > 0 && well_type_ == PRODUCER) )  {
+                all_drawdown_wrong_direction = false;
+                break;
+            }
+        }
+
+        return all_drawdown_wrong_direction;
+    }
+
+
+
+
 
     template<typename TypeTag>
     void
@@ -890,7 +930,9 @@ namespace Opm
 
         const std::vector<double> old_primary_variables = primary_variables_;
 
-        const double relaxation_factor = (well_type_ == PRODUCER) ? determineRelaxationFractor(old_primary_variables, dwells) : 1.0;
+        const double relaxation_factor = (well_type_ == PRODUCER) ?
+                                         determineRelaxationFractor(old_primary_variables, dwells)
+                                       : determineRelaxationFractorInjector(old_primary_variables, dwells);
 
         std::cout << " well " << name() << " gets relaxation_factor " << relaxation_factor << std::endl;
 
@@ -933,7 +975,12 @@ namespace Opm
         processFractions();
 
         // updating the total rates G_t
-        primary_variables_[WQTotal] = old_primary_variables[WQTotal] - dwells[0][WQTotal];
+        primary_variables_[WQTotal] = old_primary_variables[WQTotal] - dwells[0][WQTotal] * relaxation_factor;
+
+        if (primary_variables_[WQTotal] * old_primary_variables[WQTotal] < 0.) {
+            std::cout << " well " << name() << " rates CHANGED sign during newton update " << " old_primary_variables " << old_primary_variables[WQTotal]
+                      << " dwells[0][WQTotal] " << dwells[0][WQTotal] << " primary_variables_ " <<  primary_variables_[WQTotal] << std::endl;
+        }
 
         // updating the bottom hole pressure
         {
@@ -1203,12 +1250,21 @@ namespace Opm
             break;
 
         case THP: {
-            updateWellStateWithTHPTargetIPR(ebos_simulator, well_state);
+            assert(this->isOperable() );
+
+            if (this->operability_status_.isOperableUnderTHPLimit()) {
+                updateWellStateWithTHPTargetIPR(ebos_simulator, well_state);
+            } else { // go to BHP limit
+                const double bhp_limit = mostStrictBhpFromBhpLimits();
+                well_state.bhp()[well_index] = bhp_limit;
+            }
             break;
         }
 
         case RESERVOIR_RATE: // intentional fall-through
         case SURFACE_RATE:
+            // TODO: something needs to be done with BHP and THP here
+
             // checking the number of the phases under control
             int numPhasesWithTargetsUnderThisControl = 0;
             for (int phase = 0; phase < np; ++phase) {
@@ -1589,8 +1645,8 @@ namespace Opm
         double control_tolerance = 0.;
         switch(well_controls_get_current_type(well_controls_)) {
             case THP:
-                // control_tolerance = 1.e4; // 0.1 bar
-                control_tolerance = 3.e4; // 0.3 bar
+                control_tolerance = 1.e4; // 0.1 bar
+                // control_tolerance = 4.e4; // 0.4 bar
                 break;
             case BHP:  // pressure type of control
                 control_tolerance = 1.e3; // 0.01 bar
@@ -1854,7 +1910,9 @@ namespace Opm
             double perf_vap_oil_rate = 0.;
             computePerfRate(intQuants, mob, well_index_[perf], bhp, perf_pressure_diffs_[perf], allow_cf,
                             cq_s, perf_dis_gas_rate, perf_vap_oil_rate);
-
+#if 1
+            std::cout << " well " << name() << " perf " << perf << "cq_s " <<  cq_s[0] << " " << cq_s[1] << " " << cq_s[2] << std::endl;
+#endif
             for(int p = 0; p < np; ++p) {
                 well_flux[ebosCompIdxToFlowCompIdx(p)] += cq_s[p].value();
             }
@@ -2029,6 +2087,37 @@ namespace Opm
     {
         if (!this->isOperable()) return;
 
+#if 1
+        std::cout << " output the well state at the beginning of the updatePrimaryVariables " << std::endl;
+        if (well_type_ == PRODUCER) {
+            const int np = number_of_phases_;
+            const int w = index_of_well_;
+            const std::string modestring[4] = { "BHP", "THP", "RESERVOIR_RATE", "SURFACE_RATE" };
+            std::cout << " well " << name() << " at the end of updateWellControl() " << std::endl;
+            std::cout << " current control mode is " << modestring[well_controls_get_current_type(well_controls_)] << std::endl;
+            std::cout << " bhp " << well_state.bhp()[w] << " thp " << well_state.thp()[w] << std::endl;
+            const double water_rate = well_state.wellRates()[np * w];
+            const double oil_rate = well_state.wellRates()[np * w + 1];
+            const double gas_rate = well_state.wellRates()[np * w + 2];
+            std::cout << " well rates " << water_rate << " " << oil_rate
+                      << " " << gas_rate << std::endl;
+            std::cout << " water cut " << water_rate / (water_rate + oil_rate)
+                      << " GLR " << gas_rate / (water_rate + oil_rate)
+                      << " GOR " << gas_rate / oil_rate << std::endl;
+        } else { // injectors
+            const int np = number_of_phases_;
+            const int w = index_of_well_;
+            const std::string modestring[4] = { "BHP", "THP", "RESERVOIR_RATE", "SURFACE_RATE" };
+            std::cout << " well " << name() << " before constraintBroken checking " << std::endl;
+            std::cout << " current control mode is " << modestring[well_controls_get_current_type(well_controls_)] << std::endl;
+            std::cout << " bhp " << well_state.bhp()[w] << " thp " << well_state.thp()[w] << std::endl;
+            const double water_rate = well_state.wellRates()[np * w];
+            const double oil_rate = well_state.wellRates()[np * w + 1];
+            const double gas_rate = well_state.wellRates()[np * w + 2];
+            std::cout << " well rates " << water_rate << " " << oil_rate
+                      << " " << gas_rate << std::endl;
+        }
+#endif
         const int well_index = index_of_well_;
         const int np = number_of_phases_;
 
@@ -2037,6 +2126,10 @@ namespace Opm
         for (int p = 0; p < np; ++p) {
             total_well_rate += scalingFactor(p) * well_state.wellRates()[np * well_index + p];
         }
+
+#if 1
+        std::cout << " total_well_rate is " <<  total_well_rate << std::endl;
+#endif
 
         // Not: for the moment, the first primary variable for the injectors is not G_total. The injection rate
         // under surface condition is used here
@@ -2109,6 +2202,14 @@ namespace Opm
 
         // BHP
         primary_variables_[Bhp] = well_state.bhp()[index_of_well_];
+
+#if 1
+        std::cout << " well " <<  name() << " primary_variables at the end of updatePrimaryVariables " << std::endl;
+        for (const double value : primary_variables_) {
+            std::cout << " " << value;
+        }
+        std::cout << std::endl;
+#endif
     }
 
 
@@ -2482,8 +2583,16 @@ namespace Opm
         std::cout << std::endl;
         std::cout << std::endl;
 #endif
-        const bool well_operable = this->operability_status_.isOperable();
+        // checking whether the well can not produce or something else
+        this->operability_status_.negative_well_rates = allDrawDownWrongDirection(ebos_simulator);
 
+#if 1
+        if (this->operability_status_.negative_well_rates) {
+            std::cout << " well " << name() << " gets all the drawdown in the WRONG direction " << std::endl;
+        }
+#endif
+
+        const bool well_operable = this->operability_status_.isOperable();
 #if 1
         if (!well_operable && old_well_operable) {
             std::cout << " well " << name() << " gets SHUT during iteration " << std::endl;
@@ -2535,13 +2644,15 @@ namespace Opm
     {
         const double bhp_limit = mostStrictBhpFromBhpLimits();
         // TODO: a better way to detect whether the BHP is defaulted or not
-        if ( !(bhp_limit < 1.5e5 && this->wellHasTHPConstraints()) ) {
-            // NOT (if defaulted BHP and there is a THP constraint, which requires some special treatment in else section)
+        if ( bhp_limit > 1.5e5 || !this->wellHasTHPConstraints() ) {
+        // if ( !(bhp_limit < 1.5e5 && this->wellHasTHPConstraints()) ) {
+            // if there is a non-defaulted BHP limit or the well does not have a THP limit
 
             for (int p = 0; p < number_of_phases_; ++p) {
                 const double temp = ipr_a_[p] - ipr_b_[p] * bhp_limit;
                 if (temp < 0.) {
                     this->operability_status_.operable_under_only_bhp_limit = false;
+                    break;
                 }
             }
 
@@ -2562,14 +2673,18 @@ namespace Opm
 
                 const double thp = calculateThpFromBhp(well_rates_bhp_limit, thp_control_index, bhp_limit);
 #if 1
-                std::cout << " thp value under bhp limit is " << thp / 1.e5 << " with bhp limit " << bhp_limit << std::endl;
+                std::cout << " THP value under bhp limit is " << thp / 1.e5 << " with BHP limit " << bhp_limit / 1.e5 << std::endl;
+
+                if (thp > bhp_limit) {
+                    std::cout << " thp is BIGGER than bhp for well " << name() << " when running under BHP limit " << std::endl;
+                }
 #endif
                 const double thp_limit = this->getTHPConstraint();
 #if 1
                 std::cout << " thp_limit is " << thp_limit / 1.e5 << std::endl;
 #endif
 
-                if (thp < thp_limit) {
+                if (thp < thp_limit || thp >  bhp_limit) {
 #if 1
                     std::cout << " well " << name() << " violate the THP limit " << thp_limit
                               << " when running under bhp limit " << bhp_limit << " with thp value " <<  thp << std::endl;
@@ -2614,6 +2729,9 @@ namespace Opm
 
         const double dp = (vfp_ref_depth - ref_depth_) * rho * gravity_;
 
+        std::cout << " checkOperabilityUnderTHPLimit " << std::endl;
+        std::cout << " well " << name() << " alq " << alq << " rho " << rho << " dp " << dp << std::endl;
+
         vfp_properties_->getProd()->operabilityCheckingUnderTHP(ipr_a_, ipr_b_, bhp_limit,
                                            thp_table_id, thp_limit, alq, dp,
                                            this->operability_status_.obtain_solution_with_thp_limit,
@@ -2631,6 +2749,32 @@ namespace Opm
     updateWellStateWithTHPTargetIPR(const Simulator& ebos_simulator,
                                     WellState& well_state) const
     {
+        if (well_type_ == PRODUCER) {
+            updateWellStateWithTHPTargetIPRProducer(ebos_simulator,
+                                                    well_state);
+        }
+
+        if (well_type_ == INJECTOR) {
+            const WellControls* wc = well_controls_;
+            const int current = well_state.currentControls()[index_of_well_];
+            const double target = well_controls_iget_target(wc, current);
+            well_state.thp()[index_of_well_] = target;
+        }
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    void
+    StandardWell<TypeTag>::
+    updateWellStateWithTHPTargetIPRProducer(const Simulator& ebos_simulator,
+                                            WellState& well_state) const
+    {
+        // TODO: should we updateIPR here? maybe yes.
+        // updateIPR(ebos_simulator);
+
         const WellControls* wc = well_controls_;
         const int current = well_state.currentControls()[index_of_well_];
         const double thp_target = well_controls_iget_target(wc, current);
@@ -2665,10 +2809,21 @@ namespace Opm
         std::vector<double> rates;
         computeWellRatesWithBhp(ebos_simulator, bhp, rates);
 
+        // TODO: TODO: TODO:
+        // THIS IS ANOTHER PLACES WE CAN GET NEGATIVE RATES
+
+
         for (size_t p = 0; p < number_of_phases_; ++p) {
             well_state.wellRates()[number_of_phases_ * index_of_well_ + p] = rates[p];
         }
 
+#if 1
+        for (size_t p = 0; p < number_of_phases_; ++p) {
+            if (rates[p] > 0.) {
+                std::cout << " NEGATIVE RATES found for well " << name() << " at phase " << p << std::endl;
+            }
+        }
+#endif
         // TODO: there will be something need to be done for the cases not the defaulted 3 phases,
         // like 2 phases or solvent, polymer, etc
     }
@@ -2790,6 +2945,47 @@ namespace Opm
                 const double further_relaxation_factor = std::abs((1. - original_sum) / relaxed_update) * 0.95;
                 relaxation_factor *= further_relaxation_factor;
             }
+        }
+
+        std::cout << " relaxation_factor before WQTotal is " << relaxation_factor << std::endl;
+
+
+        // relaxation factor for the total rates
+        {
+            const double original_total_rate = primary_variables[WQTotal];
+            const double relaxed_update = dwells[0][WQTotal] * relaxation_factor;
+            const double possible_update_total_rate = primary_variables[WQTotal] - relaxed_update;
+
+            if (original_total_rate * possible_update_total_rate < 0.) { // sign changed
+                const double further_relaxation_factor = std::abs(original_total_rate / relaxed_update) * 0.95;
+                relaxation_factor *= further_relaxation_factor;
+            }
+        }
+
+        std::cout << " relaxation_factor after WQTotal is " << relaxation_factor << std::endl;
+
+        return relaxation_factor;
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    double
+    StandardWell<TypeTag>::
+    determineRelaxationFractorInjector(const std::vector<double>& primary_variables,
+                                       const BVectorWell& dwells)
+    {
+        double relaxation_factor = 1.0;
+
+        // For injector, we only check the total rates to avoid sign change of rates
+        const double original_total_rate = primary_variables[WQTotal];
+        const double newton_update = dwells[0][WQTotal];
+        const double possible_update_total_rate = primary_variables[WQTotal] - newton_update;
+
+        if (original_total_rate * possible_update_total_rate < 0.) { // sign changed
+            relaxation_factor = std::abs(original_total_rate / newton_update) * 0.8;
         }
 
         return relaxation_factor;

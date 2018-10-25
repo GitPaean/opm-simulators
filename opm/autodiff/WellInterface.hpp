@@ -365,15 +365,15 @@ namespace Opm
                 if (!operable_under_only_bhp_limit) {
                     return false;
                 } else {
-                    return isOperableUnderBHP() || isOperableUnderTHP();
+                    return !negative_well_rates && (isOperableUnderBHPLimit() || isOperableUnderTHPLimit());
                 }
             }
 
-            bool isOperableUnderBHP() const {
+            bool isOperableUnderBHPLimit() const {
                 return operable_under_only_bhp_limit && !violate_thp_limit_under_bhp_limit;
             }
 
-            bool isOperableUnderTHP() const {
+            bool isOperableUnderTHPLimit() const {
                 return obtain_solution_with_thp_limit && !violate_bhp_limit_with_thp_limit;
             }
 
@@ -382,7 +382,12 @@ namespace Opm
                 violate_thp_limit_under_bhp_limit = false;
                 obtain_solution_with_thp_limit = true;
                 violate_bhp_limit_with_thp_limit = false;
+                // TODO:
+                negative_well_rates = false;
             }
+
+            // TODO: re-design the boolean variables so that they have meaning in the same directions.
+            // For example, true are all for positive situation, and false are all for negative circumstances.
 
             // whether the well can be operated under bhp limit
             // without considering other limits.
@@ -395,6 +400,14 @@ namespace Opm
             bool obtain_solution_with_thp_limit = true;
             // whether the well violate bhp limit when operated under thp limit
             bool violate_bhp_limit_with_thp_limit = false;
+
+            // we get negatvie well rates
+            // currently, we are trying to address the one result from updateWellStateWithTHPTargetIPR
+            bool negative_well_rates = false;
+
+            // could not get converged, maybe at the end of the time step, after chopping for some steps.
+            // TODO: the best way is that this well can not get converged during local iterations.
+            bool could_not_get_converged = false;
         };
 
         OperabilityStatus operability_status_;

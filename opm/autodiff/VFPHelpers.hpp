@@ -198,12 +198,18 @@ static T getGFR(const T& aqua, const T& liquid, const T& vapour,
     switch(type) {
         case VFPProdTable::GFR_GOR:
             // Gas-oil ratio = gas / oil
+            std::cout << " GFR type is GOR " << " vapour " << vapour << " liquid " << liquid
+                      << " aqua " << aqua << " GOR is " << vapour / liquid << std::endl;
             return processedInfNanValue(table->getGFRAxis(), vapour / liquid);
         case VFPProdTable::GFR_GLR:
             // Gas-liquid ratio = gas / (oil + water)
-            return processedInfNanValue(table->getGFRAxis(), vapour / liquid + aqua);
+            std::cout << " GFR type is GLR " << " vapour " << vapour << " liquid " << liquid
+                      << " aqua " << aqua << " GLR is " << vapour / (liquid + aqua) << std::endl;
+            return processedInfNanValue(table->getGFRAxis(), vapour / (liquid + aqua));
         case VFPProdTable::GFR_OGR:
             // Oil-gas ratio = oil / gas
+            std::cout << " GFR type is OGR " << " vapour " << vapour << " liquid " << liquid
+                      << " aqua " << aqua << " OGR is " << liquid / vapour << std::endl;
             return processedInfNanValue(table->getGFRAxis(), liquid / vapour);
         case VFPProdTable::GFR_INVALID: //Intentional fall-through
         default:

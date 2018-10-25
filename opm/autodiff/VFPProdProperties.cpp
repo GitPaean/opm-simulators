@@ -316,6 +316,10 @@ operabilityCheckingUnderTHP(const std::vector<double>& ipr_a,
 
         violate_bhp_limit_with_thp_limit = (obtain_bhp < bhp_limit);
 
+        if (obtain_bhp < thp_limit) {
+            std::cout << " obtain_bhp " << obtain_bhp / 1.e5 << " is SMALLER than thp limit " << thp_limit / 1.e5 << std::endl;
+        }
+
     } else {
         obtain_solution_with_thp_limit = false;
         std::cout << " COULD NOT find an Intersection point, the well might need to be closed " << std::endl;
@@ -464,8 +468,9 @@ double VFPProdProperties::thp(int table_id,
     const VFPProdTable::array_type& data = table->getTable();
 
     //Find interpolation variables
-#if 0
-    std::cout << " in function thp " << " aqua " << aqua << " liquid " << liquid << " vapour " << vapour << std::endl;
+#if 1
+    std::cout << " in function thp " << " aqua " << aqua << " liquid " << liquid << " vapour " << vapour
+              << " bhp " << bhp_arg << " alq " << alq << std::endl;
 #endif
     double flo = detail::getFlo(aqua, liquid, vapour, table->getFloType());
     double wfr = detail::getWFR(aqua, liquid, vapour, table);
@@ -484,7 +489,7 @@ double VFPProdProperties::thp(int table_id,
     auto wfr_i = detail::findInterpData( wfr, table->getWFRAxis());
     auto gfr_i = detail::findInterpData( gfr, table->getGFRAxis());
     auto alq_i = detail::findInterpData( alq, table->getALQAxis());
-#if 0
+#if 1
     std::cout << " flo_i " << flo_i << " wfr_i " << wfr_i << " gfr_i " << gfr_i << " alq_i " << alq_i << std::endl;
 #endif
     std::vector<double> bhp_array(nthp);
@@ -493,7 +498,7 @@ double VFPProdProperties::thp(int table_id,
         bhp_array[i] = detail::interpolate(data, flo_i, thp_i, wfr_i, gfr_i, alq_i).value;
     }
 
-#if 0
+#if 1
     std::cout << " thp_array " << std::endl;
     for (const double value : thp_array) {
         std::cout << " " << value;

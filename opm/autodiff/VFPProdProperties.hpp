@@ -139,11 +139,13 @@ public:
         EvalWell flo = detail::getFlo(aqua, liquid, vapour, table->getFloType());
         EvalWell wfr = detail::getWFR(aqua, liquid, vapour, table);
         EvalWell gfr = detail::getGFR(aqua, liquid, vapour, table);
-        /* std::cout << " flo " << flo << std::endl;
+#if 1
+        std::cout << " flo " << flo << std::endl;
         std::cout << " wfr " << wfr << std::endl;
         std::cout << " gfr " << gfr << std::endl;
         std::cout << " thp " << thp << std::endl;
-        std::cout << " alq " << alq << std::endl; */
+        std::cout << " alq " << alq << std::endl;
+#endif
 
         //Compute the BHP for each well independently
         if (table != nullptr) {
@@ -158,11 +160,13 @@ public:
             // std::cout << " Looking FOR ALQ_I here with alq  value " << alq << std::endl;
             auto alq_i = detail::findInterpData( alq, table->getALQAxis()); //assume constant
 
-            /* std::cout << " flo_i " << std::endl << flo_i << std::endl;
+#if 1
+            std::cout << " flo_i " << std::endl << flo_i << std::endl;
             std::cout << " thp_i " << std::endl << thp_i << std::endl;
             std::cout << " wfr_i " << std::endl << wfr_i << std::endl;
             std::cout << " gfr_i " << std::endl << gfr_i << std::endl;
-            std::cout << " alq_i " << std::endl << alq_i << std::endl; */
+            std::cout << " alq_i " << std::endl << alq_i << std::endl;
+#endif
 
             detail::VFPEvaluation bhp_val = detail::interpolate(table->getTable(), flo_i, thp_i, wfr_i, gfr_i, alq_i);
 

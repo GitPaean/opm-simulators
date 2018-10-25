@@ -843,8 +843,9 @@ namespace Opm {
 #endif
             const int control = well_controls_get_current(wc);
             well_state_.currentControls()[w] = control;
-            // TODO: for VFP control, the perf_densities are still zero here, investigate better
+            // TODO: for VFP control, the perf_densities might still be zero here, investigate better
             // way to handle it later.
+            if (!well->isOperable() ) continue;
 
             if (well_state_.effectiveEventsHappen(w) ) {
                 well->updateWellStateWithTarget(ebosSimulator_, well_state_);

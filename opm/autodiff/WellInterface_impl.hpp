@@ -419,6 +419,8 @@ namespace Opm
         // well is shut for this iteration
         if (!isOperable()) return;
 
+        // TODO: difficult to think about what we should do if a constraint that the well can not operate on is broken.
+
         const int np = number_of_phases_;
         const int w = index_of_well_;
 
@@ -441,8 +443,24 @@ namespace Opm
             std::cout << " well " << name() << " before constraintBroken checking " << std::endl;
             std::cout << " current control mode is " << modestring[well_controls_iget_type(wc, old_control_index)] << std::endl;
             std::cout << " bhp " << well_state.bhp()[w] << " thp " << well_state.thp()[w] << std::endl;
-            std::cout << " well rates " << well_state.wellRates()[np * w] << " " << well_state.wellRates()[np * w + 1]
-                      << " " << well_state.wellRates()[np * w + 2] << std::endl;
+            const double water_rate = well_state.wellRates()[np * w];
+            const double oil_rate = well_state.wellRates()[np * w + 1];
+            const double gas_rate = well_state.wellRates()[np * w + 2];
+            std::cout << " well rates " << water_rate << " " << oil_rate
+                      << " " << gas_rate << std::endl;
+            std::cout << " water cut " << water_rate/(water_rate + oil_rate)
+                      << " GLR " << gas_rate / (water_rate + oil_rate)
+                      << " GOR " << gas_rate / oil_rate << std::endl;
+        } else { // injectors
+            const std::string modestring[4] = { "BHP", "THP", "RESERVOIR_RATE", "SURFACE_RATE" };
+            std::cout << " well " << name() << " before constraintBroken checking " << std::endl;
+            std::cout << " current control mode is " << modestring[well_controls_iget_type(wc, old_control_index)] << std::endl;
+            std::cout << " bhp " << well_state.bhp()[w] << " thp " << well_state.thp()[w] << std::endl;
+            const double water_rate = well_state.wellRates()[np * w];
+            const double oil_rate = well_state.wellRates()[np * w + 1];
+            const double gas_rate = well_state.wellRates()[np * w + 2];
+            std::cout << " well rates " << water_rate << " " << oil_rate
+                      << " " << gas_rate << std::endl;
         }
 #endif
         for (; ctrl_index < nwc; ++ctrl_index) {
@@ -456,7 +474,10 @@ namespace Opm
                     well_state.bhp(), well_state.thp(), well_state.wellRates(),
                     w, np, well_type_, wc, ctrl_index)) {
                 // ctrl_index will be the index of the broken constraint after the loop.
-                break;
+                if ( !( well_controls_iget_type(wc, ctrl_index) == BHP && !operability_status_.isOperableUnderBHPLimit() ) &&
+                     !( well_controls_iget_type(wc, ctrl_index) == THP && !operability_status_.isOperableUnderTHPLimit() ) ) {
+                    break;
+                }
             }
         }
 
@@ -486,8 +507,24 @@ namespace Opm
             std::cout << " well " << name() << " at the end of updateWellControl() " << std::endl;
             std::cout << " current control mode is " << modestring[well_controls_iget_type(wc, updated_control_index)] << std::endl;
             std::cout << " bhp " << well_state.bhp()[w] << " thp " << well_state.thp()[w] << std::endl;
-            std::cout << " well rates " << well_state.wellRates()[np * w] << " " << well_state.wellRates()[np * w + 1]
-                      << " " << well_state.wellRates()[np * w + 2] << std::endl;
+            const double water_rate = well_state.wellRates()[np * w];
+            const double oil_rate = well_state.wellRates()[np * w + 1];
+            const double gas_rate = well_state.wellRates()[np * w + 2];
+            std::cout << " well rates " << water_rate << " " << oil_rate
+                      << " " << gas_rate << std::endl;
+            std::cout << " water cut " << water_rate / (water_rate + oil_rate)
+                      << " GLR " << gas_rate / (water_rate + oil_rate)
+                      << " GOR " << gas_rate / oil_rate << std::endl;
+        } else { // injectors
+            const std::string modestring[4] = { "BHP", "THP", "RESERVOIR_RATE", "SURFACE_RATE" };
+            std::cout << " well " << name() << " before constraintBroken checking " << std::endl;
+            std::cout << " current control mode is " << modestring[well_controls_iget_type(wc, old_control_index)] << std::endl;
+            std::cout << " bhp " << well_state.bhp()[w] << " thp " << well_state.thp()[w] << std::endl;
+            const double water_rate = well_state.wellRates()[np * w];
+            const double oil_rate = well_state.wellRates()[np * w + 1];
+            const double gas_rate = well_state.wellRates()[np * w + 2];
+            std::cout << " well rates " << water_rate << " " << oil_rate
+                      << " " << gas_rate << std::endl;
         }
 #endif
     }
