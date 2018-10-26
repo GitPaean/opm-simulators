@@ -136,9 +136,11 @@ public:
         EvalWell bhp = 0.0;
 
         //Find interpolation variables
-        EvalWell flo = detail::getFlo(aqua, liquid, vapour, table->getFloType());
-        EvalWell wfr = detail::getWFR(aqua, liquid, vapour, table);
-        EvalWell gfr = detail::getGFR(aqua, liquid, vapour, table);
+        const EvalWell flo = detail::getFlo(aqua, liquid, vapour, table->getFloType());
+        const EvalWell wfr = detail::getWFR(aqua, liquid, vapour, table->getWFRType());
+        const EvalWell gfr = detail::getGFR(aqua, liquid, vapour, table->getGFRType());
+        // EvalWell wfr = detail::getWFR(aqua, liquid, vapour, table);
+        // EvalWell gfr = detail::getGFR(aqua, liquid, vapour, table);
 #if 1
         std::cout << " flo " << flo << std::endl;
         std::cout << " wfr " << wfr << std::endl;

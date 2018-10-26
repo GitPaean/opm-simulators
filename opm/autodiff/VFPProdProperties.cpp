@@ -256,8 +256,10 @@ double VFPProdProperties::
     std::cout << " in calculateBhpWithTHPTarget "
               << "aqua1 " << aqua1 << " liquid1 " << liquid1 << " vapour1 " << vapour1 << std::endl;
 #endif
-    const double wfr = detail::getWFR(aqua1, liquid1, vapour1, table);
-    const double gfr = detail::getGFR(aqua1, liquid1, vapour1, table);
+    // const double wfr = detail::getWFR(aqua1, liquid1, vapour1, table);
+    const double wfr = detail::getWFR(aqua1, liquid1, vapour1, table->getWFRType());
+    // const double gfr = detail::getGFR(aqua1, liquid1, vapour1, table);
+    const double gfr = detail::getGFR(aqua1, liquid1, vapour1, table->getGFRType());
 
     const int sample_number = 1000;
     std::vector<double> bhp_samples(sample_number);
@@ -396,8 +398,10 @@ calculateBhpWithTHPTarget(const std::vector<double>& ipr_a,
 #endif
 
     // we use the ratios based on the middle value of bhp_limit and bhp_safe_limit
-    const double wfr = detail::getWFR(aqua_bhp_middle, liquid_bhp_middle, vapour_bhp_middle, table);
-    const double gfr = detail::getGFR(aqua_bhp_middle, liquid_bhp_middle, vapour_bhp_middle, table);
+    // const double wfr = detail::getWFR(aqua_bhp_middle, liquid_bhp_middle, vapour_bhp_middle, table);
+    const double wfr = detail::getWFR(aqua_bhp_middle, liquid_bhp_middle, vapour_bhp_middle, table->getWFRType());
+    // const double gfr = detail::getGFR(aqua_bhp_middle, liquid_bhp_middle, vapour_bhp_middle, table);
+    const double gfr = detail::getGFR(aqua_bhp_middle, liquid_bhp_middle, vapour_bhp_middle, table->getGFRType());
 
 #if 0
     std::cout << " wfr " << wfr << " gfr " << gfr << std::endl;
@@ -473,8 +477,10 @@ double VFPProdProperties::thp(int table_id,
               << " bhp " << bhp_arg << " alq " << alq << std::endl;
 #endif
     double flo = detail::getFlo(aqua, liquid, vapour, table->getFloType());
-    double wfr = detail::getWFR(aqua, liquid, vapour, table);
-    double gfr = detail::getGFR(aqua, liquid, vapour, table);
+    // double wfr = detail::getWFR(aqua, liquid, vapour, table);
+    const double wfr = detail::getWFR(aqua, liquid, vapour, table->getWFRType());
+    // double gfr = detail::getGFR(aqua, liquid, vapour, table);
+    const double gfr = detail::getGFR(aqua, liquid, vapour, table->getGFRType());
 
     const std::vector<double> thp_array = table->getTHPAxis();
     int nthp = thp_array.size();

@@ -851,7 +851,6 @@ namespace Opm {
                 well->updateWellStateWithTarget(ebosSimulator_, well_state_);
             }
 
-            updatePrimaryVariables();
 #if 1
             if (well->wellType() == PRODUCER) {
                 const auto& well_state = well_state_;
@@ -873,7 +872,8 @@ namespace Opm {
             }
         }  // end of for (int w = 0; w < nw; ++w)
 
-
+        // create the primary variables based on the current well_state_
+        updatePrimaryVariables();
     }
 
 

@@ -1183,6 +1183,7 @@ namespace Opm
         // If it is under THP control, it will be set to be the target value.
         // TODO: a better standard is probably whether we have the table to calculate the THP value
         // TODO: it is something we need to check the output to decide.
+
         const WellControls* wc = well_controls_;
         // TODO: we should only maintain one current control either from the well_state or from well_controls struct.
         // Either one can be more favored depending on the final strategy for the initilzation of the well control
@@ -1645,7 +1646,8 @@ namespace Opm
         double control_tolerance = 0.;
         switch(well_controls_get_current_type(well_controls_)) {
             case THP:
-                control_tolerance = 1.e4; // 0.1 bar
+                // control_tolerance = 1.e4; // 0.1 bar
+                control_tolerance = 1.e3; // 0.1 bar
                 // control_tolerance = 4.e4; // 0.4 bar
                 break;
             case BHP:  // pressure type of control

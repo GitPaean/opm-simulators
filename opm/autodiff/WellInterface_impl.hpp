@@ -500,6 +500,7 @@ namespace Opm
 
         if (updated_control_index != old_control_index) { //  || well_collection_->groupControlActive()) {
             updateWellStateWithTarget(ebos_simulator, well_state);
+            updatePrimaryVariables(well_state);
         }
 #if 1
         if (well_type_ == PRODUCER) {
