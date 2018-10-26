@@ -2550,6 +2550,10 @@ namespace Opm
             return;
         }
 
+        if (!this->underPredictionMode() ) {
+            return;
+        }
+
         const bool old_well_operable = this->operability_status_.isOperable();
 
         this->operability_status_.reset();
