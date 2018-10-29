@@ -361,6 +361,10 @@ namespace Opm
 
         double scalingFactor(const int comp_idx) const;
 
+        // when a well is specified with a non-zero VFP table number
+        // it is supposed to calcualte the THP values even without THP target/limit there.
+        bool isVFPActive() const;
+
         // the well operability status for this well
         struct OperabilityStatus {
             bool isOperable() const {
