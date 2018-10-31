@@ -774,6 +774,7 @@ namespace Opm
 
         // updating well test state based on Economic limits.
         updateWellTestStateEconomic(well_state, simulationTime, writeMessageToOPMLog, wellTestState);
+
     }
 
 
@@ -797,6 +798,7 @@ namespace Opm
                 OpmLog::info(msg);
             }
         }
+
     }
 
 
@@ -951,8 +953,8 @@ namespace Opm
                 WellTestState& well_test_state)
     {
         if (testing_reason == WellTestConfig::Reason::ECONOMIC) {
-            wellTestingEcnomic(simulator, B_avg, simulation_time, report_step,
-                               terminal_output, well_state, well_test_state);
+            wellTestingEconomic(simulator, B_avg, simulation_time, report_step,
+                                terminal_output, well_state, well_test_state);
         }
     }
 
@@ -963,9 +965,9 @@ namespace Opm
     template<typename TypeTag>
     void
     WellInterface<TypeTag>::
-    wellTestingEcnomic(Simulator& simulator, const std::vector<double>& B_avg,
-                       const double simulation_time, const int report_step, const bool terminal_output,
-                       const WellState& well_state, WellTestState& welltest_state)
+    wellTestingEconomic(Simulator& simulator, const std::vector<double>& B_avg,
+                        const double simulation_time, const int report_step, const bool terminal_output,
+                        const WellState& well_state, WellTestState& welltest_state)
     {
         WellState well_state_copy = well_state;
 
@@ -1201,7 +1203,9 @@ namespace Opm
 
     template<typename TypeTag>
     void
-    WellInterface<TypeTag>::solveWellForTesting(Simulator& ebosSimulator, WellState& well_state, const std::vector<double>& B_avg, bool terminal_output)
+    WellInterface<TypeTag>::
+    solveWellForTesting(Simulator& ebosSimulator, WellState& well_state,
+                        const std::vector<double>& B_avg, bool terminal_output)
     {
         const int max_iter = param_.max_welleq_iter_;
         int it = 0;
@@ -1229,7 +1233,7 @@ namespace Opm
 
         if (converged) {
             if ( terminal_output ) {
-                OpmLog::debug("WellTest: Well equation for well " + name() +  " solution gets converged with " + std::to_string(it) + " iterations");
+                OpmLog::debug("WellTest: Well equation for well " + name() + " solution gets converged with " + std::to_string(it) + " iterations");
             }
         } else {
             if ( terminal_output ) {
