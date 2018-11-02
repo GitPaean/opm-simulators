@@ -1639,9 +1639,7 @@ namespace Opm
         double control_tolerance = 0.;
         switch(well_controls_get_current_type(well_controls_)) {
             case THP:
-                // control_tolerance = 1.e4; // 0.1 bar
-                control_tolerance = 1.e3; // 0.1 bar
-                // control_tolerance = 4.e4; // 0.4 bar
+                control_tolerance = 1.e4; // 0.1 bar
                 break;
             case BHP:  // pressure type of control
                 control_tolerance = 1.e3; // 0.01 bar
