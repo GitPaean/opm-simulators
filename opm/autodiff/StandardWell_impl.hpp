@@ -930,16 +930,18 @@ namespace Opm
 
         const std::vector<double> old_primary_variables = primary_variables_;
 
-        const double relaxation_factor = (well_type_ == PRODUCER) ?
-                                         determineRelaxationFractor(old_primary_variables, dwells)
-                                       : determineRelaxationFractorInjector(old_primary_variables, dwells);
+        // for injectors, very typical one of the fractions will be one, and it is easy to get zero value
+        // fractions. not sure what is the best way to handle it yet, so we just use 1.0 here
+        const double relaxation_factor_fractions = (well_type_ == PRODUCER) ?
+                                         relaxationFactorFractionsProducer(old_primary_variables, dwells)
+                                       : 1.0;
 
-        std::cout << " well " << name() << " gets relaxation_factor " << relaxation_factor << std::endl;
+        std::cout << " well " << name() << " gets relaxation_factor_fractions " << relaxation_factor_fractions << std::endl;
 
         // update the second and third well variable (The flux fractions)
         if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
             const int sign2 = dwells[0][WFrac] > 0 ? 1: -1;
-            const double dx2_limited = sign2 * std::min(std::abs(dwells[0][WFrac] * relaxation_factor), dFLimit);
+            const double dx2_limited = sign2 * std::min(std::abs(dwells[0][WFrac] * relaxation_factor_fractions), dFLimit);
             // primary_variables_[WFrac] = old_primary_variables[WFrac] - dx2_limited;
             primary_variables_[WFrac] = old_primary_variables[WFrac] - dx2_limited;
 #if 1
@@ -949,7 +951,7 @@ namespace Opm
 
         if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
             const int sign3 = dwells[0][GFrac] > 0 ? 1: -1;
-            const double dx3_limited = sign3 * std::min(std::abs(dwells[0][GFrac] * relaxation_factor), dFLimit);
+            const double dx3_limited = sign3 * std::min(std::abs(dwells[0][GFrac] * relaxation_factor_fractions), dFLimit);
             primary_variables_[GFrac] = old_primary_variables[GFrac] - dx3_limited;
 #if 1
             std::cout << " GAS Frac dx " << dwells[0][GFrac] << " dx3_limited " << dx3_limited << std::endl;
@@ -958,7 +960,7 @@ namespace Opm
 
         if (has_solvent) {
             const int sign4 = dwells[0][SFrac] > 0 ? 1: -1;
-            const double dx4_limited = sign4 * std::min(std::abs(dwells[0][SFrac]) * relaxation_factor, dFLimit);
+            const double dx4_limited = sign4 * std::min(std::abs(dwells[0][SFrac]) * relaxation_factor_fractions, dFLimit);
             primary_variables_[SFrac] = old_primary_variables[SFrac] - dx4_limited;
         }
 
@@ -972,15 +974,22 @@ namespace Opm
             std::cout << std::endl;
         }
 #endif
+
         processFractions();
 
-        // updating the total rates G_t
-        primary_variables_[WQTotal] = old_primary_variables[WQTotal] - dwells[0][WQTotal] * relaxation_factor;
+        // updating the total rates Q_t
+        const double relaxation_factor_rate = relaxationFactorRate(old_primary_variables, dwells);
+#if 1
+        std::cout << " well " << name() << " gets relaxation_factor_rate " << relaxation_factor_rate << std::endl;
+#endif
+        primary_variables_[WQTotal] = old_primary_variables[WQTotal] - dwells[0][WQTotal] * relaxation_factor_rate;
 
+#if 1
         if (primary_variables_[WQTotal] * old_primary_variables[WQTotal] < 0.) {
             std::cout << " well " << name() << " rates CHANGED sign during newton update " << " old_primary_variables " << old_primary_variables[WQTotal]
                       << " dwells[0][WQTotal] " << dwells[0][WQTotal] << " primary_variables_ " <<  primary_variables_[WQTotal] << std::endl;
         }
+#endif
 
         // updating the bottom hole pressure
         {
@@ -2862,67 +2871,60 @@ namespace Opm
 
 
 
+
+
+
+
+
     template<typename TypeTag>
     double
     StandardWell<TypeTag>::
     relaxationFactorFraction(const double old_value,
-                             const double dx) {
-        // may adding a tolerance?
+                             const double dx)
+    {
         assert(old_value >= 0. && old_value <= 1.0);
 
-        // to avoid to get negative value or value above 1
         double relaxation_factor = 1.;
 
-        bool relaxation_avoid_negative = false;
-        bool relaxation_avoid_over_one = false;
-        {
-            const double possible_updated_value = old_value - dx;
-            relaxation_avoid_negative = possible_updated_value < 0.;
-            relaxation_avoid_over_one = possible_updated_value > 1.0;
+        // updated values without relaxation factor
+        const double possible_updated_value = old_value - dx;
 
-            if (!relaxation_avoid_negative && !relaxation_avoid_over_one) {
-                return relaxation_factor; // 1.0
-            }
-        }
-
-        // we will not be this step if dx == 0.
-        assert(dx != 0.0);
-
-        if (relaxation_avoid_negative) {
+        // 0.95 is an experimental value remains to be optimized
+        if (possible_updated_value < 0.0) {
             relaxation_factor = std::abs(old_value / dx) * 0.95;
-        } else if (relaxation_avoid_over_one) {
+        } else if (possible_updated_value > 1.0) {
             relaxation_factor = std::abs((1. - old_value) / dx) * 0.95;
         }
+        // if possible_updated_value is between 0. and 1.0, then relaxation_factor
+        // remains to be one
 
         assert(relaxation_factor >= 0. && relaxation_factor <= 1.);
+
         return relaxation_factor;
     }
 
 
 
 
+
     template<typename TypeTag>
     double
     StandardWell<TypeTag>::
-    determineRelaxationFractor(const std::vector<double>& primary_variables,
-                               const BVectorWell& dwells)
+    relaxationFactorFractionsProducer(const std::vector<double>& primary_variables,
+                                      const BVectorWell& dwells)
     {
         // TODO: not considering solvent yet
-
+        // 0.95 is a experimental value, which remains to be optimized
         double relaxation_factor = 1.0;
 
         if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
             const double relaxation_factor_w = relaxationFactorFraction(primary_variables[WFrac], dwells[0][WFrac]);
-            if (relaxation_factor_w < relaxation_factor) {
-                relaxation_factor = relaxation_factor_w;
-            }
+            relaxation_factor = std::min(relaxation_factor, relaxation_factor_w);
         }
 
         if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
             const double relaxation_factor_g = relaxationFactorFraction(primary_variables[GFrac], dwells[0][GFrac]);
-            if (relaxation_factor_g < relaxation_factor) {
-                relaxation_factor = relaxation_factor_g;
-            }
+            relaxation_factor = std::min(relaxation_factor, relaxation_factor_g);
         }
 
         if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx) && FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
@@ -2940,22 +2942,7 @@ namespace Opm
             }
         }
 
-        std::cout << " relaxation_factor before WQTotal is " << relaxation_factor << std::endl;
-
-
-        // relaxation factor for the total rates
-        {
-            const double original_total_rate = primary_variables[WQTotal];
-            const double relaxed_update = dwells[0][WQTotal] * relaxation_factor;
-            const double possible_update_total_rate = primary_variables[WQTotal] - relaxed_update;
-
-            if (original_total_rate * possible_update_total_rate < 0.) { // sign changed
-                const double further_relaxation_factor = std::abs(original_total_rate / relaxed_update) * 0.95;
-                relaxation_factor *= further_relaxation_factor;
-            }
-        }
-
-        std::cout << " relaxation_factor after WQTotal is " << relaxation_factor << std::endl;
+        assert(relaxation_factor >= 0.0 && relaxation_factor <= 1.0);
 
         return relaxation_factor;
     }
@@ -2967,8 +2954,8 @@ namespace Opm
     template<typename TypeTag>
     double
     StandardWell<TypeTag>::
-    determineRelaxationFractorInjector(const std::vector<double>& primary_variables,
-                                       const BVectorWell& dwells)
+    relaxationFactorRate(const std::vector<double>& primary_variables,
+                         const BVectorWell& dwells)
     {
         double relaxation_factor = 1.0;
 
@@ -2977,9 +2964,14 @@ namespace Opm
         const double newton_update = dwells[0][WQTotal];
         const double possible_update_total_rate = primary_variables[WQTotal] - newton_update;
 
+        // 0.8 here is a experimental value, which remains to be optimized
+        // if the original rate is zero or possible_update_total_rate is zero, relaxation_factor will
+        // always be 1.0, more thoughts might be needed.
         if (original_total_rate * possible_update_total_rate < 0.) { // sign changed
             relaxation_factor = std::abs(original_total_rate / newton_update) * 0.8;
         }
+
+        assert(relaxation_factor >= 0.0 && relaxation_factor <= 1.0);
 
         return relaxation_factor;
     }

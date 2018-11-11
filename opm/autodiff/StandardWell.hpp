@@ -380,16 +380,19 @@ namespace Opm
         // no point to do this
         double calculateBHPWithTHPTargetIPR() const;
 
+        // relaxation factor considering only one fraction value
         static double relaxationFactorFraction(const double old_value,
                                                const double dx);
 
-        // calculate a relaxation factor to avoid overshoot of the fractions
-        // which will result in negative rates
-        static double determineRelaxationFractor(const std::vector<double>& primary_variables,
-                                                 const BVectorWell& dwells);
+        // calculate a relaxation factor to avoid overshoot of the fractions for producers
+        // which might result in negative rates
+        static double relaxationFactorFractionsProducer(const std::vector<double>& primary_variables,
+                                                        const BVectorWell& dwells);
 
-        static double determineRelaxationFractorInjector(const std::vector<double>& primary_variables,
-                                                         const BVectorWell& dwells);
+        // calculate a relaxation factor to avoid overshoot of total rates
+        static double relaxationFactorRate(const std::vector<double>& primary_variables,
+                                           const BVectorWell& dwells);
+
     };
 
 }
