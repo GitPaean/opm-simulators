@@ -244,21 +244,7 @@ double VFPProdProperties::
     const double vapour2 = rates2[Gas];
     const double flo_rate2 = detail::getFlo(aqua2, liquid2, vapour2, table->getFloType());
 
-#if 0
-    std::cout << "flo_rate1 is " << flo_rate1 << std::endl;
-    std::cout << " bhp1 is " << bhp1 << std::endl;
-
-    std::cout << "flo_rate2 is " << flo_rate2 << std::endl;
-    std::cout << " bhp2 is " << bhp2 << std::endl;
-#endif
-
-#if 0
-    std::cout << " in calculateBhpWithTHPTarget "
-              << "aqua1 " << aqua1 << " liquid1 " << liquid1 << " vapour1 " << vapour1 << std::endl;
-#endif
-    // const double wfr = detail::getWFR(aqua1, liquid1, vapour1, table);
     const double wfr = detail::getWFR(aqua1, liquid1, vapour1, table->getWFRType());
-    // const double gfr = detail::getGFR(aqua1, liquid1, vapour1, table);
     const double gfr = detail::getGFR(aqua1, liquid1, vapour1, table->getGFRType());
 
     const int sample_number = 1000;
@@ -275,13 +261,6 @@ double VFPProdProperties::
     for (int i = 0; i < sample_number; ++i) {
         bhp_samples[i] = bhpwithflo(table_id, rate_samples[i], wfr, gfr, thp, alq) - dp;
     }
-
-#if 0
-    std::cout << " the rate and bhp samples " << std::endl;
-    for (int i = 0; i < sample_number; ++i) {
-       std::cout << rate_samples[i] << " " << bhp_samples[i] << std::endl;
-    }
-#endif
 
     // interface needs to be re-designed
     double return_bhp = 0.;
@@ -350,10 +329,6 @@ calculateBhpWithTHPTarget(const std::vector<double>& ipr_a,
         }
     }
 
-#if 0
-    std::cout << " bhp_safe_limit " << bhp_safe_limit <<  std::endl;
-#endif
-
     const double bhp_middle = (bhp_limit + bhp_safe_limit) / 2.0;
     // FLO is the rate
     // The two points correspond to the bhp values of bhp_limit, and the middle of bhp_limit and bhp_safe_limit
@@ -380,11 +355,6 @@ calculateBhpWithTHPTarget(const std::vector<double>& ipr_a,
     const double vapour_bhp_limit = rates_bhp_limit[Gas];
     const double flo_bhp_limit = detail::getFlo(aqua_bhp_limit, liquid_bhp_limit, vapour_bhp_limit, table->getFloType() );
 
-#if 0
-    std::cout << " aqua_bhp_limit " << aqua_bhp_limit << " liquid_bhp_limit " << liquid_bhp_limit
-              << " vapour_bhp_limit " << vapour_bhp_limit << " flo " << flo_bhp_limit << std::endl;
-#endif
-
     /* const double aqua_bhp_middle = rates_bhp_middle[Water];
     const double liquid_bhp_middle = rates_bhp_middle[Oil]; */
     const double aqua_bhp_middle = rates_bhp_middle[Oil];
@@ -392,20 +362,11 @@ calculateBhpWithTHPTarget(const std::vector<double>& ipr_a,
     const double vapour_bhp_middle = rates_bhp_middle[Gas];
     const double flo_bhp_middle = detail::getFlo(aqua_bhp_middle, liquid_bhp_middle, vapour_bhp_middle, table->getFloType() );
 
-#if 0
-    std::cout << " aqua_bhp_middle " << aqua_bhp_middle << " liquid_bhp_middle " << liquid_bhp_middle
-              << " vapour_bhp_middle " << vapour_bhp_middle << " flo " << flo_bhp_middle << std::endl;
-#endif
-
     // we use the ratios based on the middle value of bhp_limit and bhp_safe_limit
     // const double wfr = detail::getWFR(aqua_bhp_middle, liquid_bhp_middle, vapour_bhp_middle, table);
     const double wfr = detail::getWFR(aqua_bhp_middle, liquid_bhp_middle, vapour_bhp_middle, table->getWFRType());
     // const double gfr = detail::getGFR(aqua_bhp_middle, liquid_bhp_middle, vapour_bhp_middle, table);
     const double gfr = detail::getGFR(aqua_bhp_middle, liquid_bhp_middle, vapour_bhp_middle, table->getGFRType());
-
-#if 0
-    std::cout << " wfr " << wfr << " gfr " << gfr << std::endl;
-#endif
 
     // we get the flo sampling points from the table,
     // then extend it with zero and rate under bhp_limit for extrapolation
@@ -428,18 +389,6 @@ calculateBhpWithTHPTarget(const std::vector<double>& ipr_a,
     for (int i = 0; i < flo_samples.size(); ++i) {
         bhp_flo_samples[i] = bhpwithflo(thp_table_id, flo_samples[i], wfr, gfr, thp_limit, alq) - dp;
     }
-
-#if 0
-    std::cout << " the rate and bhp samples based on the points in the table " << std::endl;
-    for (int i = 0; i < flo_samples.size(); ++i) {
-        std::cout << flo_samples[i] << " " << bhp_flo_samples[i] << std::endl;
-    }
-    std::cout << std::endl;
-
-    std::cout << " the rate and bhp from the IPR line " << std::endl;
-    std::cout << flo_bhp_middle << " " << bhp_middle << std::endl
-               << flo_bhp_limit << " " << bhp_limit << std::endl;
-#endif
 
     // TODO: maybe the function findIntersectionForBhp() can be changed a little bit
     double obtain_bhp = 0.;
@@ -472,10 +421,6 @@ double VFPProdProperties::thp(int table_id,
     const VFPProdTable::array_type& data = table->getTable();
 
     //Find interpolation variables
-#if 1
-    std::cout << " in function thp " << " aqua " << aqua << " liquid " << liquid << " vapour " << vapour
-              << " bhp " << bhp_arg << " alq " << alq << std::endl;
-#endif
     double flo = detail::getFlo(aqua, liquid, vapour, table->getFloType());
     // double wfr = detail::getWFR(aqua, liquid, vapour, table);
     const double wfr = detail::getWFR(aqua, liquid, vapour, table->getWFRType());
@@ -495,30 +440,11 @@ double VFPProdProperties::thp(int table_id,
     auto wfr_i = detail::findInterpData( wfr, table->getWFRAxis());
     auto gfr_i = detail::findInterpData( gfr, table->getGFRAxis());
     auto alq_i = detail::findInterpData( alq, table->getALQAxis());
-#if 1
-    std::cout << " flo_i " << flo_i << " wfr_i " << wfr_i << " gfr_i " << gfr_i << " alq_i " << alq_i << std::endl;
-#endif
     std::vector<double> bhp_array(nthp);
     for (int i=0; i<nthp; ++i) {
         auto thp_i = detail::findInterpData(thp_array[i], thp_array);
         bhp_array[i] = detail::interpolate(data, flo_i, thp_i, wfr_i, gfr_i, alq_i).value;
     }
-
-#if 1
-    std::cout << " thp_array " << std::endl;
-    for (const double value : thp_array) {
-        std::cout << " " << value;
-    }
-    std::cout << std::endl;
-
-    std::cout << " bhp_array " << std::endl;
-    for (const double value : bhp_array) {
-        std::cout << " " << value;
-    }
-    std::cout << std::endl;
-
-    std::cout << " bhp_arg " << bhp_arg << std::endl;
-#endif
 
     double retval = detail::findTHP(bhp_array, thp_array, bhp_arg);
     return retval;

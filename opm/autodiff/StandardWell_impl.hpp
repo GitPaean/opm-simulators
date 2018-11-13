@@ -918,17 +918,6 @@ namespace Opm
     updatePrimaryVariablesNewton(const BVectorWell& dwells,
                                  const WellState& well_state) const
     {
-#if 1
-        if (well_type_ == PRODUCER) {
-            std::cout << " outputting the primary_variables_ for well " << name()
-                      << " at the beginning of updatePrimaryVariablesNewton() " << std::endl;
-            for (const double value : primary_variables_) {
-                std::cout << value << " ";
-            }
-            std::cout << std::endl;
-        }
-#endif
-
         const double dFLimit = param_.dwell_fraction_max_;
 
         const std::vector<double> old_primary_variables = primary_variables_;
@@ -939,26 +928,18 @@ namespace Opm
                                          relaxationFactorFractionsProducer(old_primary_variables, dwells)
                                        : 1.0;
 
-        std::cout << " well " << name() << " gets relaxation_factor_fractions " << relaxation_factor_fractions << std::endl;
-
         // update the second and third well variable (The flux fractions)
         if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
             const int sign2 = dwells[0][WFrac] > 0 ? 1: -1;
             const double dx2_limited = sign2 * std::min(std::abs(dwells[0][WFrac] * relaxation_factor_fractions), dFLimit);
             // primary_variables_[WFrac] = old_primary_variables[WFrac] - dx2_limited;
             primary_variables_[WFrac] = old_primary_variables[WFrac] - dx2_limited;
-#if 1
-            std::cout << " WATER Frac dx " << dwells[0][WFrac] << " dx2_limited " << dx2_limited << std::endl;
-#endif
         }
 
         if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
             const int sign3 = dwells[0][GFrac] > 0 ? 1: -1;
             const double dx3_limited = sign3 * std::min(std::abs(dwells[0][GFrac] * relaxation_factor_fractions), dFLimit);
             primary_variables_[GFrac] = old_primary_variables[GFrac] - dx3_limited;
-#if 1
-            std::cout << " GAS Frac dx " << dwells[0][GFrac] << " dx3_limited " << dx3_limited << std::endl;
-#endif
         }
 
         if (has_solvent) {
@@ -967,32 +948,11 @@ namespace Opm
             primary_variables_[SFrac] = old_primary_variables[SFrac] - dx4_limited;
         }
 
-#if 1
-        if (well_type_ == PRODUCER) {
-            std::cout << " outputting the primary_variables_ for well " << name()
-                      << " before processFractions " << std::endl;
-            for (const double value : primary_variables_) {
-                 std::cout << value << " ";
-            }
-            std::cout << std::endl;
-        }
-#endif
-
         processFractions();
 
         // updating the total rates Q_t
         const double relaxation_factor_rate = relaxationFactorRate(old_primary_variables, dwells);
-#if 1
-        std::cout << " well " << name() << " gets relaxation_factor_rate " << relaxation_factor_rate << std::endl;
-#endif
         primary_variables_[WQTotal] = old_primary_variables[WQTotal] - dwells[0][WQTotal] * relaxation_factor_rate;
-
-#if 1
-        if (primary_variables_[WQTotal] * old_primary_variables[WQTotal] < 0.) {
-            std::cout << " well " << name() << " rates CHANGED sign during newton update " << " old_primary_variables " << old_primary_variables[WQTotal]
-                      << " dwells[0][WQTotal] " << dwells[0][WQTotal] << " primary_variables_ " <<  primary_variables_[WQTotal] << std::endl;
-        }
-#endif
 
         // updating the bottom hole pressure
         {
@@ -1002,16 +962,6 @@ namespace Opm
             // 1e5 to make sure bhp will not be below 1bar
             primary_variables_[Bhp] = std::max(old_primary_variables[Bhp] - dx1_limited, 1e5);
         }
-#if 1
-        if (well_type_ == PRODUCER) {
-            std::cout << " outputting the primary_variables_ for well " << name()
-                      << " at the END of updatePrimaryVariablesNewton() " << std::endl;
-            for (const double value : primary_variables_) {
-                std::cout << value << " ";
-            }
-            std::cout << std::endl;
-        }
-#endif
     }
 
 
@@ -1166,20 +1116,6 @@ namespace Opm
         }
 
         updateThp(well_state);
-#if 1
-        if (well_type_ == PRODUCER) {
-            const std::string modestring[4] = { "BHP", "THP", "RESERVOIR_RATE", "SURFACE_RATE" };
-            const int np = number_of_phases_;
-            const int w = index_of_well_;
-            const auto wc = well_controls_;
-            const int control_index = well_state.currentControls()[w];
-            std::cout << " well " << name() << " at the end of updateWellControl() " << std::endl;
-            std::cout << " current control mode is " << modestring[well_controls_iget_type(wc, control_index)] << std::endl;
-            std::cout << " bhp " << well_state.bhp()[w] << " thp " << well_state.thp()[w] << std::endl;
-            std::cout << " well rates " << well_state.wellRates()[np * w] << " " << well_state.wellRates()[np * w + 1]
-                      << " " << well_state.wellRates()[np * w + 2] << std::endl;
-        }
-#endif
     }
 
 
@@ -1357,14 +1293,7 @@ namespace Opm
         }
 
         if (it == max_iter) { // not converged
-#if 1
-            std::cout << " well " << name() << " DIDNOT get converged in updateWellStateWithTarget() " << std::endl;
-#endif
             well_state = well_state_copy;
-        } else {
-#if 1
-            std::cout << " well " << name() << " DID get CONVERGED in updateWellStateWithTarget() " << std::endl;
-#endif
         }
     }
 
@@ -1953,9 +1882,6 @@ namespace Opm
             double perf_vap_oil_rate = 0.;
             computePerfRate(intQuants, mob, well_index_[perf], bhp, perf_pressure_diffs_[perf], allow_cf,
                             cq_s, perf_dis_gas_rate, perf_vap_oil_rate);
-#if 1
-            std::cout << " well " << name() << " perf " << perf << "cq_s " <<  cq_s[0] << " " << cq_s[1] << " " << cq_s[2] << std::endl;
-#endif
             for(int p = 0; p < np; ++p) {
                 well_flux[ebosCompIdxToFlowCompIdx(p)] += cq_s[p].value();
             }
@@ -2130,37 +2056,6 @@ namespace Opm
     {
         if (!this->isOperable()) return;
 
-#if 1
-        std::cout << " output the well state at the beginning of the updatePrimaryVariables " << std::endl;
-        if (well_type_ == PRODUCER) {
-            const int np = number_of_phases_;
-            const int w = index_of_well_;
-            const std::string modestring[4] = { "BHP", "THP", "RESERVOIR_RATE", "SURFACE_RATE" };
-            std::cout << " well " << name() << " at the end of updateWellControl() " << std::endl;
-            std::cout << " current control mode is " << modestring[well_controls_get_current_type(well_controls_)] << std::endl;
-            std::cout << " bhp " << well_state.bhp()[w] << " thp " << well_state.thp()[w] << std::endl;
-            const double water_rate = well_state.wellRates()[np * w];
-            const double oil_rate = well_state.wellRates()[np * w + 1];
-            const double gas_rate = well_state.wellRates()[np * w + 2];
-            std::cout << " well rates " << water_rate << " " << oil_rate
-                      << " " << gas_rate << std::endl;
-            std::cout << " water cut " << water_rate / (water_rate + oil_rate)
-                      << " GLR " << gas_rate / (water_rate + oil_rate)
-                      << " GOR " << gas_rate / oil_rate << std::endl;
-        } else { // injectors
-            const int np = number_of_phases_;
-            const int w = index_of_well_;
-            const std::string modestring[4] = { "BHP", "THP", "RESERVOIR_RATE", "SURFACE_RATE" };
-            std::cout << " well " << name() << " before constraintBroken checking " << std::endl;
-            std::cout << " current control mode is " << modestring[well_controls_get_current_type(well_controls_)] << std::endl;
-            std::cout << " bhp " << well_state.bhp()[w] << " thp " << well_state.thp()[w] << std::endl;
-            const double water_rate = well_state.wellRates()[np * w];
-            const double oil_rate = well_state.wellRates()[np * w + 1];
-            const double gas_rate = well_state.wellRates()[np * w + 2];
-            std::cout << " well rates " << water_rate << " " << oil_rate
-                      << " " << gas_rate << std::endl;
-        }
-#endif
         const int well_index = index_of_well_;
         const int np = number_of_phases_;
 
@@ -2169,10 +2064,6 @@ namespace Opm
         for (int p = 0; p < np; ++p) {
             total_well_rate += scalingFactor(p) * well_state.wellRates()[np * well_index + p];
         }
-
-#if 1
-        std::cout << " total_well_rate is " <<  total_well_rate << std::endl;
-#endif
 
         // Not: for the moment, the first primary variable for the injectors is not G_total. The injection rate
         // under surface condition is used here
@@ -2245,14 +2136,6 @@ namespace Opm
 
         // BHP
         primary_variables_[Bhp] = well_state.bhp()[index_of_well_];
-
-#if 1
-        std::cout << " well " <<  name() << " primary_variables at the end of updatePrimaryVariables " << std::endl;
-        for (const double value : primary_variables_) {
-            std::cout << " " << value;
-        }
-        std::cout << std::endl;
-#endif
     }
 
 
@@ -2299,10 +2182,6 @@ namespace Opm
              const double vfp_ref_depth = vfp_properties_->getProd()->getTable(vfp)->getDatumDepth();
 
              const double dp = wellhelpers::computeHydrostaticCorrection(ref_depth_, vfp_ref_depth, rho, gravity_);
-#if 1
-             std::cout << " well " << name() << " aqua " << aqua << " liquid " << liquid << " vapour " << vapour
-                       << " alq " << alq << " rho " << rho << " dp " << dp << std::endl;
-#endif
 
              bhp = vfp_properties_->getProd()->bhp(vfp, aqua, liquid, vapour, thp, alq) - dp;
          }
@@ -2329,16 +2208,8 @@ namespace Opm
         const double liquid = rates[Oil];
         const double vapour = rates[Gas];
 
-#if 0
-        std::cout << " aqua " << aqua << " liquid " << liquid << " vapour " << vapour << " for well " << name() << std::endl;
-#endif
-
         // pick the density in the top layer
         const double rho = perf_densities_[0];
-
-#if 0
-        std::cout  << " rho " << rho << std::endl;
-#endif
 
         double thp = 0.0;
         if (well_type_ == INJECTOR) {
@@ -2357,9 +2228,6 @@ namespace Opm
              const double vfp_ref_depth = vfp_properties_->getProd()->getTable(table_id)->getDatumDepth();
 
              const double dp = wellhelpers::computeHydrostaticCorrection(ref_depth_, vfp_ref_depth, rho, gravity_);
-#if 0
-             std::cout << "ref_depth_ " << ref_depth_ << " vfp_ref_depth " << vfp_ref_depth << " dp " << dp << std::endl;
-#endif
 
              thp = vfp_properties_->getProd()->thp(table_id, aqua, liquid, vapour, bhp + dp, alq);
          }
@@ -2560,21 +2428,6 @@ namespace Opm
                 ipr_b_[p] += ipr_b_perf[p];
             }
         }
-
-#if 1
-        // debugging output for the IPR relationship
-        std::cout << " the inflow performance relationship curves for the well " << name() << std::endl;
-        std::cout << " ipr_a ";
-        for (const double value : ipr_a_) {
-            std::cout << " " << value * 86400.;
-        }
-        std::cout << std::endl;
-        std::cout << " ipr_b ";
-        for (const double value : ipr_b_) {
-            std::cout << " " << value * 86400.;
-        }
-        std::cout << std::endl;
-#endif
     }
 
 
@@ -2619,38 +2472,10 @@ namespace Opm
             checkOperabilityUnderTHPLimit(ebos_simulator);
         }
 
-#if 1
-        std::cout << " for well " << name() << " with bhp limit " << mostStrictBhpFromBhpLimits() / 1.e5;
-        if (this->wellHasTHPConstraints()) {
-            std::cout << " and thp limit " << this->getTHPConstraint() / 1.e5;
-        }
-        std::cout << std::endl;
-        std::cout << " operable_under_only_bhp_limit " << this->operability_status_.operable_under_only_bhp_limit
-                  << " violate_thp_limit_under_bhp_limit " << this->operability_status_.violate_thp_limit_under_bhp_limit;
-        if (this->wellHasTHPConstraints()) {
-            std::cout << " obtain_solution_with_thp_limit " << this->operability_status_.obtain_solution_with_thp_limit
-                      << " violate_bhp_limit_with_thp_limit " << this->operability_status_.violate_bhp_limit_with_thp_limit;
-        }
-        std::cout << std::endl;
-        std::cout << std::endl;
-#endif
         // checking whether the well can not produce or something else
         this->operability_status_.negative_well_rates = allDrawDownWrongDirection(ebos_simulator);
 
-#if 1
-        if (this->operability_status_.negative_well_rates) {
-            std::cout << " well " << name() << " gets all the drawdown in the WRONG direction " << std::endl;
-        }
-#endif
-
         const bool well_operable = this->operability_status_.isOperable();
-#if 1
-        if (!well_operable && old_well_operable) {
-            std::cout << " well " << name() << " gets SHUT during iteration " << std::endl;
-        } else if (well_operable && !old_well_operable) {
-            std::cout << " well " << name() << " gets REVIVED during iteration " << std::endl;
-        }
-#endif
     }
 
 
@@ -2715,29 +2540,11 @@ namespace Opm
                 const double bhp_limit = mostStrictBhpFromBhpLimits();
                 std::vector<double> well_rates_bhp_limit;
                 computeWellRatesWithBhp(ebos_simulator, bhp_limit, well_rates_bhp_limit);
-#if 1
-                std::cout << " well " << name() << " well rates under Bhp limit " << well_rates_bhp_limit[0] << " "
-                          << well_rates_bhp_limit[1] << " " << well_rates_bhp_limit[2] << std::endl;
-#endif
 
                 const double thp = calculateThpFromBhp(well_rates_bhp_limit, bhp_limit);
-#if 1
-                std::cout << " THP value under bhp limit is " << thp / 1.e5 << " with BHP limit " << bhp_limit / 1.e5 << std::endl;
-
-                if (thp > bhp_limit) {
-                    std::cout << " thp is BIGGER than bhp for well " << name() << " when running under BHP limit " << std::endl;
-                }
-#endif
                 const double thp_limit = this->getTHPConstraint();
-#if 1
-                std::cout << " thp_limit is " << thp_limit / 1.e5 << std::endl;
-#endif
 
                 if (thp < thp_limit || thp >  bhp_limit) {
-#if 1
-                    std::cout << " well " << name() << " violate the THP limit " << thp_limit
-                              << " when running under bhp limit " << bhp_limit << " with thp value " <<  thp << std::endl;
-#endif
                     this->operability_status_.violate_thp_limit_under_bhp_limit = true;
                 }
             }
@@ -2862,13 +2669,6 @@ namespace Opm
             well_state.wellRates()[number_of_phases_ * index_of_well_ + p] = rates[p];
         }
 
-#if 1
-        for (size_t p = 0; p < number_of_phases_; ++p) {
-            if (rates[p] > 0.) {
-                std::cout << " NEGATIVE RATES found for well " << name() << " at phase " << p << std::endl;
-            }
-        }
-#endif
         // TODO: there will be something need to be done for the cases not the defaulted 3 phases,
         // like 2 phases or solvent, polymer, etc
     }
@@ -3053,25 +2853,6 @@ namespace Opm
         }
 
         this->operability_status_.negative_well_rates = allDrawDownWrongDirection(ebos_simulator);
-#if 1
-        std::cout << " for well " << name() << " with bhp limit " << mostStrictBhpFromBhpLimits() / 1.e5;
-        if (this->wellHasTHPConstraints()) {
-            std::cout << " and thp limit " << this->getTHPConstraint() / 1.e5;
-        }
-        std::cout << std::endl;
-        std::cout << " operable_under_only_bhp_limit " << this->operability_status_.operable_under_only_bhp_limit
-                  << " violate_thp_limit_under_bhp_limit " << this->operability_status_.violate_thp_limit_under_bhp_limit;
-        if (this->wellHasTHPConstraints()) {
-            std::cout << " obtain_solution_with_thp_limit " << this->operability_status_.obtain_solution_with_thp_limit
-                      << " violate_bhp_limit_with_thp_limit " << this->operability_status_.violate_bhp_limit_with_thp_limit;
-        }
-        std::cout << std::endl;
-        if (this->operability_status_.negative_well_rates) {
-            std::cout << " well " << name() << " gets all the drawdown in the WRONG direction " << std::endl;
-        }
-        std::cout << std::endl;
-        std::cout << " well " << name() << " operability is " << this->isOperable() << std::endl;
-#endif
 
         if ( !this->isOperable() ) {
             return;
@@ -3085,10 +2866,6 @@ namespace Opm
         const bool converged = this->solveWellForTesting(ebos_simulator, well_state_copy, B_avg, terminal_output);
 
         if (!converged) {
-#if 1
-            std::cout << " well " << name()
-                      << "did not get a converged result for the first solution attempt in wellTestingPhysical " << std::endl;
-#endif
             return;
         }
 
@@ -3103,10 +2880,6 @@ namespace Opm
         const bool converged2 = this->solveWellForTesting(ebos_simulator, well_state_copy, B_avg, terminal_output);
 
         if (!converged2) {
-#if 1
-            std::cout << " well " << name()
-                      << "did not get a converged result for the second solution attempt in wellTestingPhysical " << std::endl;
-#endif
             return;
         }
 

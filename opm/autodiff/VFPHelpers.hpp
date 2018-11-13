@@ -1163,22 +1163,9 @@ inline bool findIntersectionForBhp(const std::vector<double>&rate_samples,
         }
     }
 
-    std::cout << " number_intersection_found " << number_intersection_found << std::endl;
-
     if (number_intersection_found == 0) { // there is not intersection point
         return false;
     }
-
-    /* if (number_intersection_found == 1) { // we need to check this. numerically it is difficult to only find one
-        std::cout << " flo_rate1 " << flo_rate1 << " bhp1 " << bhp1 << " flo_rate2 " << flo_rate2 << " bhp2 " << bhp2 << std::endl;
-        std::cout << " the rate and bhp samples " << std::endl;
-        const int sample_number = bhp_samples.size();
-        for (int i = 0; i < sample_number; ++i) {
-            std::cout << rate_samples[i] << " " << bhp_samples[i] << std::endl;
-        }
-        std::cin.ignore();
-    } */
-
 
     // then we need to calculate the intersection point
     const std::array<DataPoint, 2> line_segment{ DataPoint{rate_samples[index_segment], bhp_samples[index_segment]},

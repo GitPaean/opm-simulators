@@ -138,14 +138,6 @@ namespace Opm {
         // create the well container
         well_container_ = createWellContainer(timeStepIdx);
 
-#if 1
-        std::cout << " well_container_ size is " << well_container_.size() << std::endl;
-        std::cout << " all the wells in the well_container_ " << std::endl;
-        for (const auto& well : well_container_) {
-            std::cout << well->name() << std::endl;
-        }
-#endif
-
         // do the initialization for all the wells
         // TODO: to see whether we can postpone of the intialization of the well containers to
         // optimize the usage of the following several member variables
@@ -268,10 +260,6 @@ namespace Opm {
             for (int w = 0; w < nw; ++w) {
                 const std::string well_name = std::string(wells()->name[w]);
 
-#if 1
-                std::cout << " well " << well_name << " in createWellContainer " << std::endl;
-#endif
-
                 // finding the location of the well in wells_ecl
                 const int nw_wells_ecl = wells_ecl_.size();
                 int index_well = 0;
@@ -299,17 +287,11 @@ namespace Opm {
                     // TODO: maybe we should use well_ecl->hasEvents() to specify more specific reasons
                     if (well_state_.effectiveEventsHappen(w) ) {
                         wellTestState_.openWell(well_name);
-#if 1
-                        std::cout << " well " << well_name << " is re-opened due to new WCON update " << std::endl;
-#endif
                     }
                 }
 
                 if ( wellTestState_.hasWell(well_name, WellTestConfig::Reason::ECONOMIC) ||
                      wellTestState_.hasWell(well_name, WellTestConfig::Reason::PHYSICAL) ) {
-#if 0
-                    std::cout << " well " << well_name << " will not in well_container_ since it was shut " << std::endl;
-#endif
                     if( well_ecl->getAutomaticShutIn() ) {
                         // shut wells are not added to the well container
                         well_state_.thp()[w] = 0.;
@@ -331,35 +313,14 @@ namespace Opm {
                 const int pvtreg = pvt_region_idx_[well_cell_top];
 
                 if ( !well_ecl->isMultiSegment(time_step) || !param_.use_multisegment_well_) {
-#if 1
-                    std::cout << " well container size is " << well_container_.size() << std::endl;
-                    std::cout << " well " << well_name << " is putting into well_container_ " << std::endl;
-#endif
                     well_container.emplace_back(new StandardWell<TypeTag>(well_ecl, time_step, wells(),
                                                 param_, *rateConverter_, pvtreg, numComponents() ) );
-#if 1
-                    std::cout << " well container size is " << well_container_.size() << std::endl;
-#endif
                 } else {
                     well_container.emplace_back(new MultisegmentWell<TypeTag>(well_ecl, time_step, wells(),
                                                 param_, *rateConverter_, pvtreg, numComponents() ) );
                 }
             }
         }
-#if 1
-        std::cout << " numWells() from wells() is " << numWells() << " well_container_ contains " << well_container_.size() << " wells " << std::endl;
-        if (numWells() != well_container_.size() ) {
-            std::cout << " they are DIFFERENT " << std::endl;
-        }
-            std::cout << " all the wells in wells() is " << std::endl;
-            for (int w = 0; w < numWells(); ++w) {
-                std::cout << wells()->name[w] << std::endl;
-            }
-            std::cout << " all the wells in the well_container is " << std::endl;
-            for (int w = 0; w < well_container_.size(); ++w) {
-                std::cout << well_container_[w]->name() << std::endl;
-            }
-#endif
         return well_container;
     }
 
@@ -787,8 +748,6 @@ namespace Opm {
         // we simply return.
         if( !wellsActive() ) return ;
 
-#if HAVE_OPENMP
-#endif // HAVE_OPENMP
         wellhelpers::WellSwitchingLogger logger;
 
         for (const auto& well : well_container_) {
@@ -867,19 +826,7 @@ namespace Opm {
         for (const auto& well : well_container_) {
             const int w = well->indexOfWell();
             WellControls* wc = well->wellControls();
-#if 1
-        if (well->wellType() == PRODUCER) {
-            const auto& well_state = well_state_;
-            const std::string modestring[4] = { "BHP", "THP", "RESERVOIR_RATE", "SURFACE_RATE" };
-            const int np = numPhases();
-            std::cout << " well " << well->name() << " in prepareTimeStep before updateWellStateWithTarget  " << std::endl;
-            std::cout << " current control mode is "
-                      << modestring[well_controls_iget_type(wc, well_state_.currentControls()[w])] << std::endl;
-            std::cout << " bhp " << well_state.bhp()[w] << " thp " << well_state.thp()[w] << std::endl;
-            std::cout << " well rates " << well_state.wellRates()[np * w] << " " << well_state.wellRates()[np * w + 1]
-                      << " " << well_state.wellRates()[np * w + 2] << std::endl;
-        }
-#endif
+
             const int control = well_controls_get_current(wc);
             well_state_.currentControls()[w] = control;
             // TODO: for VFP control, the perf_densities might still be zero here, investigate better
@@ -889,20 +836,6 @@ namespace Opm {
             if (well_state_.effectiveEventsHappen(w) ) {
                 well->updateWellStateWithTarget(ebosSimulator_, well_state_);
             }
-
-#if 1
-            if (well->wellType() == PRODUCER) {
-                const auto& well_state = well_state_;
-                const std::string modestring[4] = { "BHP", "THP", "RESERVOIR_RATE", "SURFACE_RATE" };
-                const int np = numPhases();
-                std::cout << " well " << well->name() << " in prepareTimeStep after updateWellStateWithTarget  " << std::endl;
-                std::cout << " current control mode is "
-                          << modestring[well_controls_iget_type(wc, well_state_.currentControls()[w])] << std::endl;
-                std::cout << " bhp " << well_state.bhp()[w] << " thp " << well_state.thp()[w] << std::endl;
-                std::cout << " well rates " << well_state.wellRates()[np * w] << " " << well_state.wellRates()[np * w + 1]
-                          << " " << well_state.wellRates()[np * w + 2] << std::endl;
-            }
-#endif
 
             // there is no new well control change input within a report step,
             // so next time step, the well does not consider to have effective events anymore
