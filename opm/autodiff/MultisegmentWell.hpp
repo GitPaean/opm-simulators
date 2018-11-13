@@ -120,8 +120,8 @@ namespace Opm
 
         /// updating the well state based the control mode specified with current
         // TODO: later will check wheter we need current
-        virtual void updateWellStateWithTarget(const Simulator& ebos_simulator,
-                                               WellState& well_state) const;
+        virtual void updateWellStateWithTarget(/* const */ Simulator& ebos_simulator,
+                                               WellState& well_state) /* const */;
 
         /// check whether the well equations get converged for this well
         virtual ConvergenceReport getWellConvergence(const std::vector<double>& B_avg) const;
@@ -350,6 +350,10 @@ namespace Opm
                                             const double dt,
                                             WellState& well_state,
                                             bool only_wells);
+
+        virtual void wellTestingPhysical(Simulator& simulator, const std::vector<double>& B_avg,
+                                         const double simulation_time, const int report_step, const bool terminal_output,
+                                         WellState& well_state, WellTestState& welltest_state);
     };
 
 }

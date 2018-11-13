@@ -68,6 +68,9 @@ namespace Opm {
         // We must therefore provide it with updated cell pressures
         size_t nc = number_of_cells_;
         std::vector<double> cellPressures(nc, 0.0);
+
+        // TODO: the following, the first half looks like the same with function updatePerforationIntensiveQuantities
+        // the second half looks like extracting cellPressures .
         ElementContext elemCtx(ebosSimulator_);
         const auto& gridView = ebosSimulator_.vanguard().gridView();
         const auto& elemEndIt = gridView.template end</*codim=*/0>();
@@ -129,12 +132,19 @@ namespace Opm {
     beginTimeStep(const int timeStepIdx, const double simulationTime) {
         well_state_ = previous_well_state_;
 
-
         // test wells
         wellTesting(timeStepIdx, simulationTime);
 
         // create the well container
         well_container_ = createWellContainer(timeStepIdx);
+
+#if 1
+        std::cout << " well_container_ size is " << well_container_.size() << std::endl;
+        std::cout << " all the wells in the well_container_ " << std::endl;
+        for (const auto& well : well_container_) {
+            std::cout << well->name() << std::endl;
+        }
+#endif
 
         // do the initialization for all the wells
         // TODO: to see whether we can postpone of the intialization of the well containers to
@@ -164,6 +174,9 @@ namespace Opm {
         }
 
     }
+
+
+
 
 
     template<typename TypeTag>
@@ -255,6 +268,10 @@ namespace Opm {
             for (int w = 0; w < nw; ++w) {
                 const std::string well_name = std::string(wells()->name[w]);
 
+#if 1
+                std::cout << " well " << well_name << " in createWellContainer " << std::endl;
+#endif
+
                 // finding the location of the well in wells_ecl
                 const int nw_wells_ecl = wells_ecl_.size();
                 int index_well = 0;
@@ -272,9 +289,25 @@ namespace Opm {
                 const Well* well_ecl = wells_ecl_[index_well];
 
                 // well is closed due to economical reasons
+                // TODO: probably we should do this for all kinds of reasons unless there is different treatment
+                // for different reasons.
+                // something like wellTestState_.hasWell(well_name) instead here
+                //
+                // A new WCON keywords can re-open a well that was closed/shut due to Physical limit
+                if ( wellTestState_.hasWell(well_name, WellTestConfig::Reason::PHYSICAL ) ) {
+                    // TODO: a little worrying here, what can really re-open a well shut due to physical limits here
+                    // TODO: maybe we should use well_ecl->hasEvents() to specify more specific reasons
+                    if (well_state_.effectiveEventsHappen(w) ) {
+                        wellTestState_.openWell(well_name);
+#if 1
+                        std::cout << " well " << well_name << " is re-opened due to new WCON update " << std::endl;
+#endif
+                    }
+                }
+
                 if ( wellTestState_.hasWell(well_name, WellTestConfig::Reason::ECONOMIC) ||
                      wellTestState_.hasWell(well_name, WellTestConfig::Reason::PHYSICAL) ) {
-#if 1
+#if 0
                     std::cout << " well " << well_name << " will not in well_container_ since it was shut " << std::endl;
 #endif
                     if( well_ecl->getAutomaticShutIn() ) {
@@ -298,8 +331,15 @@ namespace Opm {
                 const int pvtreg = pvt_region_idx_[well_cell_top];
 
                 if ( !well_ecl->isMultiSegment(time_step) || !param_.use_multisegment_well_) {
+#if 1
+                    std::cout << " well container size is " << well_container_.size() << std::endl;
+                    std::cout << " well " << well_name << " is putting into well_container_ " << std::endl;
+#endif
                     well_container.emplace_back(new StandardWell<TypeTag>(well_ecl, time_step, wells(),
                                                 param_, *rateConverter_, pvtreg, numComponents() ) );
+#if 1
+                    std::cout << " well container size is " << well_container_.size() << std::endl;
+#endif
                 } else {
                     well_container.emplace_back(new MultisegmentWell<TypeTag>(well_ecl, time_step, wells(),
                                                 param_, *rateConverter_, pvtreg, numComponents() ) );
@@ -308,6 +348,17 @@ namespace Opm {
         }
 #if 1
         std::cout << " numWells() from wells() is " << numWells() << " well_container_ contains " << well_container_.size() << " wells " << std::endl;
+        if (numWells() != well_container_.size() ) {
+            std::cout << " they are DIFFERENT " << std::endl;
+        }
+            std::cout << " all the wells in wells() is " << std::endl;
+            for (int w = 0; w < numWells(); ++w) {
+                std::cout << wells()->name[w] << std::endl;
+            }
+            std::cout << " all the wells in the well_container is " << std::endl;
+            for (int w = 0; w < well_container_.size(); ++w) {
+                std::cout << well_container_[w]->name() << std::endl;
+            }
 #endif
         return well_container;
     }
@@ -1097,8 +1148,10 @@ namespace Opm {
             // it will not change the control mode, only update the targets
             wellCollection().updateWellTargets(well_state_.wellRates());
 
+            // TODO: we should only do the well is involved in the update group targets
             for (auto& well : well_container_) {
                 well->updateWellStateWithTarget(ebosSimulator_, well_state_);
+                well->updatePrimaryVariables(well_state_);
             }
         }
     }

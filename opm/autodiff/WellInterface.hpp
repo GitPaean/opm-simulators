@@ -203,12 +203,12 @@ namespace Opm
                                            const WellState& well_state,
                                            std::vector<double>& well_potentials) = 0;
 
-        virtual void updateWellStateWithTarget(const Simulator& ebos_simulator,
-                                               WellState& well_state) const = 0;
+        virtual void updateWellStateWithTarget(/* const */ Simulator& ebos_simulator,
+                                               WellState& well_state) /* const */ = 0;
 
-        void updateWellControl(const Simulator& ebos_simulator,
+        void updateWellControl(/* const */ Simulator& ebos_simulator,
                                WellState& well_state,
-                               wellhelpers::WellSwitchingLogger& logger) const;
+                               wellhelpers::WellSwitchingLogger& logger) /* const */;
 
         virtual void updatePrimaryVariables(const WellState& well_state) const = 0;
 
@@ -239,7 +239,7 @@ namespace Opm
         // Simulator is not const is because that assembleWellEq is non-const Simulator
         void wellTesting(Simulator& simulator, const std::vector<double>& B_avg,
                          const double simulation_time, const int report_step,  const bool terminal_output,
-                         const WellTestConfig::Reason testing_reason, const WellState& well_state,
+                         const WellTestConfig::Reason testing_reason, /* const */ WellState& well_state,
                          WellTestState& welltest_state);
 
     protected:
@@ -427,6 +427,11 @@ namespace Opm
                                  const double simulation_time, const int report_step, const bool terminal_output,
                                  const WellState& well_state, WellTestState& welltest_state);
 
+        // TODO: it might be able to move back to WellInterface.
+        virtual void wellTestingPhysical(Simulator& simulator, const std::vector<double>& B_avg,
+                                 const double simulation_time, const int report_step, const bool terminal_output,
+                                 /* const */ WellState& well_state, WellTestState& welltest_state) = 0;
+
         void updateWellTestStatePhysical(const WellState& well_state,
                                          const double simulation_time,
                                          const bool write_message_to_opmlog,
@@ -437,7 +442,8 @@ namespace Opm
                                          const bool write_message_to_opmlog,
                                          WellTestState& well_test_state) const;
 
-        void solveWellForTesting(Simulator& ebosSimulator, WellState& well_state,
+        // TODO: most likely, this will be for economic limits or a few diffferent other reasons
+        bool solveWellForTesting(Simulator& ebosSimulator, WellState& well_state,
                                  const std::vector<double>& B_avg, bool terminal_output);
 
 

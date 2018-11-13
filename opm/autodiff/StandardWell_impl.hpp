@@ -477,6 +477,9 @@ namespace Opm
             getMobility(ebosSimulator, perf, mob);
             double perf_dis_gas_rate = 0.;
             double perf_vap_oil_rate = 0.;
+            // TODO: set a guard for the well index value, since the well testing shutting completions
+            // by setting the corresponding well index to be zero.
+            // maybe a better way is to use boolean flag to mark perforations.
             computePerfRate(intQuants, mob, well_index_[perf], bhp, perf_pressure_diffs_[perf], allow_cf,
                             cq_s, perf_dis_gas_rate, perf_vap_oil_rate);
 
@@ -1229,8 +1232,8 @@ namespace Opm
     template<typename TypeTag>
     void
     StandardWell<TypeTag>::
-    updateWellStateWithTarget(const Simulator& ebos_simulator,
-                              WellState& well_state) const
+    updateWellStateWithTarget(/* const */ Simulator& ebos_simulator,
+                              WellState& well_state) /* const */
     {
         // number of phases
         const int np = number_of_phases_;
@@ -1325,6 +1328,44 @@ namespace Opm
 
             break;
         } // end of switch
+
+
+        // then based on the updated well state, we try to solve with the new control mode until converged
+        // if converged, we will use the new well state, otherwise, we use the old one, which basically means
+        // we did not try to solve
+        const WellState well_state_copy = well_state;
+
+        calculateExplicitQuantities(ebos_simulator, well_state);
+        updatePrimaryVariables(well_state);
+        initPrimaryVariablesEvaluation();
+        const int max_iter = param_.max_welleq_iter_;
+        int it = 0;
+        const double dt = 86400.; //not used for the well tests
+        bool converged;
+        // TODO: maybe this should be a class member
+        const std::vector<double> B_avg {0.6, 0.6, 0.006};
+        for (; it < max_iter; ++it) {
+            assembleWellEq(ebos_simulator, dt, well_state, true);
+            const ConvergenceReport report = getWellConvergence(B_avg);
+            if (report.converged) {
+                break;
+            }
+            BVectorWell dx_well(1);
+            invDuneD_.mv(resWell_, dx_well);
+            updateWellState(dx_well, well_state);
+            initPrimaryVariablesEvaluation();
+        }
+
+        if (it == max_iter) { // not converged
+#if 1
+            std::cout << " well " << name() << " DIDNOT get converged in updateWellStateWithTarget() " << std::endl;
+#endif
+            well_state = well_state_copy;
+        } else {
+#if 1
+            std::cout << " well " << name() << " DID get CONVERGED in updateWellStateWithTarget() " << std::endl;
+#endif
+        }
     }
 
 
@@ -2545,6 +2586,12 @@ namespace Opm
     StandardWell<TypeTag>::
     checkWellOperatability(const Simulator& ebos_simulator)
     {
+        // TODO: this function is probably can split another function out so that
+        // wellTestingPhysical can share some code with this function
+        // on solution is that this function will be called updateWellOperatability
+        // and the actual checking part become another function checkWellOperatability
+        // Let us finish the wellTestingPhysical first.
+
         // focusing on PRODUCER for now
         if (well_type_ == INJECTOR) {
             return;
@@ -2761,6 +2808,7 @@ namespace Opm
             const int current = well_state.currentControls()[index_of_well_];
             const double target = well_controls_iget_target(wc, current);
             well_state.thp()[index_of_well_] = target;
+            // TODO: more work needs to be done here.
         }
     }
 
@@ -2782,11 +2830,6 @@ namespace Opm
         const double thp_target = well_controls_iget_target(wc, current);
 
         well_state.thp()[index_of_well_] = thp_target;
-
-        // TODO: not handling injectors for now
-        if (well_type_ == INJECTOR) {
-            return;
-        }
 
         const double bhp = calculateBHPWithTHPTargetIPR();
 
@@ -2974,5 +3017,112 @@ namespace Opm
         assert(relaxation_factor >= 0.0 && relaxation_factor <= 1.0);
 
         return relaxation_factor;
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    void
+    StandardWell<TypeTag>::
+    wellTestingPhysical(Simulator& ebos_simulator, const std::vector<double>& B_avg,
+                        const double simulation_time, const int report_step, const bool terminal_output,
+                        WellState& well_state, WellTestState& welltest_state)
+    {
+        std::cout << " in wellTestingPhysical for well " << name() << std::endl;
+
+        // some most difficult things are the explicit quantities, since there is no information
+        // in the WellState to do a decent initialization
+
+        // TODO: Let us assume that the simulator is updated we can use the information from it, otherwise
+        // we need to do something like
+        // updatePerforationIntensiveQuantities();
+
+        // Let us try to do a normal simualtion running, to keep checking the operability status
+        // If the well is not operable during any of the time. It means it does not pass the physical
+        // limit test.
+        WellState well_state_copy = well_state;
+        calculateExplicitQuantities(ebos_simulator, well_state_copy);
+        // TODO: well state for this well is kind of all zero status
+        updateIPR(ebos_simulator);
+        checkOperabilityUnderBHPLimit(ebos_simulator);
+
+        if (this->wellHasTHPConstraints()) {
+            checkOperabilityUnderTHPLimit(ebos_simulator);
+        }
+
+        this->operability_status_.negative_well_rates = allDrawDownWrongDirection(ebos_simulator);
+#if 1
+        std::cout << " for well " << name() << " with bhp limit " << mostStrictBhpFromBhpLimits() / 1.e5;
+        if (this->wellHasTHPConstraints()) {
+            std::cout << " and thp limit " << this->getTHPConstraint() / 1.e5;
+        }
+        std::cout << std::endl;
+        std::cout << " operable_under_only_bhp_limit " << this->operability_status_.operable_under_only_bhp_limit
+                  << " violate_thp_limit_under_bhp_limit " << this->operability_status_.violate_thp_limit_under_bhp_limit;
+        if (this->wellHasTHPConstraints()) {
+            std::cout << " obtain_solution_with_thp_limit " << this->operability_status_.obtain_solution_with_thp_limit
+                      << " violate_bhp_limit_with_thp_limit " << this->operability_status_.violate_bhp_limit_with_thp_limit;
+        }
+        std::cout << std::endl;
+        if (this->operability_status_.negative_well_rates) {
+            std::cout << " well " << name() << " gets all the drawdown in the WRONG direction " << std::endl;
+        }
+        std::cout << std::endl;
+        std::cout << " well " << name() << " operability is " << this->isOperable() << std::endl;
+#endif
+
+        if ( !this->isOperable() ) {
+            return;
+        }
+
+        updateWellStateWithTarget(ebos_simulator, well_state_copy);
+        calculateExplicitQuantities(ebos_simulator, well_state_copy);
+        updatePrimaryVariables(well_state_copy);
+        initPrimaryVariablesEvaluation();
+
+        const bool converged = this->solveWellForTesting(ebos_simulator, well_state_copy, B_avg, terminal_output);
+
+        if (!converged) {
+#if 1
+            std::cout << " well " << name()
+                      << "did not get a converged result for the first solution attempt in wellTestingPhysical " << std::endl;
+#endif
+            return;
+        }
+
+        /* if (this->isOperable() ) {
+            welltest_state.openWell(name() );
+            const std::string msg = std::string("well ") + name() + std::string(" is re-opened");
+            OpmLog::info(msg);
+        } */
+        calculateExplicitQuantities(ebos_simulator, well_state_copy);
+        updatePrimaryVariables(well_state_copy);
+        initPrimaryVariablesEvaluation();
+        const bool converged2 = this->solveWellForTesting(ebos_simulator, well_state_copy, B_avg, terminal_output);
+
+        if (!converged2) {
+#if 1
+            std::cout << " well " << name()
+                      << "did not get a converged result for the second solution attempt in wellTestingPhysical " << std::endl;
+#endif
+            return;
+        }
+
+        if (this->isOperable() ) {
+            welltest_state.openWell(name() );
+            const std::string msg = std::string("well ") + name() + std::string(" is re-opened");
+            OpmLog::info(msg);
+            well_state = well_state_copy;
+        }
+
+        /* if it passes, we can do the solution, and get converged
+
+        updatePrimaryVariables(well_state_copy);
+        initPrimaryVariablesEvaluation();
+
+        // create a welltest state
+        WellTestState welltest_state_temp; */
     }
 }

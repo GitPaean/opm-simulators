@@ -412,9 +412,9 @@ namespace Opm
     template<typename TypeTag>
     void
     WellInterface<TypeTag>::
-    updateWellControl(const Simulator& ebos_simulator,
+    updateWellControl(/* const */ Simulator& ebos_simulator,
                       WellState& well_state,
-                      wellhelpers::WellSwitchingLogger& logger) const
+                      wellhelpers::WellSwitchingLogger& logger) /* const */
     {
         // well is shut for this iteration
         if (!isOperable()) return;
@@ -949,9 +949,14 @@ namespace Opm
     WellInterface<TypeTag>::
     wellTesting(Simulator& simulator, const std::vector<double>& B_avg,
                 const double simulation_time, const int report_step, const bool terminal_output,
-                const WellTestConfig::Reason testing_reason, const WellState& well_state,
+                const WellTestConfig::Reason testing_reason, /* const */ WellState& well_state,
                 WellTestState& well_test_state)
     {
+        if (testing_reason == WellTestConfig::Reason::PHYSICAL) {
+            wellTestingPhysical(simulator, B_avg, simulation_time, report_step,
+                                terminal_output, well_state, well_test_state);
+        }
+
         if (testing_reason == WellTestConfig::Reason::ECONOMIC) {
             wellTestingEconomic(simulator, B_avg, simulation_time, report_step,
                                 terminal_output, well_state, well_test_state);
@@ -984,7 +989,7 @@ namespace Opm
         while (testWell) {
             const size_t original_number_closed_completions = welltest_state_temp.sizeCompletions();
             solveWellForTesting(simulator, well_state_copy, B_avg, terminal_output);
-            updateWellTestState(well_state_copy, simulation_time, /*writeMessageToOPMLog=*/ false, welltest_state_temp);
+            updateWellTestStateEconomic(well_state_copy, simulation_time, /*writeMessageToOPMLog=*/ false, welltest_state_temp);
             closeCompletions(welltest_state_temp);
 
             // Stop testing if the well is closed or shut due to all completions shut
@@ -1202,7 +1207,7 @@ namespace Opm
     }
 
     template<typename TypeTag>
-    void
+    bool
     WellInterface<TypeTag>::
     solveWellForTesting(Simulator& ebosSimulator, WellState& well_state,
                         const std::vector<double>& B_avg, bool terminal_output)
@@ -1240,6 +1245,8 @@ namespace Opm
                 OpmLog::debug("WellTest: Well equation for well" +name() + " solution failed in getting converged with " + std::to_string(it) + " iterations");
             }
         }
+
+        return converged;
     }
 
 
