@@ -338,9 +338,6 @@ namespace Opm {
                 // well is closed due to economical reasons
                 if ( wellTestState_.hasWell(well_name, WellTestConfig::Reason::ECONOMIC) ||
                      wellTestState_.hasWell(well_name, WellTestConfig::Reason::PHYSICAL) ) {
-#if 1
-                    std::cout << " well " << well_name << " will not in well_container_ since it was shut " << std::endl;
-#endif
                     if( well_ecl->getAutomaticShutIn() ) {
                         // shut wells are not added to the well container
                         well_state_.thp()[w] = 0.;
@@ -370,9 +367,6 @@ namespace Opm {
                 }
             }
         }
-#if 1
-        std::cout << " numWells() from wells() is " << numWells() << " well_container_ contains " << well_container_.size() << " wells " << std::endl;
-#endif
         return well_container;
     }
 
@@ -748,8 +742,6 @@ namespace Opm {
         // we simply return.
         if( !wellsActive() ) return ;
 
-#if HAVE_OPENMP
-#endif // HAVE_OPENMP
         wellhelpers::WellSwitchingLogger logger;
 
         for (const auto& well : well_container_) {
@@ -826,44 +818,16 @@ namespace Opm {
 
         // since the controls are all updated, we should update well_state accordingly
         for (const auto& well : well_container_) {
+            if (!well->isOperable() ) continue;
+
             const int w = well->indexOfWell();
             WellControls* wc = well->wellControls();
-#if 1
-        if (well->wellType() == PRODUCER) {
-            const auto& well_state = well_state_;
-            const std::string modestring[4] = { "BHP", "THP", "RESERVOIR_RATE", "SURFACE_RATE" };
-            const int np = numPhases();
-            std::cout << " well " << well->name() << " in prepareTimeStep before updateWellStateWithTarget  " << std::endl;
-            std::cout << " current control mode is "
-                      << modestring[well_controls_iget_type(wc, well_state_.currentControls()[w])] << std::endl;
-            std::cout << " bhp " << well_state.bhp()[w] << " thp " << well_state.thp()[w] << std::endl;
-            std::cout << " well rates " << well_state.wellRates()[np * w] << " " << well_state.wellRates()[np * w + 1]
-                      << " " << well_state.wellRates()[np * w + 2] << std::endl;
-        }
-#endif
             const int control = well_controls_get_current(wc);
             well_state_.currentControls()[w] = control;
-            // TODO: for VFP control, the perf_densities might still be zero here, investigate better
-            // way to handle it later.
-            if (!well->isOperable() ) continue;
 
             if (well_state_.effectiveEventsHappen(w) ) {
                 well->updateWellStateWithTarget(ebosSimulator_, well_state_);
             }
-
-#if 1
-            if (well->wellType() == PRODUCER) {
-                const auto& well_state = well_state_;
-                const std::string modestring[4] = { "BHP", "THP", "RESERVOIR_RATE", "SURFACE_RATE" };
-                const int np = numPhases();
-                std::cout << " well " << well->name() << " in prepareTimeStep after updateWellStateWithTarget  " << std::endl;
-                std::cout << " current control mode is "
-                          << modestring[well_controls_iget_type(wc, well_state_.currentControls()[w])] << std::endl;
-                std::cout << " bhp " << well_state.bhp()[w] << " thp " << well_state.thp()[w] << std::endl;
-                std::cout << " well rates " << well_state.wellRates()[np * w] << " " << well_state.wellRates()[np * w + 1]
-                          << " " << well_state.wellRates()[np * w + 2] << std::endl;
-            }
-#endif
 
             // there is no new well control change input within a report step,
             // so next time step, the well does not consider to have effective events anymore

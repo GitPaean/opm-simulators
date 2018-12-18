@@ -1118,6 +1118,7 @@ inline bool findIntersection(const std::array<DataPoint, 2>& line_segment, const
     const double y = ((y3 - y4) * (x1 * y2 - y1 * x2) - (y1 - y2) * (x3 * y4 - y3 * x4)) / d;
 
     if (x >= std::min(x1,x2) && x <= std::max(x1,x2)) {
+        std::cout << " finding intersection points bhp " << y << " flo rate " << x << std::endl;
         bhp = y;
         return true;
     } else {
@@ -1136,6 +1137,19 @@ inline bool findIntersectionForBhp(const std::vector<double>&rate_samples,
     // there possibly two intersection point, then we choose the bigger one
     // we choose the bigger one, then it will be the later one in the rate_samples
 
+#if 1
+    double bhp_minimum = 1.e100;
+    int bhp_minimum_index = -1;
+    for (size_t i = 0; i < bhp_samples.size(); ++i) {
+        if (bhp_samples[i] < bhp_minimum) {
+            bhp_minimum = bhp_samples[i];
+            bhp_minimum_index = i;
+        }
+    }
+    std::cout << " the minume bhp value in the bhp_samples is " << bhp_minimum
+              << " the pivoting flo rate is " << rate_samples[bhp_minimum_index] << std::endl;
+#endif
+
     const size_t num_samples = rate_samples.size();
     assert(num_samples == bhp_samples.size());
 
@@ -1149,7 +1163,8 @@ inline bool findIntersectionForBhp(const std::vector<double>&rate_samples,
     };
 
     int number_intersection_found = 0;
-    int index_segment = 0; // the intersection segment that intersection happens
+    // int index_segment = 0; // the intersection segment that intersection happens
+    std::vector<int> indices_segment;
     for (size_t i = 0; i < rate_samples.size() - 1; ++i) {
         const double temp1 = flambda(rate_samples[i], bhp_samples[i]);
         const double temp2 = flambda(rate_samples[i+1], bhp_samples[i+1]);
@@ -1158,8 +1173,9 @@ inline bool findIntersectionForBhp(const std::vector<double>&rate_samples,
             // while considering the situation == 0. here, we might find more
             // we always use the last one, which is the one has the biggest rate
             ++number_intersection_found;
-            index_segment = i;
-            std::cout << " temp1 " << temp1 << " temp2 " << temp2 << std::endl;
+            // index_segment = i;
+            indices_segment.push_back(i);
+            // std::cout << " temp1 " << temp1 << " temp2 " << temp2 << std::endl;
         }
     }
 
@@ -1178,7 +1194,21 @@ inline bool findIntersectionForBhp(const std::vector<double>&rate_samples,
         }
         std::cin.ignore();
     } */
+#if 1
+    {
+        for (const int index_segment : indices_segment) {
+    const std::array<DataPoint, 2> line_segment{ DataPoint{rate_samples[index_segment], bhp_samples[index_segment]},
+                                                 DataPoint{rate_samples[index_segment + 1], bhp_samples[index_segment + 1]} };
 
+    const std::array<DataPoint, 2> line { DataPoint{flo_rate1, bhp1},
+                                          DataPoint{flo_rate2, bhp2} };
+
+    const bool inter_section_found = findIntersection(line_segment, line, bhp);
+        }
+    }
+#endif
+
+    const int index_segment = indices_segment.back();
 
     // then we need to calculate the intersection point
     const std::array<DataPoint, 2> line_segment{ DataPoint{rate_samples[index_segment], bhp_samples[index_segment]},
