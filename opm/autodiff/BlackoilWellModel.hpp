@@ -358,7 +358,7 @@ namespace Opm {
             void computeRepRadiusPerfLength(const Grid& grid);
 
 
-            void computeAverageFormationFactor(std::vector<double>& B_avg) const;
+            void computeAverageFormationFactor(std::vector<Scalar>& B_avg) const;
 
             void applyVREPGroupControl();
 
@@ -379,7 +379,7 @@ namespace Opm {
             /// at the beginning of the time step and no derivatives are included in these quantities
             void calculateExplicitQuantities() const;
 
-            SimulatorReport solveWellEq(const double dt);
+            SimulatorReport solveWellEq(const std::vector<Scalar>& B_avg, const double dt);
 
             void initPrimaryVariablesEvaluation() const;
 
@@ -392,7 +392,7 @@ namespace Opm {
 
             void resetWellControlFromState() const;
 
-            void assembleWellEq(const double dt);
+            void assembleWellEq(const std::vector<Scalar>& B_avg, const double dt);
 
             // some preparation work, mostly related to group control and RESV,
             // at the beginning of each time step (Not report step)

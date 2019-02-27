@@ -639,22 +639,25 @@ namespace Opm {
         // Set the well primary variables based on the value of well solutions
         initPrimaryVariablesEvaluation();
 
+        std::vector< Scalar > B_avg(numComponents(), Scalar() );
+        computeAverageFormationFactor(B_avg);
+
         if (param_.solve_welleq_initially_ && iterationIdx == 0) {
             // solve the well equations as a pre-processing step
-            last_report_ = solveWellEq(dt);
+            last_report_ = solveWellEq(B_avg, dt);
 
             if (initial_step_) {
                 // update the explicit quantities to get the initial fluid distribution in the well correct.
                 calculateExplicitQuantities();
                 prepareTimeStep();
-                last_report_ = solveWellEq(dt);
+                last_report_ = solveWellEq(B_avg, dt);
                 initial_step_ = false;
             }
             // TODO: should we update the explicit related here again, or even prepareTimeStep().
             // basically, this is a more updated state from the solveWellEq based on fixed
             // reservoir state, will tihs be a better place to inialize the explict information?
         }
-        assembleWellEq(dt);
+        assembleWellEq(B_avg, dt);
 
         last_report_.converged = true;
     }
@@ -666,10 +669,10 @@ namespace Opm {
     template<typename TypeTag>
     void
     BlackoilWellModel<TypeTag>::
-    assembleWellEq(const double dt)
+    assembleWellEq(const std::vector<Scalar>& B_avg, const double dt)
     {
         for (auto& well : well_container_) {
-            well->assembleWellEq(ebosSimulator_, dt, well_state_);
+            well->assembleWellEq(ebosSimulator_, B_avg, dt, well_state_);
         }
     }
 
@@ -817,20 +820,17 @@ namespace Opm {
     template<typename TypeTag>
     SimulatorReport
     BlackoilWellModel<TypeTag>::
-    solveWellEq(const double dt)
+    solveWellEq(const std::vector<Scalar>& B_avg,
+                const double dt)
     {
         WellState well_state0 = well_state_;
-
-        const int numComp = numComponents();
-        std::vector< Scalar > B_avg( numComp, Scalar() );
-        computeAverageFormationFactor(B_avg);
 
         const int max_iter = param_.max_welleq_iter_;
 
         int it  = 0;
         bool converged;
         do {
-            assembleWellEq(dt);
+            assembleWellEq(B_avg, dt);
 
             const auto report = getWellConvergence(B_avg);
             converged = report.converged();
@@ -1348,7 +1348,7 @@ namespace Opm {
     template<typename TypeTag>
     void
     BlackoilWellModel<TypeTag>::
-    computeAverageFormationFactor(std::vector<double>& B_avg) const
+    computeAverageFormationFactor(std::vector<Scalar>& B_avg) const
     {
         const auto& grid = ebosSimulator_.vanguard().grid();
         const auto& gridView = grid.leafGridView();

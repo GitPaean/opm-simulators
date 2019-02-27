@@ -1173,7 +1173,7 @@ namespace Opm
         bool converged;
         WellState well_state0 = well_state;
         do {
-            assembleWellEq(ebosSimulator, dt, well_state);
+            assembleWellEq(ebosSimulator, B_avg, dt, well_state);
 
             auto report = getWellConvergence(B_avg);
             converged = report.converged();
