@@ -631,7 +631,9 @@ namespace Opm
 
         // add vol * dF/dt + Q to the well equations;
         for (int componentIdx = 0; componentIdx < numWellConservationEq; ++componentIdx) {
-            EvalWell resWell_loc = (wellSurfaceVolumeFraction(componentIdx) - F0_[componentIdx]) * volume / dt;
+            // TODO: following the development in MSW, we need to convert the volume of the wellbore to be surface volume
+            // since all the rates are under surface condition
+            EvalWell resWell_loc = (F0_[componentIdx] - wellSurfaceVolumeFraction(componentIdx)) * volume / dt;
             resWell_loc += getQs(componentIdx) * well_efficiency_factor_;
             for (int pvIdx = 0; pvIdx < numWellEq; ++pvIdx) {
                 invDuneD_[0][0][componentIdx][pvIdx] += resWell_loc.derivative(pvIdx+numEq);
@@ -2054,6 +2056,8 @@ namespace Opm
     calculateExplicitQuantities(const Simulator& ebosSimulator,
                                 const WellState& well_state)
     {
+        updatePrimaryVariables(well_state);
+        initPrimaryVariablesEvaluation();
         computeWellConnectionPressures(ebosSimulator, well_state);
         computeAccumWell();
     }
