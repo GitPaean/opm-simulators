@@ -657,20 +657,20 @@ namespace Opm {
 
         if (param_.solve_welleq_initially_ && iterationIdx == 0) {
             // solve the well equations as a pre-processing step
-            last_report_ = solveWellEq(dt, local_deferredLogger);
+            last_report_ = solveWellEq(B_avg, dt, local_deferredLogger);
 
             if (initial_step_) {
                 // update the explicit quantities to get the initial fluid distribution in the well correct.
                 calculateExplicitQuantities();
                 prepareTimeStep(local_deferredLogger);
-                last_report_ = solveWellEq(dt, local_deferredLogger);
+                last_report_ = solveWellEq(B_avg, dt, local_deferredLogger);
                 initial_step_ = false;
             }
             // TODO: should we update the explicit related here again, or even prepareTimeStep().
             // basically, this is a more updated state from the solveWellEq based on fixed
             // reservoir state, will tihs be a better place to inialize the explict information?
         }
-        assembleWellEq(dt, local_deferredLogger);
+        assembleWellEq(B_avg, dt, local_deferredLogger);
 
         Opm::DeferredLogger global_deferredLogger = gatherDeferredLogger(local_deferredLogger);
         if (terminal_output_) {
@@ -688,10 +688,10 @@ namespace Opm {
     template<typename TypeTag>
     void
     BlackoilWellModel<TypeTag>::
-    assembleWellEq(const double dt, Opm::DeferredLogger& deferred_logger)
+    assembleWellEq(const std::vector<Scalar>& B_avg, const double dt, Opm::DeferredLogger& deferred_logger)
     {
         for (auto& well : well_container_) {
-            well->assembleWellEq(ebosSimulator_, dt, well_state_, deferred_logger);
+            well->assembleWellEq(ebosSimulator_, B_avg, dt, well_state_, deferred_logger);
         }
     }
 
@@ -839,7 +839,7 @@ namespace Opm {
     template<typename TypeTag>
     SimulatorReport
     BlackoilWellModel<TypeTag>::
-    solveWellEq(const double dt, Opm::DeferredLogger& deferred_logger)
+    solveWellEq(const std::vector<Scalar>& B_avg, const double dt, Opm::DeferredLogger& deferred_logger)
     {
         WellState well_state0 = well_state_;
 
@@ -848,7 +848,7 @@ namespace Opm {
         int it  = 0;
         bool converged;
         do {
-            assembleWellEq(dt, deferred_logger);
+            assembleWellEq(B_avg, dt, deferred_logger);
 
             const auto report = getWellConvergence(B_avg);
             converged = report.converged();

@@ -2055,10 +2055,4 @@ namespace Opm
         return volume / vol_ratio;
     }
 
-    }
-
-
-
-
-
 }
