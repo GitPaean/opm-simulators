@@ -552,7 +552,7 @@ namespace Opm
     {
         BVectorWell xw(1);
         recoverSolutionWell(x, xw);
-        updateWellState(xw, false, well_state);
+        updateWellState(xw, 1.0, well_state);
     }
 
 
@@ -679,7 +679,7 @@ namespace Opm
         // which is why we do not put the assembleWellEq here.
         const BVectorWell dx_well = mswellhelpers::invDXDirect(duneD_, resWell_);
 
-        updateWellState(dx_well, false, well_state);
+        updateWellState(dx_well, 1.0, well_state);
     }
 
 
@@ -763,12 +763,13 @@ namespace Opm
     void
     MultisegmentWell<TypeTag>::
     updateWellState(const BVectorWell& dwells,
-                    const bool inner_iteration,
+                    // const bool inner_iteration,
+                    const double relaxation_factor,
                     WellState& well_state) const
     {
         const bool use_inner_iterations = param_.use_inner_iterations_ms_wells_;
 
-        const double relaxation_factor = (use_inner_iterations && inner_iteration) ? 0.2 : 1.0;
+        // const double relaxation_factor = (use_inner_iterations && inner_iteration) ? 0.2 : 1.0;
 
         const double dFLimit = param_.dwell_fraction_max_;
         const double max_pressure_change = param_.max_pressure_change_ms_wells_;
@@ -777,13 +778,15 @@ namespace Opm
         for (int seg = 0; seg < numberOfSegments(); ++seg) {
             if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
                 const int sign = dwells[seg][WFrac] > 0. ? 1 : -1;
-                const double dx_limited = sign * std::min(std::abs(dwells[seg][WFrac]), relaxation_factor * dFLimit);
+                // const double dx_limited = sign * std::min(std::abs(dwells[seg][WFrac]), relaxation_factor * dFLimit);
+                const double dx_limited = sign * std::min(std::abs(dwells[seg][WFrac]) * relaxation_factor, dFLimit);
                 primary_variables_[seg][WFrac] = old_primary_variables[seg][WFrac] - dx_limited;
             }
 
             if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
                 const int sign = dwells[seg][GFrac] > 0. ? 1 : -1;
-                const double dx_limited = sign * std::min(std::abs(dwells[seg][GFrac]), relaxation_factor * dFLimit);
+                // const double dx_limited = sign * std::min(std::abs(dwells[seg][GFrac]), relaxation_factor * dFLimit);
+                const double dx_limited = sign * std::min(std::abs(dwells[seg][GFrac]) * relaxation_factor, dFLimit);
                 primary_variables_[seg][GFrac] = old_primary_variables[seg][GFrac] - dx_limited;
             }
 
@@ -794,6 +797,7 @@ namespace Opm
             {
                 const int sign = dwells[seg][SPres] > 0.? 1 : -1;
                 const double dx_limited = sign * std::min(std::abs(dwells[seg][SPres]), relaxation_factor * max_pressure_change);
+                // const double dx_limited = sign * std::min(std::abs(dwells[seg][SPres]) * relaxation_factor, max_pressure_change);
                 primary_variables_[seg][SPres] = old_primary_variables[seg][SPres] - dx_limited;
             }
 
@@ -1767,7 +1771,13 @@ namespace Opm
         // the function updateWellState() should have a flag to show
         // if we will update the well state.
         const int max_iter_number = param_.max_inner_iter_ms_wells_;
+        const WellState well_state0 = well_state;
+        const std::vector<Scalar> residuals0 = getWellResiduals(B_avg);
+        std::vector<std::vector<Scalar> > residual_history;
+        std::vector<double> measure_history;
         int it = 0;
+        double relaxation_factor = 1.;
+        const double min_relaxation_factor = 0.2;
         for (; it < max_iter_number; ++it) {
 
             assembleWellEqWithoutIteration(ebosSimulator, dt, well_state);
@@ -1787,11 +1797,51 @@ namespace Opm
                 break;
             }
 
-            updateWellState(dx_well, true, well_state);
+            const auto residuals = getWellResiduals(B_avg);
 
-            initPrimaryVariablesEvaluation();
+            updateWithLineSearch(ebosSimulator, B_avg, dx_well, dt, residuals, well_state);
+
+            /* residual_history.push_back(getWellResiduals(B_avg));
+            measure_history.push_back(getResidualMeasureValue(residual_history[it]));
+
+            bool is_oscillate = false;
+            bool is_stagnate = false;
+
+            // detectOscillations(residual_history, it, is_oscillate, is_stagnate);
+            detectOscillations(measure_history, it, is_oscillate, is_stagnate);
+            // TODO: maybe we should have strategy to recover the relaxation factor to be bigger
+
+            if (is_oscillate || is_stagnate) {
+                relaxation_factor = std::max(relaxation_factor * 0.9, min_relaxation_factor);
+                if (is_stagnate) {
+                    std::cout << " well " << name() << " observes STAGNATION" << std::endl;
+                }
+                if (is_oscillate) {
+                    std::cout << " well " << name() << " observes OSCILLATION" << std::endl;
+                }
+                std::cout << "relaxation_factor is  " << relaxation_factor << " now " << std::endl;
+            }
+
+            updateWellState(dx_well, relaxation_factor, well_state);
+
+            initPrimaryVariablesEvaluation(); */
         }
-        // TODO: maybe we should not use these values if they are not converged.
+
+        if (it < max_iter_number) {
+            std::cout << " well " << name() << " MANAGE to get converged within " << it << " inner iterations " << std::endl;
+        } else {
+            std::cout << " Well " << name() << " did NOT get converged within inner iterations " << std::endl;
+            /* std::cout << " outputting the residual history for well " << name() << " during inner iterations " << std::endl;
+            for (int i = 0; i < it; ++i) {
+                const auto& residual = residual_history[i];
+                std::cout << " residual at " << i << "th iteration ";
+                for (const auto& res : residual) {
+                    std::cout << " " << res;
+                }
+                std::cout << " " << measure_history[i];
+                std::cout << std::endl;
+            } */
+        }
     }
 
 
@@ -2053,6 +2103,255 @@ namespace Opm
         const double volume = segmentSet()[seg_idx].volume();
 
         return volume / vol_ratio;
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    // std::vector<std::vector<typename MultisegmentWell<TypeTag>::Scalar>>
+    std::vector<typename MultisegmentWell<TypeTag>::Scalar>
+    MultisegmentWell<TypeTag>::
+    getWellResiduals(const std::vector<Scalar>& B_avg) const
+    {
+        assert(int(B_avg.size() ) == num_components_);
+        // std::vector<std::vector<Scalar>> residuals(numberOfSegments(), std::vector<Scalar>(numWellEq, 0.0) );
+        std::vector<Scalar> residuals(numWellEq, 0.0);
+
+        for (int seg = 0; seg < numberOfSegments(); ++seg) {
+            for (int eq_idx = 0; eq_idx < numWellEq; ++eq_idx) {
+                double residual;
+                if (eq_idx < num_components_) {
+                    residual = std::abs(resWell_[seg][eq_idx]) * B_avg[eq_idx];
+                } else {
+                    residual = std::abs(resWell_[seg][eq_idx]);
+                }
+                // TODO: maybe this should only apply to the original residuals?
+                if (std::isnan(residual) || std::isinf(residual)) {
+                    OPM_THROW(Opm::NumericalIssue, "nan or inf value for residal get for well " << name()
+                                                    << " segment " << seg << " eq_idx " << eq_idx);
+                }
+
+                if (residual > residuals[eq_idx]) {
+                    residuals[eq_idx] = residual;
+                }
+                // TODO: we should distinguish the residual of the rate control eq and bhp control eq
+            }
+        }
+
+        return residuals;
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    bool
+    MultisegmentWell<TypeTag>::
+    residualImproved(const std::vector<Scalar>& residuals,
+                     const std::vector<Scalar>& residuals0) const
+    {
+        const double rate_tolerance = param_.tolerance_wells_;
+        const double pressure_tolerance = param_.tolerance_pressure_ms_wells_;
+
+        for (int eq_idx = 0; eq_idx < numWellEq; ++eq_idx) {
+            double tolerance = 0.;
+            if (eq_idx < numWellEq - 1) {
+                tolerance = rate_tolerance;
+            } else {
+                tolerance = pressure_tolerance;
+            }
+
+            const Scalar new_residual = residuals[eq_idx];
+            if (std::isnan(new_residual) || std::isinf(new_residual)) {
+                return false;
+            }
+            const Scalar orig_residual = residuals0[eq_idx];
+            if (new_residual > tolerance && new_residual > orig_residual) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+
+
+
+
+    /// Detect oscillation or stagnation in a given residual history.
+    template<typename TypeTag>
+    void
+    MultisegmentWell<TypeTag>::
+    detectOscillations(const std::vector<std::vector<double>>& residualHistory,
+                       const int it, bool& oscillate, bool& stagnate) const
+    {
+        // The detection of oscillation in two primary variable results in the report of the detection
+        // of oscillation for the solver.
+        // Only the saturations are used for oscillation detection for the black oil model.
+        // Stagnate is not used for any treatment here.
+
+        if ( it < 2 ) {
+            oscillate = false;
+            stagnate = false;
+            return;
+        }
+
+        stagnate = true;
+        int oscillate_eqs = 0;
+        const std::vector<double>& F0 = residualHistory[it];
+        const std::vector<double>& F1 = residualHistory[it - 1];
+        const std::vector<double>& F2 = residualHistory[it - 2];
+        const double relax_rel_tol = 0.2;
+        for (int eq_idx = 0; eq_idx < numWellEq; ++eq_idx){
+            const double d1 = std::abs((F0[eq_idx] - F2[eq_idx]) / F0[eq_idx]);
+            const double d2 = std::abs((F0[eq_idx] - F1[eq_idx]) / F0[eq_idx]);
+
+            oscillate_eqs += (d1 < relax_rel_tol) && (relax_rel_tol < d2);
+
+            // Process is 'stagnate' unless at least one phase
+            // exhibits significant residual change.
+            stagnate = (stagnate && !(std::abs((F1[eq_idx] - F2[eq_idx]) / F2[eq_idx]) > 1.0e-3));
+        }
+
+        oscillate = (oscillate_eqs > 1);
+    }
+
+
+
+
+
+    /// Detect oscillation or stagnation in a given residual history.
+    template<typename TypeTag>
+    void
+    MultisegmentWell<TypeTag>::
+    detectOscillations(const std::vector<double>& measure_history,
+                       const int it, bool& oscillate, bool& stagnate) const
+    {
+        // The detection of oscillation in two primary variable results in the report of the detection
+        // of oscillation for the solver.
+        // Only the saturations are used for oscillation detection for the black oil model.
+        // Stagnate is not used for any treatment here.
+
+        if ( it < 2 ) {
+            oscillate = false;
+            stagnate = false;
+            return;
+        }
+
+        stagnate = true;
+        int oscillate_eqs = 0;
+        const double F0 = measure_history[it];
+        const double F1 = measure_history[it - 1];
+        const double F2 = measure_history[it - 2];
+        const double relax_rel_tol = 0.2;
+        const double d1 = std::abs((F0 - F2) / F0);
+        const double d2 = std::abs((F0 - F1) / F0);
+
+        oscillate = (d1 < relax_rel_tol) && (relax_rel_tol < d2);
+
+        // Process is 'stagnate' unless at least one phase
+        // exhibits significant residual change.
+        // TODO: stagnate is probably should not use this criterion, no sure
+        // stagnate = !(std::abs((F1 - F2) / F2) > 1.0e-3);
+        stagnate = !(std::abs((F1 - F2) / F2) > 1.0e-2);
+
+        if (stagnate) {
+            std::cout << " well " << name() << " F0 " << F0 << " F1 " << F1 << " F2 " << F2 << std::endl;
+        }
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    double
+    MultisegmentWell<TypeTag>::
+    getResidualMeasureValue(const std::vector<double>& residuals) const
+    {
+        assert(int(residuals.size()) == numWellEq);
+
+        const double rate_tolerance = param_.tolerance_wells_;
+        int count = 0;
+        double sum = 0;
+        for (int eq_idx = 0; eq_idx < numWellEq - 1; ++eq_idx) {
+            if (residuals[eq_idx] > rate_tolerance) {
+                sum += residuals[eq_idx] / rate_tolerance;
+                // ++count;
+            }
+        }
+
+        const double pressure_tolerance = param_.tolerance_pressure_ms_wells_;
+        if (residuals[SPres] > pressure_tolerance) {
+            sum += residuals[SPres] / pressure_tolerance;
+            // ++count;
+        }
+
+        // if (count == 0), it should be converged.
+        // assert(count != 0);
+
+        // return sum / double(count);
+        return sum;
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    void
+    MultisegmentWell<TypeTag>::
+    updateWithLineSearch(const Simulator& ebos_simulator, const std::vector<Scalar>& B_avg,
+                         const BVectorWell& dx_well, const double dt,
+                         const std::vector<Scalar>& residuals0, WellState& well_state)
+    {
+        // in the current implementation, the criterion is that all the residual should be smaller (at least not increasing?)
+        // keeping an original copy of the well_state and primary variables
+        const WellState well_state0 = well_state;
+        const std::vector<std::array<double, numWellEq> > primary_variables0 = primary_variables_;
+
+        // const double min_factor = 0.0002;
+        const double min_factor = 0.05;
+        // const double reduction_factor = 0.5;
+        const double reduction_factor = 0.7;
+
+        const double measure0 = getResidualMeasureValue(residuals0);
+
+        double factor = 1.0;
+        bool solution_accepted = false;
+
+        while (factor > min_factor) {
+            std::cout << " factor = " << factor << " for well " << name() << std::endl;
+            updateWellState(dx_well, factor, well_state);
+            initPrimaryVariablesEvaluation();
+
+            assembleWellEqWithoutIteration(ebos_simulator, dt, well_state);
+
+            const ConvergenceReport report = getWellConvergence(B_avg);
+
+            const auto new_residuals = getWellResiduals(B_avg);
+            const double new_measure = getResidualMeasureValue(new_residuals);
+
+            solution_accepted = report.converged() || new_measure < measure0;
+
+            if (solution_accepted) {
+               return;
+            }
+
+            factor *= reduction_factor;
+            well_state = well_state0;
+            primary_variables_ = primary_variables0;
+        }
+
+        if (!solution_accepted) {
+            std::cout << " We DID NOT find a proper factor to the linear search, we are using the "
+                      << " the min_factor " << min_factor << " to update the solution " << std::endl;
+
+            updateWellState(dx_well, min_factor, well_state);
+            initPrimaryVariablesEvaluation();
+        }
     }
 
 }
