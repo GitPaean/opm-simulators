@@ -292,11 +292,21 @@ namespace Opm
             }
         }
 
-        void resize(const Wells* wells, const Schedule& schedule, std::size_t numCells, const PhaseUsage& pu)
+/*        void resize(const Wells* wells, const Schedule& schedule, std::size_t numCells, const PhaseUsage& pu)
         {
             const std::vector<double> tmp(numCells, 0.0); // <- UGLY HACK to pass the size
             const std::vector<const Well*> wells_ecl;
-            init(wells, tmp, schedule, wells_ecl, 0, nullptr, pu);
+            init(wells, tmp, schedule, wells_ecl, 0, nullptr, pu); */
+
+        void resize(const Wells* wells, const std::vector<const Well*>& wells_ecl, const bool handle_ms_well,
+                    const int report_step, const size_t numCells, const PhaseUsage& pu)
+        {
+            const std::vector<double> tmp(numCells, 0.0); // <- UGLY HACK to pass the size
+            init(wells, tmp, wells_ecl, 0, nullptr, pu);
+
+            if (handle_ms_well) {
+                initWellStateMSWell(wells, wells_ecl, report_step, pu, nullptr);
+            }
         }
 
         /// Allocate and initialize if wells is non-null.  Also tries
@@ -600,9 +610,8 @@ namespace Opm
 
 
         /// init the MS well related.
-        template <typename PrevWellState>
         void initWellStateMSWell(const Wells* wells, const std::vector<const Well*>& wells_ecl,
-                                 const int time_step, const PhaseUsage& pu, const PrevWellState& prev_well_state)
+                                 const int time_step, const PhaseUsage& pu, const WellStateFullyImplicitBlackoil* prev_well_state)
         {
             // still using the order in wells
             const int nw = wells->number_of_wells;
@@ -732,13 +741,13 @@ namespace Opm
             assert(int(segpress_.size()) == nseg_);
             assert(int(segrates_.size()) == nseg_ * numPhases() );
 
-            if (!prev_well_state.wellMap().empty()) {
+            if (prev_well_state && !prev_well_state->wellMap().empty()) {
                 // copying MS well related
-                const auto& end = prev_well_state.wellMap().end();
+                const auto& end = prev_well_state->wellMap().end();
                 const int np = numPhases();
                 for (int w = 0; w < nw; ++w) {
                     const std::string name( wells->name[w] );
-                    const auto& it = prev_well_state.wellMap().find( name );
+                    const auto& it = prev_well_state->wellMap().find( name );
 
                     if (it != end) { // the well is found in the prev_well_state
                         // TODO: the well with same name can change a lot, like they might not have same number of segments
@@ -746,7 +755,7 @@ namespace Opm
                         // for now, we just copy them.
                         const int old_index_well = (*it).second[0];
                         const int new_index_well = w;
-                        const int old_top_segment_index = prev_well_state.topSegmentIndex(old_index_well);
+                        const int old_top_segment_index = prev_well_state->topSegmentIndex(old_index_well);
                         const int new_top_segmnet_index = topSegmentIndex(new_index_well);
                         int number_of_segment = 0;
                         // if it is the last well in list
@@ -757,11 +766,11 @@ namespace Opm
                         }
 
                         for (int i = 0; i < number_of_segment * np; ++i) {
-                            segrates_[new_top_segmnet_index * np + i] = prev_well_state.segRates()[old_top_segment_index * np + i];
+                            segrates_[new_top_segmnet_index * np + i] = prev_well_state->segRates()[old_top_segment_index * np + i];
                         }
 
                         for (int i = 0; i < number_of_segment; ++i) {
-                            segpress_[new_top_segmnet_index + i] = prev_well_state.segPress()[old_top_segment_index + i];
+                            segpress_[new_top_segmnet_index + i] = prev_well_state->segPress()[old_top_segment_index + i];
                         }
                     }
                 }

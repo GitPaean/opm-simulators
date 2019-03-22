@@ -64,7 +64,6 @@ namespace {
     buildWellState(const Setup& setup, const std::size_t timeStep)
     {
         auto state  = Opm::WellStateFullyImplicitBlackoil{};
-        auto state0 = Opm::WellStateFullyImplicitBlackoil{}; // Empty.
 
         const auto cpress =
             std::vector<double>(setup.grid.c_grid()->number_of_cells,
@@ -78,7 +77,7 @@ namespace {
                    timeStep, nullptr, setup.pu);
 
         state.initWellStateMSWell(wmgr.c_wells(), setup.sched.getWells(timeStep),
-                                  timeStep, setup.pu, state0);
+                                  timeStep, setup.pu, nullptr);
 
         return state;
     }
