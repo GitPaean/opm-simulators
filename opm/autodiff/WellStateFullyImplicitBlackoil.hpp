@@ -292,17 +292,13 @@ namespace Opm
             }
         }
 
-/*        void resize(const Wells* wells, const Schedule& schedule, std::size_t numCells, const PhaseUsage& pu)
-        {
-            const std::vector<double> tmp(numCells, 0.0); // <- UGLY HACK to pass the size
-            const std::vector<const Well*> wells_ecl;
-            init(wells, tmp, schedule, wells_ecl, 0, nullptr, pu); */
 
-        void resize(const Wells* wells, const std::vector<const Well*>& wells_ecl, const bool handle_ms_well,
-                    const int report_step, const size_t numCells, const PhaseUsage& pu)
+        void resize(const Wells* wells, const std::vector<const Well*>& wells_ecl, const Schedule& schedule,
+                    const bool handle_ms_well, const int report_step, const size_t numCells,
+                    const PhaseUsage& pu)
         {
             const std::vector<double> tmp(numCells, 0.0); // <- UGLY HACK to pass the size
-            init(wells, tmp, wells_ecl, 0, nullptr, pu);
+            init(wells, tmp, schedule, wells_ecl, 0, nullptr, pu);
 
             if (handle_ms_well) {
                 initWellStateMSWell(wells, wells_ecl, report_step, pu, nullptr);

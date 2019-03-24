@@ -471,7 +471,6 @@ namespace Opm {
     BlackoilWellModel<TypeTag>::
     initFromRestartFile(const RestartValue& restartValues)
     {
-        // TODO: it looks like we will have the report step, and also we have the wells_ecl, and we should be able to do a proper initialization of well_state
         const auto& defunctWellNames = ebosSimulator_.vanguard().defunctWellNames();
 
         // The restart step value is used to identify wells present at the given
@@ -499,12 +498,9 @@ namespace Opm {
             const auto phaseUsage = phaseUsageFromDeck(eclState());
             const size_t numCells = Opm::UgGridHelpers::numCells(grid());
             const bool handle_ms_well = (param_.use_multisegment_well_ && anyMSWellOpen(wells, report_step));
-            // well_state_.resize(wells, schedule(), numCells, phaseUsage); // Resize for restart step
-            well_state_.resize(wells, wells_ecl_, handle_ms_well, report_step, numCells, phaseUsage); // Resize for restart step
+            well_state_.resize(wells, wells_ecl_, schedule(), handle_ms_well, report_step, numCells, phaseUsage); // Resize for restart step
             wellsToState(restartValues.wells, phaseUsage, handle_ms_well, report_step, well_state_);
             previous_well_state_ = well_state_;
-        // void resize(const Wells* wells, const std::vector<const Well*>& wells_ecl, const bool handle_ms_well,
-        // const int report_step, const size_t numCells, const PhaseUsage& pu)
         }
         initial_step_ = false;
     }
@@ -1729,7 +1725,7 @@ namespace Opm {
             }
 
             if (handle_ms_well && !well.segments.empty()) {
-                // we need to the wells_ecl_ information
+                // we need the well_ecl_ information
                 const std::string& well_name = wm.first;
                 const Well* well_ecl = getWellEcl(well_name);
                 assert(well_ecl);
@@ -1739,7 +1735,7 @@ namespace Opm {
                 const int top_segment_index = state.topSegmentIndex(well_index);
                 const auto& segments = well.segments;
 
-                // possibly wrong if some segments are shut
+                // \Note: eventually we need to hanlde the situations that some segments are shut
                 assert(segment_set.size() == segments.size());
 
                 for (const auto& segment : segments) {
