@@ -3110,4 +3110,32 @@ namespace Opm
             duneB_[0][cell_idx][wat_vel_index][pvIdx] = eq_wat_vel.derivative(pvIdx);
         }
     }
+
+
+
+
+
+
+    template<typename TypeTag>
+    void
+    StandardWellV<TypeTag>::
+    outputWellState(const WellState& well_state) const
+    {
+        std::cout << " well rates  and bhp for well " << name();
+        for (int p = 0; p < number_of_phases_; ++p) {
+            std::cout << " " << well_state.wellRates()[index_of_well_ * number_of_phases_ + p];
+        }
+        std::cout << " " << well_state.bhp()[index_of_well_] / 1.e5 << " bar" << std::endl;
+
+        std::cout << " perforation_rates and pressures " << std::endl;
+        for (int perf = 0; perf < number_of_perforations_; perf++) {
+                std::cout << " perf " << perf;
+                for (int p = 0; p < number_of_phases_; ++p) {
+                    std::cout << " " << well_state.perfPhaseRates()[(first_perf_ + perf) * number_of_phases_ + p];
+                }
+                std::cout << "  " << well_state.perfPress()[first_perf_ + perf] / 1.e5 << " bar " << std::endl;
+        }
+
+        std::cout << " current control index is " << well_state.currentControls()[index_of_well_] << std::endl;
+    }
 }

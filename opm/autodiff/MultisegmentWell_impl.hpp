@@ -2206,4 +2206,60 @@ namespace Opm
         return sum;
     }
 
+
+
+
+
+    template<typename TypeTag>
+    void
+    MultisegmentWell<TypeTag>::
+    outputWellState(const WellState& well_state) const
+    {
+        std::cout << " well rates  and bhp for well " << name();
+        for (int p = 0; p < number_of_phases_; ++p) {
+            std::cout << " " << well_state.wellRates()[index_of_well_ * number_of_phases_ + p];
+        }
+        std::cout << " " << well_state.bhp()[index_of_well_] / 1.e5 << " bar" << std::endl;
+        std::cout << " segment rates and segment pressures "<< std::endl;
+        const int top_segment_index = well_state.topSegmentIndex(index_of_well_);
+        for (int seg = 0; seg < numberOfSegments(); ++seg) {
+            std::cout << " seg " << seg;
+            for (int p = 0; p < number_of_phases_; ++p) {
+                std::cout << " " << well_state.segRates() [(seg + top_segment_index) * number_of_phases_ + p];
+            }
+            std::cout << "  " << well_state.segPress()[seg + top_segment_index] / 1.e5 << " bar " << std::endl;
+        }
+
+        std::cout << " perforation_rates and pressures " << std::endl;
+        for (int seg = 0; seg < numberOfSegments(); ++seg) {
+            for (const int perf : segment_perforations_[seg]) {
+                std::cout << " seg " << seg << " perf " << perf;
+                for (int p = 0; p < number_of_phases_; ++p) {
+                    std::cout << " " << well_state.perfPhaseRates()[(first_perf_ + perf) * number_of_phases_ + p];
+                }
+                std::cout << "  " << well_state.perfPress()[first_perf_ + perf] / 1.e5 << " bar " << std::endl;
+            }
+        }
+
+        std::cout << " current control index is " << well_state.currentControls()[index_of_well_] << std::endl;
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    void
+    MultisegmentWell<TypeTag>::
+    outputPrimaryVariables() const
+    {
+        for (int seg = 0; seg < numberOfSegments(); ++seg) {
+            std::cout << " seg " << seg;
+            for (int i = 0; i < numWellEq; ++i) {
+                std::cout << " " << primary_variables_[seg][i];
+            }
+            std::cout << std::endl;
+        }
+    }
+
 }

@@ -378,6 +378,10 @@ namespace Opm
 
         double getResidualMeasureValue(const std::vector<double>& residuals) const;
 
+        void outputPrimaryVariables() const;
+
+        void outputWellState(const WellState& well_state) const;
+
     };
 
 }

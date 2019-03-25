@@ -2842,4 +2842,30 @@ namespace Opm
     updateWaterThroughput(const double dt OPM_UNUSED, WellState& well_state OPM_UNUSED) const
     {
     }
+
+
+
+
+
+    template<typename TypeTag>
+    void
+    StandardWell<TypeTag>::
+    outputWellState(const WellState& well_state) const
+    {
+        std::cout << " well rates  and bhp for well " << name();
+        for (int p = 0; p < number_of_phases_; ++p) {
+            std::cout << " " << well_state.wellRates()[index_of_well_ * number_of_phases_ + p];
+        }
+        std::cout << " " << well_state.bhp()[index_of_well_] / 1.e5 << " bar" << std::endl;
+
+        for (int perf = 0; perf < number_of_perforations_; perf++) {
+                std::cout << " perf " << perf;
+                for (int p = 0; p < number_of_phases_; ++p) {
+                    std::cout << " " << well_state.perfPhaseRates()[(first_perf_ + perf) * number_of_phases_ + p];
+                }
+                std::cout << "  " << well_state.perfPress()[first_perf_ + perf] / 1.e5 << " bar " << std::endl;
+        }
+
+        std::cout << " current control index is " << well_state.currentControls()[index_of_well_] << std::endl;
+    }
 }

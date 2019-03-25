@@ -941,10 +941,12 @@ namespace Opm {
             if (converged) {
                 if (terminal_output_) {
                     deferred_logger.debug("Well equation solution gets converged with " + std::to_string(it) + " iterations");
+                    std::cout << "Well equation solution gets converged with " + std::to_string(it) + " iterations" << std::endl;
                 }
             } else {
                 if (terminal_output_) {
                     deferred_logger.debug("Well equation solution failed in getting converged with " + std::to_string(it) + " iterations");
+                    std::cout << "Well equation solution failed in getting converged with " + std::to_string(it) + " iterations" << std::endl;
                 }
 
                 well_state_ = well_state0;
@@ -1118,6 +1120,11 @@ namespace Opm {
     BlackoilWellModel<TypeTag>::
     prepareTimeStep(Opm::DeferredLogger& deferred_logger)
     {
+        std::cout << " outputing the WellState at the beginning of the prepareTimestep " << std::endl;
+
+        for (const auto& well : well_container_) {
+            well->outputWellState(well_state_);
+        }
 
         if ( wellCollection().havingVREPGroups() ) {
             rateConverter_->template defineState<ElementContext>(ebosSimulator_);
@@ -1167,6 +1174,12 @@ namespace Opm {
             exception_thrown = 1;
         }
         logAndCheckForExceptionsAndThrow(deferred_logger, exception_thrown, "prepareTimestep() failed.", terminal_output_);
+
+        std::cout << " outputing the WellState at the END of the prepareTimeStep " << std::endl;
+
+        for (const auto& well : well_container_) {
+            well->outputWellState(well_state_);
+        }
     }
 
 
