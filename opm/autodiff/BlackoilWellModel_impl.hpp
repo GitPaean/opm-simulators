@@ -1730,6 +1730,7 @@ namespace Opm {
             if (handle_ms_well && !well.segments.empty()) {
                 // we need the well_ecl_ information
                 const std::string& well_name = wm.first;
+                std::cout << " recovering the segment information for well " << well_name << std::endl;
                 const Well* well_ecl = getWellEcl(well_name);
                 assert(well_ecl);
 
@@ -1743,14 +1744,18 @@ namespace Opm {
 
                 for (const auto& segment : segments) {
                     const int segment_index = segment_set.segmentNumberToIndex(segment.first);
+                    std::cout << " segment_index " << segment_index << " segment.first " << segment.first;
 
                     // recovering segment rates and pressure from the restart values
                     state.segPress()[top_segment_index + segment_index] = segment.second.pressure;
+                    std::cout << " pressure " << segment.second.pressure / 1.e5 << " rates ";
 
                     const auto& segment_rates = segment.second.rates;
                     for (int p = 0; p < np; ++p) {
                         state.segRates()[(top_segment_index + segment_index) * np + p] = segment_rates.get(phs[p]);
+                        std::cout << segment_rates.get(phs[p]) << " ";
                     }
+                    std::cout << " segNumber " << segment.second.segNumber << std::endl;
                 }
             }
         }
