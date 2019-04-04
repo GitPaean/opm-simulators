@@ -38,6 +38,7 @@
 #include <map>
 #include <algorithm>
 #include <array>
+#include <iostream>
 
 namespace Opm
 {
@@ -593,6 +594,7 @@ namespace Opm
                 assert(local_comp_index == this->wells_->well_connpos[ w + 1 ] - this->wells_->well_connpos[ w ]);
 
                 const auto nseg = this->numSegments(w);
+                std::cout << " Reporting the segment information for well " << wells_->name[w] << std::endl;
                 for (auto seg_ix = 0*nseg; seg_ix < nseg; ++seg_ix) {
                     const auto seg_no = this->segmentNumber(w, seg_ix);
                     well.segments[seg_no] =
@@ -990,6 +992,10 @@ namespace Opm
 
             seg_res.pressure = this->segPress()[seg_dof];
 
+            std::cout << " seg_ix " << seg_ix << " seg_no " << seg_no;
+            std::cout << " pressure " << seg_res.pressure / 1.e5 << " rates ";
+            std::cout << rate[0] << "  " << rate[1] << " " << rate[2];
+
             if (pu.phase_used[Water]) {
                 seg_res.rates.set(data::Rates::opt::wat,
                                   rate[pu.phase_pos[Water]]);
@@ -1006,6 +1012,7 @@ namespace Opm
             }
 
             seg_res.segNumber = seg_no;
+            std::cout << " segNumber " << seg_res.segNumber << std::endl;
 
             return seg_res;
         }
