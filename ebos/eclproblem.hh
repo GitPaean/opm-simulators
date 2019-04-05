@@ -2128,7 +2128,7 @@ private:
             eclWriter_->eclOutputModule().initHysteresisParams(this->simulator(), elemIdx);
             eclWriter_->eclOutputModule().assignToFluidState(elemFluidState, elemIdx);
 
-            processRestartSaturations_(elemFluidState);
+            // processRestartSaturations_(elemFluidState);
 
             lastRs_[elemIdx] = elemFluidState.Rs();
             lastRv_[elemIdx] = elemFluidState.Rv();
