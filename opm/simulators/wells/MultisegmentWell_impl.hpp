@@ -236,7 +236,7 @@ namespace Opm
     template <typename TypeTag>
     void
     MultisegmentWell<TypeTag>::
-    assembleWellEq(const Simulator& ebosSimulator,
+    assembleWellEq(/* const */ Simulator& ebosSimulator,
                    const std::vector<Scalar>& B_avg,
                    const double dt,
                    WellState& well_state,
@@ -1772,7 +1772,7 @@ namespace Opm
     template<typename TypeTag>
     void
     MultisegmentWell<TypeTag>::
-    iterateWellEquations(const Simulator& ebosSimulator,
+    iterateWellEquations(/* const */ Simulator& ebosSimulator,
                          const std::vector<Scalar>& B_avg,
                          const double dt,
                          WellState& well_state,
