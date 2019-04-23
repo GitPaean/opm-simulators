@@ -55,9 +55,10 @@ namespace Opm
     init(const PhaseUsage* phase_usage_arg,
          const std::vector<double>& depth_arg,
          const double gravity_arg,
-         const int num_cells)
+         const int num_cells,
+         const std::vector< Scalar > B_avg)
     {
-        Base::init(phase_usage_arg, depth_arg, gravity_arg, num_cells);
+        Base::init(phase_usage_arg, depth_arg, gravity_arg, num_cells, B_avg);
 
         perf_depth_.resize(number_of_perforations_, 0.);
         for (int perf = 0; perf < number_of_perforations_; ++perf) {
@@ -480,7 +481,6 @@ namespace Opm
     void
     StandardWellV<TypeTag>::
     assembleWellEq(const Simulator& ebosSimulator,
-                   const std::vector<Scalar>& /* B_avg */,
                    const double dt,
                    WellState& well_state,
                    Opm::DeferredLogger& deferred_logger
@@ -1197,7 +1197,7 @@ namespace Opm
     StandardWellV<TypeTag>::
     updateWellStateWithTarget(const Simulator& ebos_simulator,
                               WellState& well_state,
-                              Opm::DeferredLogger& deferred_logger) const
+                              Opm::DeferredLogger& deferred_logger)
     {
         // number of phases
         const int np = number_of_phases_;
@@ -1480,7 +1480,7 @@ namespace Opm
                 // option 2: stick with the above IPR curve
                 // we use IPR here
                 std::vector<double> well_rates_bhp_limit;
-                computeWellRatesWithBhp(ebos_simulator, EvalWell(numWellEq_ + numEq, bhp_limit), well_rates_bhp_limit, deferred_logger);
+                computeWellRatesWithBhp(ebos_simulator, bhp_limit, /*iterate=*/false, well_rates_bhp_limit, deferred_logger);
 
                 const double thp = calculateThpFromBhp(well_rates_bhp_limit, bhp_limit, deferred_logger);
                 const double thp_limit = this->getTHPConstraint(deferred_logger);
@@ -1585,7 +1585,7 @@ namespace Opm
     {
         const double bhp = well_state.bhp()[index_of_well_];
         std::vector<double> well_rates;
-        computeWellRatesWithBhp(ebos_simulator, bhp, well_rates, deferred_logger);
+        computeWellRatesWithBhp(ebos_simulator, bhp, /*iterate=*/ false, well_rates, deferred_logger);
 
         const double sign = (well_type_ == PRODUCER) ? -1. : 1.;
         const double threshold = sign * std::numeric_limits<double>::min();
@@ -1629,7 +1629,7 @@ namespace Opm
     StandardWellV<TypeTag>::
     updateWellStateWithTHPTargetIPR(const Simulator& ebos_simulator,
                                     WellState& well_state,
-                                    Opm::DeferredLogger& deferred_logger) const
+                                    Opm::DeferredLogger& deferred_logger)
     {
         if (well_type_ == PRODUCER) {
             updateWellStateWithTHPTargetIPRProducer(ebos_simulator,
@@ -1653,7 +1653,7 @@ namespace Opm
     StandardWellV<TypeTag>::
     updateWellStateWithTHPTargetIPRProducer(const Simulator& ebos_simulator,
                                             WellState& well_state,
-                                            Opm::DeferredLogger& deferred_logger) const
+                                            Opm::DeferredLogger& deferred_logger)
     {
 
         well_state.thp()[index_of_well_] = this->getTHPConstraint(deferred_logger);
@@ -1669,7 +1669,7 @@ namespace Opm
         initPrimaryVariablesEvaluation();
 
         std::vector<double> rates;
-        computeWellRatesWithBhp(ebos_simulator, EvalWell(numWellEq_ + numEq, bhp), rates, deferred_logger);
+        computeWellRatesWithBhp(ebos_simulator, bhp, /*iterate=*/false, rates, deferred_logger);
 
         // TODO: double checke the obtained rates
         // this is another places we might obtain negative rates
@@ -1984,12 +1984,8 @@ namespace Opm
     template<typename TypeTag>
     ConvergenceReport
     StandardWellV<TypeTag>::
-    getWellConvergence(const std::vector<double>& B_avg, Opm::DeferredLogger& deferred_logger) const
+    getWellConvergence(Opm::DeferredLogger& deferred_logger) const
     {
-        // the following implementation assume that the polymer is always after the w-o-g phases
-        // For the polymer case and the energy case, there is one more mass balance equations of reservoir than wells
-        assert((int(B_avg.size()) == num_components_) || has_polymer || has_energy);
-
         const double tol_wells = param_.tolerance_wells_;
         const double maxResidualAllowed = param_.max_residual_allowed_;
 
@@ -2004,7 +2000,7 @@ namespace Opm
         // Finish computation
         for ( int compIdx = 0; compIdx < num_components_; ++compIdx )
         {
-            well_flux_residual[compIdx] = B_avg[compIdx] * res[compIdx];
+            well_flux_residual[compIdx] = B_avg_[compIdx] * res[compIdx];
         }
 
         ConvergenceReport report;
@@ -2265,12 +2261,32 @@ namespace Opm
     void
     StandardWellV<TypeTag>::
     computeWellRatesWithBhp(const Simulator& ebosSimulator,
-                            const EvalWell& bhp,
+                            const double& bhp,
+                            const bool iterate,
                             std::vector<double>& well_flux,
-                            Opm::DeferredLogger& deferred_logger) const
+                            Opm::DeferredLogger& deferred_logger)
     {
+
         const int np = number_of_phases_;
         well_flux.resize(np, 0.0);
+
+        // iterate to get a more accurate well density
+        if (iterate) {
+            // create a copy of the well_state to use. If the operability checking is sucessful, we use this one
+            // to replace the original one
+            WellState well_state_copy = ebosSimulator.problem().wellModel().wellState();
+            bool converged = this->solveWellEqUntilConverged(ebosSimulator, well_state_copy, deferred_logger);
+
+            if (!converged) {
+                const std::string msg = " well " + name() + " did not get converged during well potential calculations "
+                                                            "returning zero values for the potential";
+                deferred_logger.debug(msg);
+                return;
+            }
+            updatePrimaryVariables(well_state_copy, deferred_logger);
+            computeWellConnectionPressures(ebosSimulator, well_state_copy);
+            initPrimaryVariablesEvaluation();
+        }
 
         const bool allow_cf = getAllowCrossFlow();
 
@@ -2284,7 +2300,7 @@ namespace Opm
             std::vector<EvalWell> cq_s(num_components_, {numWellEq_ + numEq, 0.});
             double perf_dis_gas_rate = 0.;
             double perf_vap_oil_rate = 0.;
-            computePerfRate(intQuants, mob, bhp, perf, allow_cf,
+            computePerfRate(intQuants, mob, EvalWell(numWellEq_ + numEq, bhp), perf, allow_cf,
                             cq_s, perf_dis_gas_rate, perf_vap_oil_rate, deferred_logger);
 
             for(int p = 0; p < np; ++p) {
@@ -2303,7 +2319,7 @@ namespace Opm
     computeWellPotentialWithTHP(const Simulator& ebosSimulator,
                                 const double initial_bhp, // bhp from BHP constraints
                                 const std::vector<double>& initial_potential,
-                                Opm::DeferredLogger& deferred_logger) const
+                                Opm::DeferredLogger& deferred_logger)
     {
         // TODO: pay attention to the situation that finally the potential is calculated based on the bhp control
         // TODO: should we consider the bhp constraints during the iterative process?
@@ -2367,7 +2383,7 @@ namespace Opm
 
             converged = std::abs(old_bhp - bhp) < bhp_tolerance;
 
-            computeWellRatesWithBhp(ebosSimulator, EvalWell(numWellEq_ + numEq, bhp), potentials, deferred_logger);
+            computeWellRatesWithBhp(ebosSimulator, bhp, /*iterate=*/ true, potentials, deferred_logger);
 
             // checking whether the potentials have valid values
             for (const double value : potentials) {
@@ -2426,7 +2442,7 @@ namespace Opm
         if ( !wellHasTHPConstraints() ) {
             assert(std::abs(bhp) != std::numeric_limits<double>::max());
 
-            computeWellRatesWithBhp(ebosSimulator, EvalWell(numWellEq_ + numEq, bhp), well_potentials, deferred_logger);
+            computeWellRatesWithBhp(ebosSimulator, bhp, /*iterate=*/ true, well_potentials, deferred_logger);
         } else {
             // the well has a THP related constraint
             // checking whether a well is newly added, it only happens at the beginning of the report step
@@ -2438,7 +2454,7 @@ namespace Opm
                 }
             } else {
                 // We need to generate a reasonable rates to start the iteration process
-                computeWellRatesWithBhp(ebosSimulator, EvalWell(numWellEq_ + numEq, bhp), well_potentials, deferred_logger);
+                computeWellRatesWithBhp(ebosSimulator, bhp, /*iterate=*/ true, well_potentials, deferred_logger);
                 for (double& value : well_potentials) {
                     // make the value a little safer in case the BHP limits are default ones
                     // TODO: a better way should be a better rescaling based on the investigation of the VFP table.
@@ -2863,7 +2879,7 @@ namespace Opm
     template<typename TypeTag>
     void
     StandardWellV<TypeTag>::
-    wellTestingPhysical(Simulator& ebos_simulator, const std::vector<double>& B_avg,
+    wellTestingPhysical(Simulator& ebos_simulator,
                         const double /* simulation_time */ , const int /* report_step */,
                         WellState& well_state, WellTestState& welltest_state, Opm::DeferredLogger& deferred_logger)
     {
@@ -2900,7 +2916,7 @@ namespace Opm
         updatePrimaryVariables(well_state_copy, deferred_logger);
         initPrimaryVariablesEvaluation();
 
-        const bool converged = this->solveWellEqUntilConverged(ebos_simulator, B_avg, well_state_copy, deferred_logger);
+        const bool converged = this->solveWellEqUntilConverged(ebos_simulator, well_state_copy, deferred_logger);
 
         if (!converged) {
             const std::string msg = " well " + name() + " did not get converged during well testing for physical reason";

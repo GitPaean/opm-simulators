@@ -131,13 +131,18 @@ namespace Opm
     init(const PhaseUsage* phase_usage_arg,
          const std::vector<double>& /* depth_arg */,
          const double gravity_arg,
-         const int /* num_cells */)
+         const int /* num_cells */,
+         const std::vector< Scalar > B_avg)
     {
         phase_usage_ = phase_usage_arg;
         gravity_ = gravity_arg;
+
+        // the following implementation assume that the polymer is always after the w-o-g phases
+        // For the polymer case and the energy case, there is one more mass balance equations of reservoir than wells
+        assert((int(B_avg.size()) == num_components_) || has_polymer || has_energy);
+
+        B_avg_ = B_avg;
     }
-
-
 
 
 
@@ -939,7 +944,7 @@ namespace Opm
     template<typename TypeTag>
     void
     WellInterface<TypeTag>::
-    wellTesting(Simulator& simulator, const std::vector<double>& B_avg,
+    wellTesting(Simulator& simulator,
                 const double simulation_time, const int report_step,
                 const WellTestConfig::Reason testing_reason,
                 /* const */ WellState& well_state,
@@ -947,12 +952,12 @@ namespace Opm
                 Opm::DeferredLogger& deferred_logger)
     {
         if (testing_reason == WellTestConfig::Reason::PHYSICAL) {
-            wellTestingPhysical(simulator, B_avg, simulation_time, report_step,
+            wellTestingPhysical(simulator, simulation_time, report_step,
                                 well_state, well_test_state, deferred_logger);
         }
 
         if (testing_reason == WellTestConfig::Reason::ECONOMIC) {
-            wellTestingEconomic(simulator, B_avg, simulation_time, report_step,
+            wellTestingEconomic(simulator, simulation_time, report_step,
                                 well_state, well_test_state, deferred_logger);
         }
     }
@@ -964,7 +969,7 @@ namespace Opm
     template<typename TypeTag>
     void
     WellInterface<TypeTag>::
-    wellTestingEconomic(Simulator& simulator, const std::vector<double>& B_avg,
+    wellTestingEconomic(Simulator& simulator,
                         const double simulation_time, const int report_step,
                         const WellState& well_state, WellTestState& welltest_state, Opm::DeferredLogger& deferred_logger)
     {
@@ -984,7 +989,7 @@ namespace Opm
         // untill the number of closed completions do not increase anymore.
         while (testWell) {
             const size_t original_number_closed_completions = welltest_state_temp.sizeCompletions();
-            solveWellForTesting(simulator, well_state_copy, B_avg, deferred_logger);
+            solveWellForTesting(simulator, well_state_copy, deferred_logger);
             updateWellTestState(well_state_copy, simulation_time, /*writeMessageToOPMLog=*/ false, welltest_state_temp, deferred_logger);
             closeCompletions(welltest_state_temp);
 
@@ -1171,8 +1176,7 @@ namespace Opm
     template<typename TypeTag>
     bool
     WellInterface<TypeTag>::
-    solveWellEqUntilConverged(Simulator& ebosSimulator,
-                              const std::vector<double>& B_avg,
+    solveWellEqUntilConverged(const Simulator& ebosSimulator,
                               WellState& well_state,
                               Opm::DeferredLogger& deferred_logger)
     {
@@ -1182,9 +1186,9 @@ namespace Opm
         bool converged;
         WellState well_state0 = well_state;
         do {
-            assembleWellEq(ebosSimulator, B_avg, dt, well_state, deferred_logger);
+            assembleWellEq(ebosSimulator, dt, well_state, deferred_logger);
 
-            auto report = getWellConvergence(B_avg, deferred_logger);
+            auto report = getWellConvergence(deferred_logger);
 
             converged = report.converged();
             if (converged) {
@@ -1195,6 +1199,7 @@ namespace Opm
             solveEqAndUpdateWellState(well_state, deferred_logger);
 
             updateWellControl(ebosSimulator, well_state, deferred_logger);
+
             initPrimaryVariablesEvaluation();
         } while (it < max_iter);
 
@@ -1243,13 +1248,13 @@ namespace Opm
     template<typename TypeTag>
     void
     WellInterface<TypeTag>::
-    solveWellForTesting(Simulator& ebosSimulator, WellState& well_state,
-                        const std::vector<double>& B_avg,
+    solveWellForTesting(Simulator& ebosSimulator,
+                        WellState& well_state,
                         Opm::DeferredLogger& deferred_logger)
     {
         // keep a copy of the original well state
         const WellState well_state0 = well_state;
-        const bool converged = solveWellEqUntilConverged(ebosSimulator, B_avg, well_state, deferred_logger);
+        const bool converged = solveWellEqUntilConverged(ebosSimulator, well_state, deferred_logger);
         if (converged) {
             deferred_logger.debug("WellTest: Well equation for well " + name() +  " converged");
         } else {

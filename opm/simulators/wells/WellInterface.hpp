@@ -143,16 +143,16 @@ namespace Opm
         virtual void init(const PhaseUsage* phase_usage_arg,
                           const std::vector<double>& depth_arg,
                           const double gravity_arg,
-                          const int num_cells);
+                          const int num_cells,
+                          const std::vector< Scalar > B_avg);
 
         virtual void initPrimaryVariablesEvaluation() const = 0;
 
-        virtual ConvergenceReport getWellConvergence(const std::vector<double>& B_avg, Opm::DeferredLogger& deferred_logger) const = 0;
+        virtual ConvergenceReport getWellConvergence(Opm::DeferredLogger& deferred_logger) const = 0;
 
         virtual void solveEqAndUpdateWellState(WellState& well_state, Opm::DeferredLogger& deferred_logger) = 0;
 
         virtual void assembleWellEq(const Simulator& ebosSimulator,
-                                    const std::vector<Scalar>& B_avg,
                                     const double dt,
                                     WellState& well_state,
                                     Opm::DeferredLogger& deferred_logger
@@ -188,7 +188,7 @@ namespace Opm
 
         virtual void updateWellStateWithTarget(const Simulator& ebos_simulator,
                                                WellState& well_state,
-                                               Opm::DeferredLogger& deferred_logger) const = 0;
+                                               Opm::DeferredLogger& deferred_logger) = 0;
 
         void updateWellControl(const Simulator& ebos_simulator,
                                WellState& well_state,
@@ -235,7 +235,7 @@ namespace Opm
 
         // TODO: theoretically, it should be a const function
         // Simulator is not const is because that assembleWellEq is non-const Simulator
-        void wellTesting(Simulator& simulator, const std::vector<double>& B_avg,
+        void wellTesting(Simulator& simulator,
                          const double simulation_time, const int report_step,
                          const WellTestConfig::Reason testing_reason,
                          /* const */ WellState& well_state, WellTestState& welltest_state,
@@ -256,6 +256,9 @@ namespace Opm
 
         // update perforation water throughput based on solved water rate
         virtual void updateWaterThroughput(const double dt, WellState& well_state) const = 0;
+
+
+
 
     protected:
 
@@ -338,6 +341,9 @@ namespace Opm
 
         std::vector<RateVector> connectionRates_;
 
+        // average B factors are required for the convergence checking of well equations
+        std::vector< Scalar > B_avg_;
+
         const PhaseUsage& phaseUsage() const;
 
         int flowPhaseToEbosCompIdx( const int phaseIdx ) const;
@@ -385,11 +391,11 @@ namespace Opm
 
         OperabilityStatus operability_status_;
 
-        void wellTestingEconomic(Simulator& simulator, const std::vector<double>& B_avg,
+        void wellTestingEconomic(Simulator& simulator,
                                  const double simulation_time, const int report_step,
                                  const WellState& well_state, WellTestState& welltest_state, Opm::DeferredLogger& deferred_logger);
 
-        virtual void wellTestingPhysical(Simulator& simulator, const std::vector<double>& B_avg,
+        virtual void wellTestingPhysical(Simulator& simulator,
                                  const double simulation_time, const int report_step,
                                          WellState& well_state, WellTestState& welltest_state, Opm::DeferredLogger& deferred_logger) = 0;
 
@@ -406,15 +412,19 @@ namespace Opm
                                          Opm::DeferredLogger& deferred_logger) const;
 
         void  solveWellForTesting(Simulator& ebosSimulator, WellState& well_state,
-                                  const std::vector<double>& B_avg,
                                   Opm::DeferredLogger& deferred_logger);
 
-        bool solveWellEqUntilConverged(Simulator& ebosSimulator,
-                                       const std::vector<double>& B_avg,
+        bool solveWellEqUntilConverged(const Simulator& ebosSimulator,
                                        WellState& well_state,
                                        Opm::DeferredLogger& deferred_logger);
 
         void scaleProductivityIndex(const int perfIdx, double& productivity_index, const bool new_well, Opm::DeferredLogger& deferred_logger);
+
+        virtual void computeWellRatesWithBhp(const Simulator& ebosSimulator,
+                                             const double& bhp,
+                                             const bool iterate,
+                                             std::vector<double>& well_flux,
+                                             Opm::DeferredLogger& deferred_logger) = 0;
 
         // count the number of times an output log message is created in the productivity
         // index calculations
