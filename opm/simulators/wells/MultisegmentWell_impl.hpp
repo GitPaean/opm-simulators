@@ -1477,16 +1477,16 @@ namespace Opm
         EvalWell pressure_equation = getSegmentPressure(seg);
 
         // we need to handle the pressure difference between the two segments
-        // we only consider the hydrostatic pressure loss first
+        // hydrostatic pressure loss first
         pressure_equation -= getHydroPressureLoss(seg);
-
-        if (frictionalPressureLossConsidered()) {
-            pressure_equation -= getFrictionPressureLoss(seg);
-        }
 
         resWell_[seg][SPres] = pressure_equation.value();
         for (int pv_idx = 0; pv_idx < numWellEq; ++pv_idx) {
             duneD_[seg][seg][SPres][pv_idx] = pressure_equation.derivative(pv_idx + numEq);
+        }
+
+        if (frictionalPressureLossConsidered()) {
+            handleFrictionPressureLoss(seg);
         }
 
         // contribution from the outlet segment
@@ -1534,9 +1534,39 @@ namespace Opm
         const double area = segmentSet()[seg].crossArea();
         const double diameter = segmentSet()[seg].internalDiameter();
 
-        const double sign = mass_rate < 0. ? 1.0 : - 1.0;
+        const double sign = mass_rate < 0. ? 1.0 : -1.0;
 
         return sign * mswellhelpers::frictionPressureLoss(length, diameter, area, roughness, density, mass_rate, visc);
+    }
+
+
+
+
+
+    template <typename TypeTag>
+    void
+    MultisegmentWell<TypeTag>::
+    handleFrictionPressureLoss(const int seg) const
+    {
+        const EvalWell mass_rate = segment_mass_rates_[seg];
+        const EvalWell density = segment_densities_[seg];
+        const EvalWell visc = segment_viscosities_[seg];
+        const int outlet_segment_index = segmentNumberToIndex(segmentSet()[seg].outletSegment());
+        const double length = segmentSet()[seg].totalLength() - segmentSet()[outlet_segment_index].totalLength();
+        assert(length > 0.);
+        const double roughness = segmentSet()[seg].roughness();
+        const double area = segmentSet()[seg].crossArea();
+        const double diameter = segmentSet()[seg].internalDiameter();
+
+        const double sign = mass_rate < 0. ? 1.0 : -1.0;
+
+        const EvalWell friction_pressure_loss =
+             sign * mswellhelpers::frictionPressureLoss(length, diameter, area, roughness, density, mass_rate, visc);
+
+        resWell_[seg][SPres] -= friction_pressure_loss.value();
+        for (int pv_idx = 0; pv_idx < numWellEq; ++pv_idx) {
+            duneD_[seg][seg][SPres][pv_idx] -= friction_pressure_loss.derivative(pv_idx + numEq);
+        }
     }
 
 
