@@ -1169,7 +1169,8 @@ namespace Opm
             // the compostion of the components inside wellbore under surface condition
             std::vector<EvalWell> mix_s(num_components_, 0.0);
             for (int comp_idx = 0; comp_idx < num_components_; ++comp_idx) {
-                mix_s[comp_idx] = surfaceVolumeFraction(seg, comp_idx);
+                const int seg_upwind = upwinding_segments_[seg];
+                mix_s[comp_idx] = surfaceVolumeFraction(seg_upwind, comp_idx);
             }
 
             std::vector<EvalWell> b(num_components_, 0.0);
@@ -1290,7 +1291,7 @@ namespace Opm
             // and accelerational pressure loss, which needs some work to handle
             segment_mass_rates_[seg] = 0.;
             for (int comp_idx = 0; comp_idx < num_components_; ++comp_idx) {
-                const EvalWell rate = getSegmentRate(seg, comp_idx);
+                const EvalWell rate = getSegmentRateUpwinding(seg, comp_idx);
                 segment_mass_rates_[seg] += rate * surf_dens[comp_idx];
             }
         }
@@ -1589,9 +1590,11 @@ namespace Opm
              sign * mswellhelpers::frictionPressureLoss(length, diameter, area, roughness, density, mass_rate, visc);
 
         resWell_[seg][SPres] -= friction_pressure_loss.value();
-        for (int pv_idx = 0; pv_idx < numWellEq; ++pv_idx) {
-            duneD_[seg][seg][SPres][pv_idx] -= friction_pressure_loss.derivative(pv_idx + numEq);
-        }
+        const int seg_upwind = upwinding_segments_[seg];
+        duneD_[seg][seg][SPres][GTotal] -= friction_pressure_loss.derivative(GTotal + numEq);
+        duneD_[seg][seg_upwind][SPres][WFrac] -= friction_pressure_loss.derivative(WFrac + numEq);
+        duneD_[seg][seg_upwind][SPres][GFrac] -= friction_pressure_loss.derivative(GFrac + numEq);
+        duneD_[seg][seg][SPres][SPres] -= friction_pressure_loss.derivative(SPres + numEq);
     }
 
 
@@ -1611,9 +1614,11 @@ namespace Opm
         const EvalWell out_velocity_head = mswellhelpers::velocityHead(area, mass_rate, density);
 
         resWell_[seg][SPres] -= out_velocity_head.value();
-        for (int pv_idx = 0; pv_idx < numWellEq; ++pv_idx) {
-            duneD_[seg][seg][SPres][pv_idx] -= out_velocity_head.derivative(pv_idx + numEq);
-        }
+        const int seg_upwind = upwinding_segments_[seg];
+        duneD_[seg][seg][SPres][GTotal] -= out_velocity_head.derivative(GTotal + numEq);
+        duneD_[seg][seg_upwind][SPres][WFrac] -= out_velocity_head.derivative(WFrac + numEq);
+        duneD_[seg][seg_upwind][SPres][GFrac] -= out_velocity_head.derivative(GFrac + numEq);
+        duneD_[seg][seg][SPres][SPres] -= out_velocity_head.derivative(SPres + numEq);
 
         // calcuate the maximum cross-area among the segment and its inlet segments
         double max_area = area;
@@ -1630,9 +1635,11 @@ namespace Opm
             const EvalWell mass_rate = segment_mass_rates_[inlet];
             const EvalWell inlet_velocity_head = mswellhelpers::velocityHead(area, mass_rate, density);
             resWell_[seg][SPres] += inlet_velocity_head.value();
-            for (int pv_idx = 0; pv_idx < numWellEq; ++pv_idx) {
-                duneD_[seg][inlet][SPres][pv_idx] += inlet_velocity_head.derivative(pv_idx + numEq);
-            }
+            const int seg_upwind_inlet = upwinding_segments_[inlet];
+            duneD_[seg][inlet][SPres][GTotal] += inlet_velocity_head.derivative(GTotal + numEq);
+            duneD_[seg][seg_upwind_inlet][SPres][WFrac] += inlet_velocity_head.derivative(WFrac + numEq);
+            duneD_[seg][seg_upwind_inlet][SPres][GFrac] += inlet_velocity_head.derivative(GFrac + numEq);
+            duneD_[seg][inlet][SPres][SPres] += inlet_velocity_head.derivative(SPres + numEq);
         }
     }
 
