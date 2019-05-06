@@ -340,6 +340,8 @@ namespace Opm
         // frictinal pressure loss
         EvalWell getFrictionPressureLoss(const int seg) const;
 
+        void handleFrictionPressureLoss(const int seg) const;
+
         void handleAccelerationPressureLoss(const int seg) const;
 
         // handling the overshooting and undershooting of the fractions
