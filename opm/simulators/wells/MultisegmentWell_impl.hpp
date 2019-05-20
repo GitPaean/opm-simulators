@@ -546,13 +546,6 @@ namespace Opm
                           std::vector<double>& well_potentials,
                           Opm::DeferredLogger& deferred_logger)
     {
-        const std::string msg = std::string("Well potential calculation is not supported for multisegment wells \n")
-                + "A well potential of zero is returned for output purposes. \n"
-                + "If you need well potential to set the guide rate for group controled wells \n"
-                + "you will have to change the " + name() + " well to a standard well \n";
-
-        deferred_logger.warning("WELL_POTENTIAL_NOT_IMPLEMENTED_FOR_MULTISEG_WELLS", msg);
-
         const int np = number_of_phases_;
         well_potentials.resize(np, 0.0);
 
@@ -596,25 +589,6 @@ namespace Opm
         // store a copy of the well state, we don't want to update the real well state
         WellState copy = ebosSimulator.problem().wellModel().wellState();
 
-        // try to improve the initial condition.
-        // we adjust the initial seg pressure with half the difference
-        // between the real bhp and the potential bhp.
-        // This is ad-hoc, but seems to work reasonbly well.
-        const double adjustBhp = (bhp - primary_variables_[0][SPres]);
-        double adjustTotalRate = 0.0;
-        for (int p = 0; p < number_of_phases_; ++p) {
-            adjustTotalRate += copy.wellPotentials()[index_of_well_ * number_of_phases_ + p];
-        }
-
-        if (primary_variables_[0][GTotal] > 0)
-            adjustTotalRate /= primary_variables_[0][GTotal];
-
-        for (int seg = 0; seg < numberOfSegments(); ++seg) {
-            primary_variables_[seg][SPres] += adjustBhp;
-            primary_variables_[seg][SPres] = Opm::max(primary_variables_[seg][SPres], 1e5);
-            primary_variables_[seg][GTotal] *= adjustTotalRate;
-        }
-
         initPrimaryVariablesEvaluation();
 
         if (iterate) {
@@ -626,33 +600,11 @@ namespace Opm
         // compute the potential and store in the flux vector.
         const int np = number_of_phases_;
         well_flux.resize(np, 0.0);
-
-        const bool allow_cf = getAllowCrossFlow();
-
-        const int nseg = numberOfSegments();
-
-        for (int seg = 0; seg < nseg; ++seg) {
-            // calculating the perforation rate for each perforation that belongs to this segment
-            const EvalWell seg_pressure = getSegmentPressure(seg);
-            for (const int perf : segment_perforations_[seg]) {
-                const int cell_idx = well_cells_[perf];
-                const auto& int_quants = *(ebosSimulator.model().cachedIntensiveQuantities(cell_idx, /*timeIdx=*/ 0));
-                // flux for each perforation
-                std::vector<EvalWell> mob(num_components_, 0.0);
-                getMobility(ebosSimulator, perf, mob);
-
-                std::vector<EvalWell> cq_s(num_components_, 0.0);
-                EvalWell perf_press;
-                double perf_dis_gas_rate = 0.;
-                double perf_vap_oil_rate = 0.;
-                computePerfRatePressure(int_quants, mob, seg, perf, seg_pressure, allow_cf, cq_s, perf_press, perf_dis_gas_rate, perf_vap_oil_rate, deferred_logger);
-
-                for(int p = 0; p < np; ++p) {
-                    well_flux[ebosCompIdxToFlowCompIdx(p)] += cq_s[p].value();
-                }
-            }
-
+        for(int compIdx = 0; compIdx < num_components_; ++compIdx) {
+            const EvalWell rate = getSegmentRate(0, compIdx);
+            well_flux[ebosCompIdxToFlowCompIdx(compIdx)] += rate.value();
         }
+
     }
 
 

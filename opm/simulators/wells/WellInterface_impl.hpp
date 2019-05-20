@@ -390,7 +390,7 @@ namespace Opm
     WellInterface<TypeTag>::
     wellHasTHPConstraints() const
     {
-        return getTHPControlIndex() >= 0;
+        return getControlIndex(THP) >= 0;
     }
 
 
@@ -401,7 +401,7 @@ namespace Opm
     WellInterface<TypeTag>::
     getTHPConstraint(Opm::DeferredLogger& deferred_logger) const
     {
-        const int thp_control_index = getTHPControlIndex();
+        const int thp_control_index = getControlIndex(THP);
 
         if (thp_control_index < 0) {
             OPM_DEFLOG_THROW(std::runtime_error, " there is no THP constraint/limit for well " << name()
@@ -417,18 +417,16 @@ namespace Opm
     template<typename TypeTag>
     int
     WellInterface<TypeTag>::
-    getTHPControlIndex() const
+    getControlIndex(const WellControlType& type) const
     {
         const int nwc = well_controls_get_num(well_controls_);
         for (int ctrl_index = 0; ctrl_index < nwc; ++ctrl_index) {
-            if (well_controls_iget_type(well_controls_, ctrl_index) == THP) {
+            if (well_controls_iget_type(well_controls_, ctrl_index) == type) {
                 return ctrl_index;
             }
         }
         return -1;
     }
-
-
 
 
 

@@ -1692,7 +1692,7 @@ namespace Opm
     calculateBHPWithTHPTargetIPR(Opm::DeferredLogger& deferred_logger) const
     {
         const double thp_target = this->getTHPConstraint(deferred_logger);
-        const double thp_control_index = this->getTHPControlIndex();
+        const double thp_control_index = this->getControlIndex(THP);
         const  int thp_table_id = well_controls_iget_vfp(well_controls_, thp_control_index);
         const double alq = well_controls_iget_alq(well_controls_, thp_control_index);
 
@@ -2269,12 +2269,21 @@ namespace Opm
 
         const int np = number_of_phases_;
         well_flux.resize(np, 0.0);
+        WellControls* wc = well_controls_;
+        const int bhp_index = Base::getControlIndex(BHP);
+        const double orig_bhp = well_controls_iget_target(wc, bhp_index);
+        const auto orig_current = well_controls_get_current(wc);
+
+        well_controls_iset_target(wc, bhp_index, bhp);
+        well_controls_set_current(wc, bhp_index);
 
         // iterate to get a more accurate well density
         if (iterate) {
             // create a copy of the well_state to use. If the operability checking is sucessful, we use this one
             // to replace the original one
             WellState well_state_copy = ebosSimulator.problem().wellModel().wellState();
+            well_state_copy.currentControls()[index_of_well_] = bhp_index;
+
             bool converged = this->solveWellEqUntilConverged(ebosSimulator, well_state_copy, deferred_logger);
 
             if (!converged) {
@@ -2296,6 +2305,8 @@ namespace Opm
             // flux for each perforation
             std::vector<EvalWell> mob(num_components_, {numWellEq_ + numEq, 0.});
             getMobility(ebosSimulator, perf, mob, deferred_logger);
+            //double trans_mult = ebosSimulator.problem().template rockCompTransMultiplier<double>(intQuants, cell_idx);
+            //const double Tw = well_index_[perf] * trans_mult;
 
             std::vector<EvalWell> cq_s(num_components_, {numWellEq_ + numEq, 0.});
             double perf_dis_gas_rate = 0.;
@@ -2307,6 +2318,11 @@ namespace Opm
                 well_flux[ebosCompIdxToFlowCompIdx(p)] += cq_s[p].value();
             }
         }
+
+
+        // reset bhp limit
+        well_controls_iset_target(wc, bhp_index, orig_bhp);
+        well_controls_set_current(wc, orig_current);
     }
 
 

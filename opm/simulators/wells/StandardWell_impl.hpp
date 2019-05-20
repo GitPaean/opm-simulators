@@ -1620,7 +1620,7 @@ namespace Opm
     calculateBHPWithTHPTargetIPR(Opm::DeferredLogger& deferred_logger) const
     {
         const double thp_target = this->getTHPConstraint(deferred_logger);
-        const double thp_control_index = this->getTHPControlIndex();
+        const double thp_control_index = this->getControlIndex(THP);
         const  int thp_table_id = well_controls_iget_vfp(well_controls_, thp_control_index);
         const double alq = well_controls_iget_alq(well_controls_, thp_control_index);
 
@@ -2169,18 +2169,19 @@ namespace Opm
         const int np = number_of_phases_;
         well_flux.resize(np, 0.0);
         WellControls* wc = well_controls_;
-        const double orig_bhp = well_controls_iget_target(wc, BHP);
+        const int bhp_index = Base::getControlIndex(BHP);
+        const double orig_bhp = well_controls_iget_target(wc, bhp_index);
         const auto orig_current = well_controls_get_current(wc);
 
-        well_controls_iset_target(wc, BHP, bhp);
-        well_controls_set_current(wc, BHP);
+        well_controls_iset_target(wc, bhp_index, bhp);
+        well_controls_set_current(wc, bhp_index);
 
         // iterate to get a more accurate well density
         if (iterate) {
             // create a copy of the well_state to use. If the operability checking is sucessful, we use this one
             // to replace the original one
             WellState well_state_copy = ebosSimulator.problem().wellModel().wellState();
-            well_state_copy.currentControls()[index_of_well_] = BHP;
+            well_state_copy.currentControls()[index_of_well_] = bhp_index;
 
             bool converged = this->solveWellEqUntilConverged(ebosSimulator, well_state_copy, deferred_logger);
 
@@ -2218,8 +2219,8 @@ namespace Opm
         }
 
 
-        // rest bhp limit
-        well_controls_iset_target(wc, BHP, orig_bhp);
+        // reset bhp limit
+        well_controls_iset_target(wc, bhp_index, orig_bhp);
         well_controls_set_current(wc, orig_current);
     }
 
