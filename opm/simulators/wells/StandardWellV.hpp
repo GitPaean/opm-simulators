@@ -137,23 +137,24 @@ namespace Opm
         virtual void init(const PhaseUsage* phase_usage_arg,
                           const std::vector<double>& depth_arg,
                           const double gravity_arg,
-                          const int num_cells,
-                          const std::vector< Scalar > B_avg) override;
+                          const int num_cells) override;
 
 
         virtual void initPrimaryVariablesEvaluation() const override;
 
         virtual void assembleWellEq(const Simulator& ebosSimulator,
+                                    const std::vector<Scalar>& B_avg,
                                     const double dt,
                                     WellState& well_state,
                                     Opm::DeferredLogger& deferred_logger) override;
 
         virtual void updateWellStateWithTarget(const Simulator& ebos_simulator,
+                                               const std::vector<Scalar>& B_avg,
                                                WellState& well_state,
                                                Opm::DeferredLogger& deferred_logger) override;
 
         /// check whether the well equations get converged for this well
-        virtual ConvergenceReport getWellConvergence(Opm::DeferredLogger& deferred_logger) const override;
+        virtual ConvergenceReport getWellConvergence(const std::vector<double>& B_avg, Opm::DeferredLogger& deferred_logger) const override;
 
         /// Ax = Ax - C D^-1 B x
         virtual void apply(const BVector& x, BVector& Ax) const override;
@@ -168,6 +169,7 @@ namespace Opm
 
         /// computing the well potentials for group control
         virtual void computeWellPotentials(const Simulator& ebosSimulator,
+                                           const std::vector<Scalar>& B_avg,
                                            const WellState& well_state,
                                            std::vector<double>& well_potentials,
                                            Opm::DeferredLogger& deferred_logger) /* const */ override;
@@ -227,7 +229,6 @@ namespace Opm
         using Base::perf_rep_radius_;
         using Base::perf_length_;
         using Base::bore_diameters_;
-        using Base::B_avg_;
 
         // total number of the well equations and primary variables
         // there might be extra equations be used, numWellEq will be updated during the initialization
@@ -332,12 +333,14 @@ namespace Opm
                              Opm::DeferredLogger& deferred_logger) const;
 
         virtual void computeWellRatesWithBhp(const Simulator& ebosSimulator,
+                                             const std::vector<Scalar>& B_avg,
                                              const double& bhp,
                                              const bool iterate,
                                              std::vector<double>& well_flux,
                                              Opm::DeferredLogger& deferred_logger) override;
 
         std::vector<double> computeWellPotentialWithTHP(const Simulator& ebosSimulator,
+                                                        const std::vector<Scalar>& B_avg,
                                                         const double initial_bhp, // bhp from BHP constraints
                                                         const std::vector<double>& initial_potential,
                                                         Opm::DeferredLogger& deferred_logger);
@@ -376,27 +379,33 @@ namespace Opm
         // update the operability status of the well is operable under the current reservoir condition
         // mostly related to BHP limit and THP limit
         virtual void checkWellOperability(const Simulator& ebos_simulator,
+                                          const std::vector<Scalar>& B_avg,
                                           const WellState& well_state,
                                           Opm::DeferredLogger& deferred_logger) override;
 
         // check whether the well is operable under the current reservoir condition
         // mostly related to BHP limit and THP limit
         void updateWellOperability(const Simulator& ebos_simulator,
+                                   const std::vector<Scalar>& B_avg,
                                    const WellState& well_state,
                                    Opm::DeferredLogger& deferred_logger);
 
         // check whether the well is operable under BHP limit with current reservoir condition
-        void checkOperabilityUnderBHPLimitProducer(const Simulator& ebos_simulator, Opm::DeferredLogger& deferred_logger);
+        void checkOperabilityUnderBHPLimitProducer(const Simulator& ebos_simulator,
+                                                   const std::vector<Scalar>& B_avg,
+                                                   Opm::DeferredLogger& deferred_logger);
 
         // check whether the well is operable under THP limit with current reservoir condition
         void checkOperabilityUnderTHPLimitProducer(const Simulator& ebos_simulator, Opm::DeferredLogger& deferred_logger);
 
         // update WellState based on IPR and associated VFP table
         void updateWellStateWithTHPTargetIPR(const Simulator& ebos_simulator,
+                                             const std::vector<Scalar>& B_avg,
                                              WellState& well_state,
                                              Opm::DeferredLogger& deferred_logger);
 
         void updateWellStateWithTHPTargetIPRProducer(const Simulator& ebos_simulator,
+                                                     const std::vector<Scalar>& B_avg,
                                                      WellState& well_state,
                                                      Opm::DeferredLogger& deferred_logger);
 
@@ -434,7 +443,7 @@ namespace Opm
         static double relaxationFactorRate(const std::vector<double>& primary_variables,
                                            const BVectorWell& dwells);
 
-        virtual void wellTestingPhysical(Simulator& simulator,
+        virtual void wellTestingPhysical(const Simulator& simulator, const std::vector<double>& B_avg,
                                          const double simulation_time, const int report_step,
                                          WellState& well_state, WellTestState& welltest_state, Opm::DeferredLogger& deferred_logger) override;
 

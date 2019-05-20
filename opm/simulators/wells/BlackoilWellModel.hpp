@@ -204,7 +204,7 @@ namespace Opm {
             void applyScaleAdd(const Scalar alpha, const BVector& x, BVector& Ax) const;
 
             // Check if well equations is converged.
-            ConvergenceReport getWellConvergence() const;
+            ConvergenceReport getWellConvergence(const std::vector<Scalar>& B_avg) const;
 
             // return all the wells.
             const WellCollection& wellCollection() const;
@@ -337,9 +337,11 @@ namespace Opm {
             // xw to update Well State
             void recoverWellSolutionAndUpdateWellState(const BVector& x);
 
-            void updateWellControls(Opm::DeferredLogger& deferred_logger);
+            void updateWellControls(const std::vector<Scalar>& B_avg,
+                                    Opm::DeferredLogger& deferred_logger);
 
-            void updateGroupControls(Opm::DeferredLogger& deferred_logger);
+            void updateGroupControls(const std::vector<Scalar>& B_avg,
+                                     Opm::DeferredLogger& deferred_logger);
 
             // setting the well_solutions_ based on well_state.
             void updatePrimaryVariables(Opm::DeferredLogger& deferred_logger);
@@ -347,6 +349,7 @@ namespace Opm {
             void setupCartesianToCompressed_(const int* global_cell, int number_of_cells);
 
             void computeRepRadiusPerfLength(const Grid& grid, Opm::DeferredLogger& deferred_logger);
+
 
             void computeAverageFormationFactor(std::vector<Scalar>& B_avg) const;
 
@@ -369,7 +372,7 @@ namespace Opm {
             /// at the beginning of the time step and no derivatives are included in these quantities
             void calculateExplicitQuantities(Opm::DeferredLogger& deferred_logger) const;
 
-            SimulatorReport solveWellEq(const double dt, Opm::DeferredLogger& deferred_logger);
+            SimulatorReport solveWellEq(const std::vector<Scalar>& B_avg, const double dt, Opm::DeferredLogger& deferred_logger);
 
             void initPrimaryVariablesEvaluation() const;
 
@@ -382,11 +385,12 @@ namespace Opm {
 
             void resetWellControlFromState() const;
 
-            void assembleWellEq(const double dt, Opm::DeferredLogger& deferred_logger);
+            void assembleWellEq(const std::vector<Scalar>& B_avg, const double dt, Opm::DeferredLogger& deferred_logger);
 
             // some preparation work, mostly related to group control and RESV,
             // at the beginning of each time step (Not report step)
-            void prepareTimeStep(Opm::DeferredLogger& deferred_logger);
+            void prepareTimeStep(const std::vector<Scalar>& B_avg,
+                                 Opm::DeferredLogger& deferred_logger);
 
             void prepareGroupControl(Opm::DeferredLogger& deferred_logger);
 

@@ -114,10 +114,9 @@ namespace Opm
     init(const PhaseUsage* phase_usage_arg,
          const std::vector<double>& depth_arg,
          const double gravity_arg,
-         const int num_cells,
-         const std::vector< Scalar > B_avg)
+         const int num_cells)
     {
-        Base::init(phase_usage_arg, depth_arg, gravity_arg, num_cells, B_avg);
+        Base::init(phase_usage_arg, depth_arg, gravity_arg, num_cells);
 
         // TODO: for StandardWell, we need to update the perf depth here using depth_arg.
         // for MultisegmentWell, it is much more complicated.
@@ -238,6 +237,7 @@ namespace Opm
     void
     MultisegmentWell<TypeTag>::
     assembleWellEq(const Simulator& ebosSimulator,
+                   const std::vector<Scalar>& B_avg,
                    const double dt,
                    WellState& well_state,
                    Opm::DeferredLogger& deferred_logger)
@@ -246,7 +246,7 @@ namespace Opm
         const bool use_inner_iterations = param_.use_inner_iterations_ms_wells_;
         if (use_inner_iterations) {
 
-            iterateWellEquations(ebosSimulator, dt, well_state, deferred_logger);
+            iterateWellEquations(ebosSimulator, B_avg, dt, well_state, deferred_logger);
         }
 
         assembleWellEqWithoutIteration(ebosSimulator, dt, well_state, deferred_logger);
@@ -260,6 +260,7 @@ namespace Opm
     void
     MultisegmentWell<TypeTag>::
     updateWellStateWithTarget(const Simulator& /* ebos_simulator */,
+                              const std::vector<Scalar>& B_avg,
                               WellState& well_state,
                               Opm::DeferredLogger& /* deferred_logger */)
     {
@@ -417,9 +418,9 @@ namespace Opm
     template <typename TypeTag>
     ConvergenceReport
     MultisegmentWell<TypeTag>::
-    getWellConvergence(Opm::DeferredLogger& deferred_logger) const
+    getWellConvergence(const std::vector<double>& B_avg, Opm::DeferredLogger& deferred_logger) const
     {
-        assert(int(B_avg_.size()) == num_components_);
+        assert(int(B_avg.size()) == num_components_);
 
         // checking if any residual is NaN or too large. The two large one is only handled for the well flux
         std::vector<std::vector<double>> abs_residual(numberOfSegments(), std::vector<double>(numWellEq, 0.0));
@@ -436,7 +437,7 @@ namespace Opm
         for (int eq_idx = 0; eq_idx < numWellEq; ++eq_idx) {
             for (int seg = 0; seg < numberOfSegments(); ++seg) {
                 if (eq_idx < num_components_) { // phase or component mass equations
-                    const double flux_residual = B_avg_[eq_idx] * abs_residual[seg][eq_idx];
+                    const double flux_residual = B_avg[eq_idx] * abs_residual[seg][eq_idx];
                     if (flux_residual > maximum_residual[eq_idx]) {
                         maximum_residual[eq_idx] = flux_residual;
                     }
@@ -542,6 +543,7 @@ namespace Opm
     void
     MultisegmentWell<TypeTag>::
     computeWellPotentials(const Simulator& ebosSimulator,
+                          const std::vector<Scalar>& B_avg,
                           const WellState& well_state,
                           std::vector<double>& well_potentials,
                           Opm::DeferredLogger& deferred_logger)
@@ -562,7 +564,7 @@ namespace Opm
         if ( !Base::wellHasTHPConstraints() ) {
             assert(std::abs(bhp) != std::numeric_limits<double>::max());
 
-            computeWellRatesWithBhp(ebosSimulator, bhp, /*iterate=*/ true, well_potentials, deferred_logger);
+            computeWellRatesWithBhp(ebosSimulator, B_avg, bhp, /*iterate=*/ true, well_potentials, deferred_logger);
         } else {
 
             const std::string msg = std::string("Well potential calculation is not supported for thp controlled multisegment wells \n")
@@ -581,6 +583,7 @@ namespace Opm
     void
     MultisegmentWell<TypeTag>::
     computeWellRatesWithBhp(const Simulator& ebosSimulator,
+                            const std::vector<Scalar>& B_avg,
                             const double& bhp,
                             const bool iterate,
                             std::vector<double>& well_flux,
@@ -594,7 +597,7 @@ namespace Opm
         if (iterate) {
             const double dt = ebosSimulator.timeStepSize();
             // iterate to get a solution that satisfies the bhp potential.
-            iterateWellEquations(ebosSimulator, dt, copy, deferred_logger);
+            iterateWellEquations(ebosSimulator, B_avg, dt, copy, deferred_logger);
         }
 
         // compute the potential and store in the flux vector.
@@ -1745,6 +1748,7 @@ namespace Opm
     void
     MultisegmentWell<TypeTag>::
     checkWellOperability(const Simulator& /* ebos_simulator */,
+                         const std::vector<Scalar>& /*B_avg */,
                          const WellState& /* well_state */,
                          Opm::DeferredLogger& deferred_logger)
     {
@@ -1845,13 +1849,14 @@ namespace Opm
     void
     MultisegmentWell<TypeTag>::
     iterateWellEquations(const Simulator& ebosSimulator,
+                         const std::vector<Scalar>& B_avg,
                          const double dt,
                          WellState& well_state,
                          Opm::DeferredLogger& deferred_logger)
     {
         const int max_iter_number = param_.max_inner_iter_ms_wells_;
         const WellState well_state0 = well_state;
-        const std::vector<Scalar> residuals0 = getWellResiduals();
+        const std::vector<Scalar> residuals0 = getWellResiduals(B_avg);
         std::vector<std::vector<Scalar> > residual_history;
         std::vector<double> measure_history;
         int it = 0;
@@ -1865,12 +1870,12 @@ namespace Opm
             const BVectorWell dx_well = mswellhelpers::invDXDirect(duneD_, resWell_);
 
 
-            const auto report = getWellConvergence(deferred_logger);
+            const auto report = getWellConvergence(B_avg, deferred_logger);
             if (report.converged()) {
                 break;
             }
 
-            residual_history.push_back(getWellResiduals());
+            residual_history.push_back(getWellResiduals(B_avg));
             measure_history.push_back(getResidualMeasureValue(residual_history[it], deferred_logger) );
 
             bool is_oscillate = false;
@@ -1900,7 +1905,7 @@ namespace Opm
             updateWellState(dx_well, well_state, deferred_logger, relaxation_factor);
 
             // TODO: should we do something more if a switching of control happens
-            this->updateWellControl(ebosSimulator, well_state, deferred_logger);
+            this->updateWellControl(ebosSimulator, B_avg, well_state, deferred_logger);
 
             initPrimaryVariablesEvaluation();
         }
@@ -2078,7 +2083,7 @@ namespace Opm
     template<typename TypeTag>
     void
     MultisegmentWell<TypeTag>::
-    wellTestingPhysical(Simulator& /* simulator */,
+    wellTestingPhysical(const Simulator& /* simulator */, const std::vector<double>& /* B_avg */,
                         const double /* simulation_time */, const int /* report_step */,
                         WellState& /* well_state */, WellTestState& /* welltest_state */, Opm::DeferredLogger& deferred_logger)
     {
@@ -2229,16 +2234,16 @@ namespace Opm
     template<typename TypeTag>
     std::vector<typename MultisegmentWell<TypeTag>::Scalar>
     MultisegmentWell<TypeTag>::
-    getWellResiduals() const
+    getWellResiduals(const std::vector<Scalar>& B_avg) const
     {
+        assert(int(B_avg.size() ) == num_components_);
         std::vector<Scalar> residuals(numWellEq + 1, 0.0);
 
-        // TODO: maybe we should distinguish the bhp control or rate control equations here
         for (int seg = 0; seg < numberOfSegments(); ++seg) {
             for (int eq_idx = 0; eq_idx < numWellEq; ++eq_idx) {
                 double residual = 0.;
                 if (eq_idx < num_components_) {
-                    residual = std::abs(resWell_[seg][eq_idx]) * B_avg_[eq_idx];
+                    residual = std::abs(resWell_[seg][eq_idx]) * B_avg[eq_idx];
                 } else {
                     if (seg > 0) {
                         residual = std::abs(resWell_[seg][eq_idx]);
