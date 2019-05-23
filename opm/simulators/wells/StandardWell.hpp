@@ -452,6 +452,17 @@ namespace Opm
         void checkConvergenceControlEq(ConvergenceReport& report,
                                        DeferredLogger& deferred_logger) const;
 
+        // trying to solve the well equations under one single BHP target
+        void solvingWellEqWithBhp(const Simulator& ebos_simulator,
+                                  const std::vector<Scalar>& B_avg,
+                                  const double bhp,
+                                  Opm::DeferredLogger& deferred_logger);
+
+        // solving the well equations with its own BHP limit
+        void solvingWellEqWithBhpLimitOnly(const Simulator& ebos_simulator,
+                                           const std::vector<Scalar>& B_avg,
+                                           Opm::DeferredLogger& deferred_logger);
+
     };
 
 }

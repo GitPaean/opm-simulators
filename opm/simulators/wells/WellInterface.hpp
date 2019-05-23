@@ -429,6 +429,14 @@ namespace Opm
                                              std::vector<double>& well_flux,
                                              Opm::DeferredLogger& deferred_logger) = 0;
 
+        // trying to solve the well equations under one sigle BHP limit/target
+        /* void solvingWellEqWithBhpTargetOnly(const Simulator& ebosSimulator,
+                                            const std::vector<Scalar>& B_avg,
+                                            const double bhp,
+                                            Opm::DeferredLogger& deferred_logger); */
+
+        static struct WellControls* creatingWellControlWithBhpTargetOnly(const double bhp);
+
 
         // count the number of times an output log message is created in the productivity
         // index calculations

@@ -2914,4 +2914,68 @@ namespace Opm
             report.setWellFailed({ctrltype, CR::Severity::Normal, dummy_component, name()});
         }
     }
+
+
+
+
+
+    template<typename TypeTag>
+    void
+    StandardWell<TypeTag>::
+    solvingWellEqWithBhp(const Simulator& ebos_simulator,
+                         const std::vector<Scalar>& B_avg,
+                         const double bhp,
+                         Opm::DeferredLogger& deferred_logger)
+    {
+        // TODO: the things need to be checked again are whether we want to
+        // update the explicit quantities here. How to recover the explicit quantities
+        // TODO: and what the dt should be
+        // back up the old control data
+        const struct WellControls* original_well_controls = well_controls_;
+        const int original_current_control = well_controls_get_current(original_well_controls);
+
+        // TODO: for StandardWell, we need to back up the explicit quantities
+
+        well_controls_ = this->creatingWellControlWithBhpTargetOnly(bhp);
+
+        // TODO: it should not be this way. It should pass in through arguments
+        // making a copy of the well state to use for this solution
+        WellState well_state_copy = ebos_simulator.problem().wellModel().wellState();
+
+        well_state_copy.currentControls()[index_of_well_] = well_controls_get_current(well_controls_);
+        updateWellStateWithTarget(ebos_simulator, B_avg, well_state_copy, deferred_logger);
+
+        updatePrimaryVariables(well_state_copy, deferred_logger);
+        // calculateExplicitQuantities(ebos_simulator, well_state_copy, deferred_logger);
+        initPrimaryVariablesEvaluation();
+
+        const bool converged = solveWellEqUntilConverged(ebos_simulator, B_avg, well_state_copy, deferred_logger);
+
+        if (!converged) {
+            const std::string msg = " well " + name() + " did not get converged under BHP limit " + std::to_string(bhp);
+            deferred_logger.debug(msg);
+        }
+
+        // recovering the old well control
+        well_controls_destroy(well_controls_);
+        well_controls_ = original_well_controls;
+        well_controls_set_current(well_controls_, original_current_control);
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    void
+    StandardWell<TypeTag>::
+    solvingWellEqWithBhp(const Simulator& ebos_simulator,
+                         const std::vector<Scalar>& B_avg,
+                         Opm::DeferredLogger& deferred_logger)
+    {
+        const double bhp_limit = this->mostStrictBhpFromBhpLimits(deferred_logger);
+
+        solvingWellEqWithBhp(ebos_simulator, B_avg, bhp_limit, deferred_logger);
+    }
+
 }
