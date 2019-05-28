@@ -543,6 +543,9 @@ namespace Opm {
                 const Well2& well_ecl = wells_ecl_[index_well];
 
                 if (allow_closing_opening_wells) {
+                    // TODO: the current approach will try to compute well potentials even a well is shut due to
+                    // economic limit or physical limit, which should be revisited later with reference results
+
                     // A new WCON keywords can re-open a well that was closed/shut due to Physical limit
                     if ( wellTestState_.hasWell(well_name, WellTestConfig::Reason::PHYSICAL ) ) {
                         // TODO: more checking here, to make sure this standard more specific and complete
@@ -1073,7 +1076,6 @@ namespace Opm {
         const int np = numPhases();
         well_potentials.resize(nw * np, 0.0);
 
-
         const int reportStepIdx = ebosSimulator_.episodeIndex();
         const double invalid_alq = -1e100;
         const double invalid_vfp = -2147483647;
@@ -1095,46 +1097,14 @@ namespace Opm {
                 // Only compute the well potential when asked for
                 well->init(&phase_usage_, depth_, gravity_, number_of_cells_);
 
-                WellControls* wc = well->wellControls();
-                well_controls_clear(wc);
-                well_controls_assert_number_of_phases( wc , np);
-                if (well->wellType() == INJECTOR) {
-                    const auto controls = well->wellEcl()->injectionControls(summaryState);
+                well->setVFPProperties(vfp_properties_.get());
 
-                    if (controls.hasControl(WellInjector::THP)) {
-                        const double thp_limit  = controls.thp_limit;
-                        const int    vfp_number = controls.vfp_table_number;
-                        well_controls_add_new(THP, thp_limit, invalid_alq, vfp_number, NULL, wc);
-                    }
-
-                    // we always have a bhp limit
-                    const double bhp_limit = controls.bhp_limit;
-                    well_controls_add_new(BHP, bhp_limit, invalid_alq, invalid_vfp, NULL, wc);
-                } else {
-                    const auto controls = well->wellEcl()->productionControls(summaryState);
-                    if (controls.hasControl(WellProducer::THP)) {
-                        const double thp_limit  = controls.thp_limit;
-                        const double alq_value  = controls.alq_value;
-                        const int    vfp_number = controls.vfp_table_number;
-                        well_controls_add_new(THP, thp_limit, alq_value, vfp_number, NULL, wc);
-                    }
-
-                    // we always have a bhp limit
-                    const double bhp_limit = controls.bhp_limit;
-                    well_controls_add_new(BHP, bhp_limit, invalid_alq, invalid_vfp, NULL, wc);
-
-                    well->setVFPProperties(vfp_properties_.get());
-
-                }
-
-                if (has_polymer_)
-                {
+                if (has_polymer_) {
                     const Grid& grid = ebosSimulator_.vanguard().grid();
                     if (PolymerModule::hasPlyshlog() || GET_PROP_VALUE(TypeTag, EnablePolymerMW) ) {
                         well->computeRepRadiusPerfLength(grid, cartesian_to_compressed_, deferred_logger);
                     }
                 }
-
 
 
                 const bool needed_for_output = ((summaryConfig.hasSummaryKey( "WWPI:" + well->name()) ||
@@ -1143,8 +1113,8 @@ namespace Opm {
                                                ((summaryConfig.hasSummaryKey( "WWPP:" + well->name()) ||
                                                  summaryConfig.hasSummaryKey( "WOPP:" + well->name()) ||
                                                  summaryConfig.hasSummaryKey( "WGPP:" + well->name())) && well->wellType() == PRODUCER);
-                if (needed_for_output || wellCollection().requireWellPotentials())
-                {
+
+                if (needed_for_output || wellCollection().requireWellPotentials()) {
                     std::vector<double> potentials;
                     well->computeWellPotentials(ebosSimulator_, B_avg, well_state_copy, potentials, deferred_logger);
                     // putting the sucessfully calculated potentials to the well_potentials
@@ -1152,7 +1122,7 @@ namespace Opm {
                         well_potentials[well->indexOfWell() * np + p] = std::abs(potentials[p]);
                     }
                 }
-            } // end of for (int w = 0; w < nw; ++w)
+            }
         } catch (std::exception& e) {
             exception_thrown = 1;
         }
