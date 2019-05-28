@@ -559,22 +559,19 @@ namespace Opm
         // get the bhp value based on the bhp constraints
         const double bhp = Base::mostStrictBhpFromBhpLimits(deferred_logger);
 
-        // does the well have a THP related constraint?
-        if ( !Base::wellHasTHPConstraints() ) {
-            assert(std::abs(bhp) != std::numeric_limits<double>::max());
+        assert(std::abs(bhp) != std::numeric_limits<double>::max());
 
-            computeWellRatesWithBhpPotential(ebosSimulator, B_avg, bhp, well_potentials, deferred_logger);
-        } else {
+        computeWellRatesWithBhpPotential(ebosSimulator, B_avg, bhp, well_potentials, deferred_logger);
+
+        if ( this->wellHasTHPConstraints() ) {
 
             const std::string msg = std::string("Well potential calculation is not supported for thp controlled multisegment wells \n")
-                    + "A well potential of zero is returned for output purposes. \n"
+                    + "The well potential calculation only considers the thp limit \n"
                     + "If you need well potential computed from thp to set the guide rate for group controled wells \n"
                     + "you will have to change the " + name() + " well to a standard well \n";
 
             deferred_logger.warning("WELL_POTENTIAL_FOR_THP_NOT_IMPLEMENTED_FOR_MULTISEG_WELLS", msg);
-            return;
         }
-
     }
 
 

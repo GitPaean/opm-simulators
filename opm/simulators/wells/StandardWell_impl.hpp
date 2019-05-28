@@ -2363,29 +2363,28 @@ namespace Opm
         // TODO: for computeWellPotentials, no derivative is required actually
         initPrimaryVariablesEvaluation();
 
-        const int np = number_of_phases_;
-        well_potentials.resize(np, 0.0);
-
         // get the bhp value based on the bhp constraints
         const double bhp = mostStrictBhpFromBhpLimits(deferred_logger);
 
+        assert(std::abs(bhp) != std::numeric_limits<double>::max());
+        computeWellRatesWithBhpPotential(ebosSimulator, B_avg, bhp, well_potentials, deferred_logger);
+
         // does the well have a THP related constraint?
-        if ( !wellHasTHPConstraints() ) {
-            assert(std::abs(bhp) != std::numeric_limits<double>::max());
-            computeWellRatesWithBhpPotential(ebosSimulator, B_avg, bhp, well_potentials, deferred_logger);
-        } else {
+        if ( this->wellHasTHPConstraints() ) {
+            const int np = number_of_phases_;
+            std::vector<double> well_potentials_thp(np, 0.0);
             // the well has a THP related constraint
             // checking whether a well is newly added, it only happens at the beginning of the report step
             if ( !well_state.effectiveEventsOccurred(index_of_well_) ) {
                 for (int p = 0; p < np; ++p) {
                     // This is dangerous for new added well
                     // since we are not handling the initialization correctly for now
-                    well_potentials[p] = well_state.wellRates()[index_of_well_ * np + p];
+                    well_potentials_thp[p] = well_state.wellRates()[index_of_well_ * np + p];
                 }
             } else {
                 // We need to generate a reasonable rates to start the iteration process
-                computeWellRatesWithBhpPotential(ebosSimulator, B_avg, bhp, well_potentials, deferred_logger);
-                for (double& value : well_potentials) {
+                computeWellRatesWithBhpPotential(ebosSimulator, B_avg, bhp, well_potentials_thp, deferred_logger);
+                for (double& value : well_potentials_thp) {
                     // make the value a little safer in case the BHP limits are default ones
                     // TODO: a better way should be a better rescaling based on the investigation of the VFP table.
                     const double rate_safety_scaling_factor = 0.00001;
@@ -2393,7 +2392,21 @@ namespace Opm
                 }
             }
 
-            well_potentials = computeWellPotentialWithTHP(ebosSimulator, B_avg, bhp, well_potentials, deferred_logger);
+            well_potentials_thp = computeWellPotentialWithTHP(ebosSimulator, B_avg, bhp, well_potentials_thp, deferred_logger);
+
+            // comparing the well_potentials under BHP limit and THP limit, picking the smaller ones as the final well potential
+            // we discard the well potentials with zero value, they just indicate they are calculated successfully
+            // TODO: more correct logic should be introduced here, which should be the results obtained under the more strict limit
+
+            for (int p = 0; p < np; ++p) {
+                assert( std::isfinite(well_potentials[p]) );
+                assert( std::isfinite(well_potentials_thp[p]) );
+
+                if ( well_potentials_thp[p] != 0. &&
+                     ( (well_potentials[p] == 0.) || (std::abs(well_potentials_thp[p]) < std::abs(well_potentials[p])) ) ) {
+                    well_potentials[p] = well_potentials_thp[p];
+                }
+            }
         }
     }
 
