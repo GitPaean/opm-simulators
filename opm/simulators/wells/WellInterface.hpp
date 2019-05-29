@@ -417,6 +417,8 @@ namespace Opm
 
         void scaleProductivityIndex(const int perfIdx, double& productivity_index, const bool new_well, Opm::DeferredLogger& deferred_logger);
 
+        static struct WellControls* creatingWellControlWithBhpTargetOnly(const double bhp);
+
         // count the number of times an output log message is created in the productivity
         // index calculations
         int well_productivity_index_logger_counter_;

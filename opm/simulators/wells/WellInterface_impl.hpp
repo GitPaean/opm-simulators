@@ -1321,4 +1321,22 @@ namespace Opm
     }
 
 
+
+
+
+
+    template<typename TypeTag>
+    struct WellControls*
+    WellInterface<TypeTag>::
+    creatingWellControlWithBhpTargetOnly(const double bhp) {
+        struct WellControls* controls = well_controls_create();
+        const double invalid_alq = -1.e100;
+        const double invalid_vfp = -1.;
+        well_controls_add_new(BHP, bhp, invalid_alq, invalid_vfp, NULL, controls);
+
+        assert(well_controls_get_num(controls) == 1);
+        well_controls_set_current(controls, 0);
+        return controls;
+    }
+
 }
