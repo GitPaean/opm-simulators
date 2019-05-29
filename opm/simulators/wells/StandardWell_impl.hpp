@@ -2237,6 +2237,105 @@ namespace Opm
 
 
 
+
+    template<typename TypeTag>
+    void
+    StandardWell<TypeTag>::
+    computeWellPotentialsWithBhpLimit(const Simulator& ebos_simulator,
+                                      const std::vector<Scalar>& B_avg,
+                                      std::vector<double>& well_potentials,
+                                      Opm::DeferredLogger& deferred_logger)
+    {
+        const double bhp_limit = mostStrictBhpFromBhpLimits(deferred_logger);
+
+        const bool converged = computeWellRatesWithBhpWithUpdating(ebos_simulator, B_avg, bhp_limit,
+                                                           well_potentials, deferred_logger);
+        if (!converged) {
+            const std::string msg = " well " + name() + " did not get converged when solve well equations with bhp limit "
+                                    " zero value well potentials will be returned ";
+            deferred_logger.debug(msg);
+        }
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    bool
+    StandardWell<TypeTag>::
+    computeWellRatesWithBhpWithUpdating(const Simulator& ebos_simulator,
+                                        const std::vector<Scalar>& B_avg,
+                                        const double bhp,
+                                        std::vector<double>& well_rates,
+                                        Opm::DeferredLogger& deferred_logger)
+    {
+        const bool converged = solveWellEqWithBhpTarget(ebos_simulator, B_avg, bhp, deferred_logger);
+
+        if (converged) {
+            computeWellRatesWithBhp(ebos_simulator, bhp, well_rates, deferred_logger);
+        } else {
+            // not converged
+            const std::string msg = " well " + name() + " did not get converged when solve well equations with bhp limit "
+                                    " zero value well rates will be returned ";
+            deferred_logger.debug(msg);
+       }
+
+        return converged;
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    bool
+    StandardWell<TypeTag>::
+    solveWellEqWithBhpTarget(const Simulator& ebos_simulator,
+                             const std::vector<Scalar>& B_avg,
+                             const double bhp,
+                             Opm::DeferredLogger& deferred_logger)
+    {
+        // back up the old control data
+        struct WellControls* const original_well_controls = well_controls_;
+        const int original_current_control = well_controls_get_current(original_well_controls);
+
+        well_controls_ = this->creatingWellControlWithBhpTargetOnly(bhp);
+
+        // making a copy of the well_state to avoid interfering with the current well_state
+        // TODO: it should be pass in from the higher level
+        WellState well_state_copy = ebos_simulator.problem().wellModel().wellState();
+        well_state_copy.currentControls()[index_of_well_] = well_controls_get_current(well_controls_);
+
+        updateWellStateWithTarget(ebos_simulator, well_state_copy, deferred_logger);
+        calculateExplicitQuantities(ebos_simulator, well_state_copy, deferred_logger);
+        updatePrimaryVariables(well_state_copy, deferred_logger);
+        initPrimaryVariablesEvaluation();
+
+        const bool converged = this->solveWellEqUntilConverged(ebos_simulator, B_avg, well_state_copy, deferred_logger);
+
+        if (!converged) {
+            const std::string msg = " well " + name() + " did not get converged when solving well equations with only bhp target "
+                                  + std::to_string(bhp/1.e5) + " bar ";
+            deferred_logger.debug(msg);
+        }
+
+        if (converged) {
+            // updatePrimaryVariables(well_state_copy, deferred_logger);
+            computeWellConnectionPressures(ebos_simulator, well_state_copy);
+            initPrimaryVariablesEvaluation();
+        }
+
+        // recovering the old well control
+        well_controls_destroy(well_controls_);
+        well_controls_ = original_well_controls;
+        well_controls_set_current(well_controls_, original_current_control);
+    }
+
+
+
+
+
     template<typename TypeTag>
     std::vector<double>
     StandardWell<TypeTag>::
@@ -2356,18 +2455,11 @@ namespace Opm
                           Opm::DeferredLogger& deferred_logger) // const
     {
 
-        updatePrimaryVariables(well_state, deferred_logger);
-        computeWellConnectionPressures(ebosSimulator, well_state);
-
-        // initialize the primary variables in Evaluation, which is used in computePerfRate for computeWellPotentials
-        // TODO: for computeWellPotentials, no derivative is required actually
-        initPrimaryVariablesEvaluation();
 
         // get the bhp value based on the bhp constraints
-        const double bhp = mostStrictBhpFromBhpLimits(deferred_logger);
+        const double bhp_limit = mostStrictBhpFromBhpLimits(deferred_logger);
 
-        assert(std::abs(bhp) != std::numeric_limits<double>::max());
-        computeWellRatesWithBhpPotential(ebosSimulator, B_avg, bhp, well_potentials, deferred_logger);
+        computeWellPotentialsWithBhpLimit(ebosSimulator, B_avg, well_potentials, deferred_logger);
 
         // does the well have a THP related constraint?
         if ( this->wellHasTHPConstraints() ) {
@@ -2383,7 +2475,10 @@ namespace Opm
                 }
             } else {
                 // We need to generate a reasonable rates to start the iteration process
-                computeWellRatesWithBhpPotential(ebosSimulator, B_avg, bhp, well_potentials_thp, deferred_logger);
+                updatePrimaryVariables(well_state, deferred_logger);
+                computeWellConnectionPressures(ebosSimulator, well_state);
+                initPrimaryVariablesEvaluation();
+                computeWellRatesWithBhpPotential(ebosSimulator, B_avg, bhp_limit, well_potentials_thp, deferred_logger);
                 for (double& value : well_potentials_thp) {
                     // make the value a little safer in case the BHP limits are default ones
                     // TODO: a better way should be a better rescaling based on the investigation of the VFP table.
@@ -2392,7 +2487,7 @@ namespace Opm
                 }
             }
 
-            well_potentials_thp = computeWellPotentialWithTHP(ebosSimulator, B_avg, bhp, well_potentials_thp, deferred_logger);
+            well_potentials_thp = computeWellPotentialWithTHP(ebosSimulator, B_avg, bhp_limit, well_potentials_thp, deferred_logger);
 
             // comparing the well_potentials under BHP limit and THP limit, picking the smaller ones as the final well potential
             // we discard the well potentials with zero value, they just indicate they are calculated successfully

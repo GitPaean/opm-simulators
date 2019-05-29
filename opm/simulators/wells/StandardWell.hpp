@@ -328,16 +328,41 @@ namespace Opm
                              double& perf_vap_oil_rate,
                              Opm::DeferredLogger& deferred_logger) const;
 
+        // compute the well rates directly with its current explicit quantities and
+        // primary variables, based on a given BHP
+        // it will potentially be replaced with more sophiscated techniques
         void computeWellRatesWithBhp(const Simulator& ebosSimulator,
-                                             const double& bhp,
-                                             std::vector<double>& well_flux,
-                                             Opm::DeferredLogger& deferred_logger) const;
+                                     const double& bhp,
+                                     std::vector<double>& well_flux,
+                                     Opm::DeferredLogger& deferred_logger) const;
+
+        // we will try to solve the well equations til converged, and update the explicit quantities
+        // first, then compute the well rates
+        // This is potentially more accurate way in calculating well rates and might replace computeWellRatesWithBhp in future
+        bool computeWellRatesWithBhpWithUpdating(const Simulator& ebosSimulator,
+                                                 const std::vector<Scalar>& B_avg,
+                                                 const double bhp,
+                                                 std::vector<double>& well_flux,
+                                                 Opm::DeferredLogger& deferred_logger);
 
         void computeWellRatesWithBhpPotential(const Simulator& ebosSimulator,
                                               const std::vector<Scalar>& B_avg,
                                               const double& bhp,
                                               std::vector<double>& well_flux,
                                               Opm::DeferredLogger& deferred_logger);
+
+        void computeWellPotentialsWithBhpLimit(const Simulator& ebos_simulator,
+                                               const std::vector<Scalar>& B_avg,
+                                               std::vector<double>& well_flux,
+                                               Opm::DeferredLogger& deferred_logger);
+
+
+        // solve the well equation with the given bhp, and update the explicit pressure drops
+        // based on the obtained the solution and also the primary variables
+        bool solveWellEqWithBhpTarget(const Simulator& ebos_simulator,
+                                      const std::vector<Scalar>& B_avg,
+                                      const double bhp,
+                                      Opm::DeferredLogger& deferred_logger);
 
         std::vector<double> computeWellPotentialWithTHP(const Simulator& ebosSimulator,
                                                         const std::vector<Scalar>& B_avg,
