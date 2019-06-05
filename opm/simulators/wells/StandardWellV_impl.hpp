@@ -480,15 +480,15 @@ namespace Opm
     void
     StandardWellV<TypeTag>::
     assembleWellEq(const Simulator& ebosSimulator,
-                   const std::vector<Scalar>& /* B_avg */,
+                   const std::vector<Scalar>& B_avg,
                    const double dt,
+                   const bool checking_operability,
                    WellState& well_state,
-                   Opm::DeferredLogger& deferred_logger
-                   )
+                   Opm::DeferredLogger& deferred_logger)
     {
         // TODO: only_wells should be put back to save some computation
         Opm::SummaryState summaryState;
-        checkWellOperability(ebosSimulator, well_state, deferred_logger);
+        checkWellOperability(ebosSimulator, well_state, B_avg, deferred_logger);
 
         if (!this->isOperable()) return;
 
@@ -1399,6 +1399,7 @@ namespace Opm
     StandardWellV<TypeTag>::
     checkWellOperability(const Simulator& ebos_simulator,
                          const WellState& well_state,
+                         const std::vector<double>& B_avg,
                          Opm::DeferredLogger& deferred_logger)
     {
         // focusing on PRODUCER for now
@@ -2124,9 +2125,11 @@ namespace Opm
     template<typename TypeTag>
     void
     StandardWellV<TypeTag>::
-    solveEqAndUpdateWellState(WellState& well_state, Opm::DeferredLogger& deferred_logger)
+    solveEqAndUpdateWellState(const bool checking_operability,
+                              WellState& well_state,
+                              Opm::DeferredLogger& deferred_logger)
     {
-        if (!this->isOperable()) return;
+        if (checking_operability && !this->isOperable()) return;
 
         // We assemble the well equations, then we check the convergence,
         // which is why we do not put the assembleWellEq here.
@@ -2320,7 +2323,7 @@ namespace Opm
         WellState well_state_copy = ebosSimulator.problem().wellModel().wellState();
         well_state_copy.currentControls()[index_of_well_] = bhp_index;
 
-        bool converged = this->solveWellEqUntilConverged(ebosSimulator, B_avg, well_state_copy, deferred_logger);
+        bool converged = this->solveWellEqUntilConverged(ebosSimulator, B_avg, true, well_state_copy, deferred_logger);
 
         if (!converged) {
             const std::string msg = " well " + name() + " did not get converged during well potential calculations "
@@ -2950,7 +2953,7 @@ namespace Opm
         updatePrimaryVariables(well_state_copy, deferred_logger);
         initPrimaryVariablesEvaluation();
 
-        const bool converged = this->solveWellEqUntilConverged(ebos_simulator, B_avg, well_state_copy, deferred_logger);
+        const bool converged = this->solveWellEqUntilConverged(ebos_simulator, B_avg, true, well_state_copy, deferred_logger);
 
         if (!converged) {
             const std::string msg = " well " + name() + " did not get converged during well testing for physical reason";

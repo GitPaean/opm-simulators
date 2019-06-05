@@ -149,11 +149,14 @@ namespace Opm
 
         virtual ConvergenceReport getWellConvergence(const std::vector<double>& B_avg, Opm::DeferredLogger& deferred_logger) const = 0;
 
-        virtual void solveEqAndUpdateWellState(WellState& well_state, Opm::DeferredLogger& deferred_logger) = 0;
+        virtual void solveEqAndUpdateWellState(const bool checking_operability,
+                                               WellState& well_state,
+                                               Opm::DeferredLogger& deferred_logger) = 0;
 
         virtual void assembleWellEq(const Simulator& ebosSimulator,
                                     const std::vector<Scalar>& B_avg,
                                     const double dt,
+                                    const bool checking_operability,
                                     WellState& well_state,
                                     Opm::DeferredLogger& deferred_logger
                                     ) = 0;
@@ -244,7 +247,8 @@ namespace Opm
 
         void updatePerforatedCell(std::vector<bool>& is_cell_perforated);
 
-        virtual void checkWellOperability(const Simulator& ebos_simulator, const WellState& well_state, Opm::DeferredLogger& deferred_logger) = 0;
+        virtual void checkWellOperability(const Simulator& ebos_simulator, const WellState& well_state,
+                                          const std::vector<double>& B_avg, Opm::DeferredLogger& deferred_logger) = 0;
 
         // whether the well is operable
         bool isOperable() const;
@@ -412,6 +416,7 @@ namespace Opm
 
         bool solveWellEqUntilConverged(const Simulator& ebosSimulator,
                                        const std::vector<double>& B_avg,
+                                       const bool checking_operability,
                                        WellState& well_state,
                                        Opm::DeferredLogger& deferred_logger);
 

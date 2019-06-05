@@ -144,6 +144,7 @@ namespace Opm
         virtual void assembleWellEq(const Simulator& ebosSimulator,
                                     const std::vector<Scalar>& B_avg,
                                     const double dt,
+                                    const bool checking_operability,
                                     WellState& well_state,
                                     Opm::DeferredLogger& deferred_logger) override;
 
@@ -175,7 +176,9 @@ namespace Opm
 
         virtual void updatePrimaryVariables(const WellState& well_state, Opm::DeferredLogger& deferred_logger) const override;
 
-        virtual void solveEqAndUpdateWellState(WellState& well_state, Opm::DeferredLogger& deferred_logger) override;
+        virtual void solveEqAndUpdateWellState(const bool checking_operability,
+                                               WellState& well_state,
+                                               Opm::DeferredLogger& deferred_logger) override;
 
         virtual void calculateExplicitQuantities(const Simulator& ebosSimulator,
                                                  const WellState& well_state,
@@ -283,6 +286,7 @@ namespace Opm
 
         // updating the well_state based on well solution dwells
         void updateWellState(const BVectorWell& dwells,
+                             const bool checking_operability,
                              WellState& well_state,
                              Opm::DeferredLogger& deferred_logger) const;
 
@@ -380,18 +384,24 @@ namespace Opm
         // mostly related to BHP limit and THP limit
         virtual void checkWellOperability(const Simulator& ebos_simulator,
                                           const WellState& well_state,
-                                          Opm::DeferredLogger& deferred_logger
-                                          ) override;
+                                          const std::vector<double>& B_avg,
+                                          Opm::DeferredLogger& deferred_logger) override;
+
+        double solveForBhpUnderZeroRate(const Simulator& ebos_simulator,
+                                        const std::vector<double>& B_avg,
+                                        Opm::DeferredLogger& deferred_logger) const;
 
         // check whether the well is operable under the current reservoir condition
         // mostly related to BHP limit and THP limit
         void updateWellOperability(const Simulator& ebos_simulator,
                                    const WellState& well_state,
-                                   Opm::DeferredLogger& deferred_logger
-                                   );
+                                   const std::vector<double>& B_avg,
+                                   Opm::DeferredLogger& deferred_logger);
 
         // check whether the well is operable under BHP limit with current reservoir condition
-        void checkOperabilityUnderBHPLimitProducer(const Simulator& ebos_simulator, Opm::DeferredLogger& deferred_logger);
+        void checkOperabilityUnderBHPLimitProducer(const Simulator& ebos_simulator,
+                                                   const std::vector<double>& B_avg,
+                                                   Opm::DeferredLogger& deferred_logger);
 
         // check whether the well is operable under THP limit with current reservoir condition
         void checkOperabilityUnderTHPLimitProducer(const Simulator& ebos_simulator, Opm::DeferredLogger& deferred_logger);
