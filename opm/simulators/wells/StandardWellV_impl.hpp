@@ -488,7 +488,7 @@ namespace Opm
     {
         // TODO: only_wells should be put back to save some computation
         Opm::SummaryState summaryState;
-        checkWellOperability(ebosSimulator, well_state, B_avg, deferred_logger);
+        this->checkWellOperability(ebosSimulator, well_state, B_avg, deferred_logger);
 
         if (!this->isOperable()) return;
 
@@ -1397,42 +1397,9 @@ namespace Opm
     template<typename TypeTag>
     void
     StandardWellV<TypeTag>::
-    checkWellOperability(const Simulator& ebos_simulator,
-                         const WellState& well_state,
-                         const std::vector<double>& B_avg,
-                         Opm::DeferredLogger& deferred_logger)
-    {
-        // focusing on PRODUCER for now
-        if (well_type_ == INJECTOR) {
-            return;
-        }
-
-        if (!this->underPredictionMode(deferred_logger) ) {
-            return;
-        }
-
-        const bool old_well_operable = this->operability_status_.isOperable();
-
-        updateWellOperability(ebos_simulator, well_state, deferred_logger);
-
-        const bool well_operable = this->operability_status_.isOperable();
-
-        if (!well_operable && old_well_operable) {
-            deferred_logger.info(" well " + name() + " gets SHUT during iteration ");
-        } else if (well_operable && !old_well_operable) {
-            deferred_logger.info(" well " + name() + " gets REVIVED during iteration ");
-        }
-    }
-
-
-
-
-
-    template<typename TypeTag>
-    void
-    StandardWellV<TypeTag>::
     updateWellOperability(const Simulator& ebos_simulator,
                           const WellState& /* well_state */,
+                          const std::vector<double>& /* B_avg */,
                           Opm::DeferredLogger& deferred_logger)
     {
         this->operability_status_.reset();
@@ -2939,7 +2906,7 @@ namespace Opm
         // we should be able to provide a better initialization
         calculateExplicitQuantities(ebos_simulator, well_state_copy, deferred_logger);
 
-        updateWellOperability(ebos_simulator, well_state_copy, deferred_logger);
+        updateWellOperability(ebos_simulator, well_state_copy, B_avg, deferred_logger);
 
         if ( !this->isOperable() ) {
             const std::string msg = " well " + name() + " is not operable during well testing for physical reason";

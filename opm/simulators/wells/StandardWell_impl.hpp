@@ -453,7 +453,7 @@ namespace Opm
         SummaryState summaryState;
 
         if (checking_operability) {
-            checkWellOperability(ebosSimulator, well_state, B_avg, deferred_logger);
+            this->checkWellOperability(ebosSimulator, well_state, B_avg, deferred_logger);
 
             if (!this->isOperable()) return;
         }
@@ -1326,41 +1326,6 @@ namespace Opm
                 ipr_a_[ebosCompIdxToFlowCompIdx(p)] += ipr_a_perf[p];
                 ipr_b_[ebosCompIdxToFlowCompIdx(p)] += ipr_b_perf[p];
             }
-        }
-    }
-
-
-
-
-
-    template<typename TypeTag>
-    void
-    StandardWell<TypeTag>::
-    checkWellOperability(const Simulator& ebos_simulator,
-                         const WellState& well_state,
-                         const std::vector<double>& B_avg,
-                         Opm::DeferredLogger& deferred_logger)
-    {
-        // focusing on PRODUCER for now
-        if (well_type_ == INJECTOR) {
-            return;
-        }
-
-        if (!this->underPredictionMode(deferred_logger) ) {
-            return;
-        }
-
-
-        const bool old_well_operable = this->operability_status_.isOperable();
-
-        updateWellOperability(ebos_simulator, well_state, B_avg, deferred_logger);
-
-        const bool well_operable = this->operability_status_.isOperable();
-
-        if (!well_operable && old_well_operable) {
-            deferred_logger.info(" well " + name() + " gets SHUT during iteration ");
-        } else if (well_operable && !old_well_operable) {
-            deferred_logger.info(" well " + name() + " gets REVIVED during iteration ");
         }
     }
 
