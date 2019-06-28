@@ -366,6 +366,10 @@ namespace Opm {
                 // this is the well we will test
                 WellInterfacePtr well = createWellForWellTest(well_name, timeStepIdx, deferred_logger);
 
+                if (!well) {
+                    continue;
+                }
+
                 // some preparation before the well can be used
                 well->init(&phase_usage_, depth_, gravity_, number_of_cells_);
                 const WellNode& well_node = wellCollection().findWellNode(well_name);
@@ -625,6 +629,10 @@ namespace Opm {
         }
 
         const Well2& well_ecl = wells_ecl_[index_well_ecl];
+
+        if (well_ecl.getStatus() != WellCommon::OPEN) {
+            return nullptr;
+        }
 
         // Finding the location of the well in wells struct.
         const int nw = numWells();
