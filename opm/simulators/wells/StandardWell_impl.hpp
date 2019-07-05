@@ -902,16 +902,21 @@ namespace Opm
         processFractions();
 
         // updating the total rates Q_t
-        const double relaxation_factor_rate = relaxationFactorRate(old_primary_variables, dwells);
-        primary_variables_[WQTotal] = old_primary_variables[WQTotal] - dwells[0][WQTotal] * relaxation_factor_rate;
+        // const double relaxation_factor_rate = relaxationFactorRate(old_primary_variables, dwells);
+        // primary_variables_[WQTotal] = old_primary_variables[WQTotal] - dwells[0][WQTotal] * relaxation_factor_rate;
+        primary_variables_[WQTotal] = old_primary_variables[WQTotal] - dwells[0][WQTotal]; // * relaxation_factor_rate;
+
 
         // updating the bottom hole pressure
         {
             const double dBHPLimit = param_.dbhp_max_rel_;
             const int sign1 = dwells[0][Bhp] > 0 ? 1: -1;
-            const double dx1_limited = sign1 * std::min(std::abs(dwells[0][Bhp]), std::abs(old_primary_variables[Bhp]) * dBHPLimit);
+            const double dbhp_limit = std::max(5.e5, std::abs(old_primary_variables[Bhp]) * dBHPLimit);
+            // const double dx1_limited = sign1 * std::min(std::abs(dwells[0][Bhp]), std::abs(old_primary_variables[Bhp]) * dBHPLimit);
             // 1e5 to make sure bhp will not be below 1bar
-            primary_variables_[Bhp] = std::max(old_primary_variables[Bhp] - dx1_limited, 1e5);
+            const double dx1_limited = sign1 * std::min(std::abs(dwells[0][Bhp]), dbhp_limit);
+            primary_variables_[Bhp] = old_primary_variables[Bhp] - dx1_limited;
+            // primary_variables_[Bhp] = std::max(old_primary_variables[Bhp] - dx1_limited, 1e5);
         }
     }
 

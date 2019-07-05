@@ -833,7 +833,8 @@ namespace Opm
                 const int sign = dwells[seg][SPres] > 0.? 1 : -1;
                 const double dx_limited = sign * std::min(std::abs(dwells[seg][SPres]), relaxation_factor * max_pressure_change);
                 // const double dx_limited = sign * std::min(std::abs(dwells[seg][SPres]) * relaxation_factor, max_pressure_change);
-                primary_variables_[seg][SPres] = std::max( old_primary_variables[seg][SPres] - dx_limited, 1e5);
+                // primary_variables_[seg][SPres] = std::max( old_primary_variables[seg][SPres] - dx_limited, 1e5);
+                primary_variables_[seg][SPres] = old_primary_variables[seg][SPres] - dx_limited;
             }
 
             // update the total rate // TODO: should we have a limitation of the total rate change?
