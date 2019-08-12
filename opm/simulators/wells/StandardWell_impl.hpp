@@ -947,7 +947,7 @@ namespace Opm
         processFractions();
 
         // updating the total rates Q_t
-        const double relaxation_factor_rate = relaxationFactorRate(old_primary_variables, dwells);
+        // const double relaxation_factor_rate = relaxationFactorRate(old_primary_variables, dwells);
         primary_variables_[WQTotal] = old_primary_variables[WQTotal] - dwells[0][WQTotal]; // * relaxation_factor_rate;
 
         // updating the bottom hole pressure
@@ -1446,6 +1446,65 @@ namespace Opm
         } else {
             this->operability_status_.operable_under_only_bhp_limit = true;
         }
+
+        // when a well can not operate under BHP limit only, it is not operable for sure
+        if ( !this->operability_status_.operable_under_only_bhp_limit ) return;
+
+        const std::vector<double> rates_bhp_limit = solveForRatesUnderBHP(ebos_simulator, B_avg, bhp_limit, deferred_logger);
+
+        std::cout << " well " << name() << " bhp_for_zero_rate " << bhp_for_zero_rate
+                  << " rates under bhp limit " << bhp_limit / 1.e5
+                  << "  " << rates_bhp_limit[0]
+                  << "  " << rates_bhp_limit[1]
+                  << "  " << rates_bhp_limit[2] << std::endl;
+
+        const double thp = calculateThpFromBhp(rates_bhp_limit, bhp_limit, deferred_logger);
+        const double thp_limit = this->getTHPConstraint(deferred_logger);
+        std::cout << " thp with bhp limit is " << thp / 1.e5 << " thp limit is " << thp_limit / 1.e5 << std::endl;
+
+        if (thp < thp_limit) {
+            this->operability_status_.obey_thp_limit_under_bhp_limit = false;
+        }
+
+        assert(bhp_limit < bhp_for_zero_rate);
+
+        std::cout << " ipr_b ";
+        for (int p = 0; p < number_of_phases_; ++p) {
+            ipr_b_[p] = std::abs(rates_bhp_limit[p]) / (bhp_for_zero_rate - bhp_limit);
+            std::cout << " " << ipr_b_[p];
+        }
+        std::cout << std::endl;
+
+        std::cout << " ipr_a ";
+        for (int p = 0; p < number_of_phases_; ++p) {
+            ipr_a_[p] = bhp_for_zero_rate * ipr_b_[p];
+            std::cout << " " << ipr_a_[p];
+        }
+        std::cout << std::endl;
+
+        if ( !this->wellHasTHPConstraints() ) return;
+
+        const double obtain_bhp = calculateBHPWithTHPTargetIPR(deferred_logger);
+        std::cout << " obtain_bhp " << obtain_bhp / 1.e5 << std::endl;
+
+        if (obtain_bhp <= 0.) {
+            this->operability_status_.can_obtain_bhp_with_thp_limit = false;
+            deferred_logger.debug(" COULD NOT find bhp value under thp_limit "
+                          + std::to_string(unit::convert::to(thp_limit, unit::barsa))
+                          + " bars for well " + name() + ", the well might need to be closed ");
+            this->operability_status_.obey_bhp_limit_with_thp_limit = false;
+        } else {
+            this->operability_status_.can_obtain_bhp_with_thp_limit = true;
+            this->operability_status_.obey_bhp_limit_with_thp_limit = (obtain_bhp >= bhp_limit);
+            if (obtain_bhp < thp_limit) {
+                const std::string msg = " obtained bhp " + std::to_string(unit::convert::to(obtain_bhp, unit::barsa))
+                                        + " bars is SMALLER than thp limit "
+                                        + std::to_string(unit::convert::to(thp_limit, unit::barsa))
+                                        + " bars as a producer for well " + name();
+                deferred_logger.debug(msg);
+            }
+        }
+
         /*
         // Crude but works: default is one atmosphere.
         // TODO: a better way to detect whether the BHP is defaulted or not
@@ -1554,12 +1613,65 @@ namespace Opm
         }
         bhp_for_zero_rate = well_state_copy.bhp()[index_of_well_];
         std::cout << " well " << name() << " bhp_for_zero_rate " << bhp_for_zero_rate/1.e5 << " bhp_limit " << bhp_limit/1.e5 << std::endl;
-        std::cout << " well rates " << well_state_copy.wellRates()[number_of_phases_ * index_of_well_] << " "
-                                    << well_state_copy.wellRates()[number_of_phases_ * index_of_well_ + 1] << " "
-                                    << well_state_copy.wellRates()[number_of_phases_ * index_of_well_ + 2] << std::endl;
+        // std::cout << " well rates " << well_state_copy.wellRates()[number_of_phases_ * index_of_well_] << " "
+        //                             << well_state_copy.wellRates()[number_of_phases_ * index_of_well_ + 1] << " "
+        //                             << well_state_copy.wellRates()[number_of_phases_ * index_of_well_ + 2] << std::endl;
 
         well_controls_destroy(wc);
         return bhp_for_zero_rate;
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    std::vector<double>
+    StandardWell<TypeTag>::
+    solveForRatesUnderBHP(const Simulator& ebos_simulator,
+                          const std::vector<double>& B_avg,
+                          const double bhp_limit,
+                          DeferredLogger& deferred_logger) const
+    {
+        StandardWell<TypeTag> well(*this);
+        well.well_controls_ =  well_controls_create();
+
+        WellControls* wc = well.well_controls_;
+        // this function is static
+        // well_controls_reserve(2, wc);
+        well_controls_assert_number_of_phases(wc, number_of_phases_);
+
+        const double invalid_alq = -1.e100;
+        const int invalid_vfp = -1;
+        const bool ok = well_controls_add_new(BHP, bhp_limit, invalid_alq, invalid_vfp, NULL, wc);
+        if (!ok) {
+            std::cout << " well " << name() << " failed in adding BHP limit in solveForBhpUnderZeroRate " << std::endl;
+        }
+
+        assert(well_controls_get_num(wc) == 1);
+        well_controls_set_current(wc, 0);
+        assert(well_controls_get_current_type(wc) == BHP);
+
+        // TODO: it is not good to hack the well_state this way
+        WellState well_state_copy = ebos_simulator.problem().wellModel().wellState();
+        well_state_copy.currentControls()[well.index_of_well_] = 0; // rate control
+
+        well.updateWellStateWithTarget(ebos_simulator, well_state_copy, deferred_logger);
+        well.updatePrimaryVariables(well_state_copy, deferred_logger);
+        well.initPrimaryVariablesEvaluation();
+        const bool converged = well.solveWellEqUntilConverged(ebos_simulator, B_avg, false, well_state_copy, deferred_logger);
+
+        if (!converged) {
+            std::cout << " well " << name() << " solveWellEqUntilConverged NOT converged " << std::endl;
+        }
+
+        // TODO: maybe it is better to pass in as a reference, we will see
+        std::vector<double> rates(number_of_phases_, 0.);
+        for (int p = 0; p < number_of_phases_; ++p) {
+            rates[p] = well_state_copy.wellRates()[number_of_phases_ * index_of_well_ +p];
+        }
+        well_controls_destroy(wc);
+        return rates;
     }
 
 
@@ -2702,6 +2814,8 @@ namespace Opm
         const double aqua = rates[Water];
         const double liquid = rates[Oil];
         const double vapour = rates[Gas];
+
+        std::cout << " water " << aqua << " oil " << liquid << " gas " << vapour << std::endl;
 
         // pick the density in the top layer
         const double rho = perf_densities_[0];
