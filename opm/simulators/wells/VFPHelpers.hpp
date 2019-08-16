@@ -846,6 +846,14 @@ inline bool findIntersectionForBhp(const std::vector<RateBhpPair>& ratebhp_sampl
         }
     }
 
+    std::cout << " bhp1 " << bhp1/1.e5 << " rate1 " << rate1*86400. << std::endl;
+    std::cout << " bhp2 " << bhp2/1.e5 << " rate2 " << rate2*86400. << std::endl;
+
+    std::cout << " rate and bhp pairs " << std::endl;
+    for (const auto& elem : ratebhp_samples) {
+        std::cout << elem.bhp/1.e5 << " " << elem.rate * 86400. << std::endl;
+    }
+
     if (number_intersection_found == 0) { // there is not intersection point
         return false;
     }
