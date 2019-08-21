@@ -152,6 +152,12 @@ public:
             const double& bhp,
             const double& alq) const;
 
+    double thp(int table_id,
+               const std::vector<double>& fractions,
+               const double total_rate, // simple summation of the total surface volume rate
+               const double bhp_arg,
+               const double alq) const;
+
     /**
      * Returns the table associated with the ID, or throws an exception if
      * the table does not exist

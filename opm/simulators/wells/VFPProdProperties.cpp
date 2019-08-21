@@ -111,6 +111,45 @@ double VFPProdProperties::thp(int table_id,
 }
 
 
+double VFPProdProperties::thp(int table_id,
+                              const std::vector<double>& fractions,
+                              const double total_rate, // simple summation of the total surface volume rate
+                              const double bhp_arg,
+                              const double alq) const
+{
+    const VFPProdTable* table = detail::getTable(m_tables, table_id);
+    const VFPProdTable::array_type& data = table->getTable();
+
+    const int Water = BlackoilPhases::Aqua;
+    const int Oil = BlackoilPhases::Liquid;
+    const int Gas = BlackoilPhases::Vapour;
+
+    const double flo = detail::getFlo(total_rate * fractions[Water], total_rate * fractions[Oil], total_rate * fractions[Gas], table->getFloType());
+    const double wfr = detail::getWFR(fractions[Water], fractions[Oil], fractions[Gas], table->getWFRType());
+    const double gfr = detail::getGFR(fractions[Water], fractions[Oil], fractions[Gas], table->getGFRType());
+
+    const auto flo_i = detail::findInterpData(-flo, table->getFloAxis());
+    const auto wfr_i = detail::findInterpData( wfr, table->getWFRAxis());
+    const auto gfr_i = detail::findInterpData( gfr, table->getGFRAxis());
+    const auto alq_i = detail::findInterpData( alq, table->getALQAxis());
+
+    const std::vector<double>& thp_array = table->getTHPAxis();
+    const int nthp = thp_array.size();
+
+    std::vector<double> bhp_array(nthp);
+    for (int i=0; i<nthp; ++i) {
+        auto thp_i = detail::findInterpData(thp_array[i], thp_array);
+        bhp_array[i] = detail::interpolate(data, flo_i, thp_i, wfr_i, gfr_i, alq_i).value;
+    }
+
+    const double retval = detail::findTHP(bhp_array, thp_array, bhp_arg);
+    std::cout << " calculated thp " << retval/1.e5 << " with bhp " << bhp_arg/1.e5 << " and total_rate " << total_rate * 86400
+              << " flo " << flo << " wfr " << wfr << " gfr " << gfr << std::endl;
+
+    return retval;
+}
+
+
 double VFPProdProperties::bhp(int table_id,
                               const double& aqua,
                               const double& liquid,
