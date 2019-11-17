@@ -2510,6 +2510,15 @@ private:
             polymerMoleWeight_.resize(numElems, 0.0);
         }
 
+        // TODO: why the way to treat aquifers is different from other variants
+        // TODO: maybe we should implmenent the restart facility from the aquifer models here
+        // TODO: a function like initFromRestartFile(const RestartValue& restartValues)
+        if (enableAquifers_) {
+            const std::string msg{"Support of the RESTART for aquifer models is not "
+                                  " not implemented yet. "};
+            Opm::OpmLog::warning("NO_AQUIFER_RESTART", msg);
+        }
+
         for (size_t elemIdx = 0; elemIdx < numElems; ++elemIdx) {
             auto& elemFluidState = initialFluidStates_[elemIdx];
             elemFluidState.setPvtRegionIndex(pvtRegionIndex(elemIdx));
