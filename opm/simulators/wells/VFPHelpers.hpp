@@ -722,6 +722,7 @@ inline double findTHP(
     }
     //bhp_array not sorted, raw search.
     else {
+        std::cout << " the relation between BHP and THP is NOT MONOTONIC, some wrong THP values can be found " << std::endl;
         //Find i so that bhp_array[i-1] <= bhp <= bhp_array[i];
         //Since the BHP values might not be sorted, first search within
         //our interpolation values, and then try to extrapolate.

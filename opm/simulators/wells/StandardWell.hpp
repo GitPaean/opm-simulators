@@ -202,6 +202,14 @@ namespace Opm
             return param_.matrix_add_well_contributions_;
         }
 
+        // TODO: temporarily public
+        EvalWell wellSurfaceVolumeFraction(const int phase) const;
+
+        // TODO: public temporarily
+        // densities of the fluid in each perforation
+        std::vector<double> perf_densities_;
+
+
     protected:
 
         // protected functions from the Base class
@@ -247,8 +255,6 @@ namespace Opm
         // there might be extra equations be used, numWellEq will be updated during the initialization
         int numWellEq_ = numStaticWellEq;
 
-        // densities of the fluid in each perforation
-        std::vector<double> perf_densities_;
         // pressure drop between different perforations
         std::vector<double> perf_pressure_diffs_;
 
@@ -291,8 +297,6 @@ namespace Opm
         EvalWell wellVolumeFractionScaled(const int phase) const;
 
         EvalWell wellVolumeFraction(const unsigned compIdx) const;
-
-        EvalWell wellSurfaceVolumeFraction(const int phase) const;
 
         EvalWell extendEval(const Eval& in) const;
 
@@ -369,6 +373,9 @@ namespace Opm
 
         double calculateThpFromBhp(const std::vector<double>& rates, const double bhp, Opm::DeferredLogger& deferred_logger) const;
 
+        double calculateThpFromBhpFractions(const std::vector<double>& fractions, const double total_rate,
+                                            const double bhp, const double rho, Opm::DeferredLogger& deferred_logger) const;
+
         // get the mobility for specific perforation
         void getMobility(const Simulator& ebosSimulator,
                          const int perf,
@@ -399,8 +406,10 @@ namespace Opm
         // updating the inflow based on the current reservoir condition
         void updateIPR(const Simulator& ebos_simulator, Opm::DeferredLogger& deferred_logger) const;
 
+        // TODO: change name to be Bhp and Thp and a better interface here
         double solveForBhpUnderZeroRate(const Simulator& ebos_simulator,
                                         const std::vector<double>& B_avg,
+                                        double& thp,
                                         Opm::DeferredLogger& deferred_logger) const;
 
         // \Note, the bhp_limit is not necessarily to be there, while it makes the function can be

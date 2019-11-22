@@ -1215,6 +1215,10 @@ namespace Opm
             }
             // TODO: use the rateConverter here as well.
             const double* distr = well_controls_get_current_distr(wc);
+            if (distr[phaseIdx] < 0.) {
+                std::cout << " there is some negative distr here " << std::endl;
+                std::cout << distr[0] << " " << distr[1] << " " << distr[2] << std::endl;
+            }
             return distr[phaseIdx];
         }
         const auto& pu = phaseUsage();

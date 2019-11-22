@@ -1461,7 +1461,8 @@ namespace Opm
                                           const std::vector<double>& B_avg,
                                           Opm::DeferredLogger& deferred_logger)
     {
-        const double bhp_for_zero_rate = solveForBhpUnderZeroRate(ebos_simulator, B_avg, deferred_logger);
+        double thp_zero_rate = 0;
+        const double bhp_for_zero_rate = solveForBhpUnderZeroRate(ebos_simulator, B_avg, thp_zero_rate, deferred_logger);
 
         const double bhp_limit = mostStrictBhpFromBhpLimits(deferred_logger);
 
@@ -1500,7 +1501,7 @@ namespace Opm
 
         if ( !this->wellHasTHPConstraints() ) return;
 
-        if (bhp_limit > 1.2e5) {
+        // if (bhp_limit > 1.2e5) {
             const double thp = calculateThpFromBhp(rates_bhp_limit, bhp_limit, deferred_logger);
             const double thp_limit = this->getTHPConstraint(deferred_logger);
             std::cout << " thp with bhp limit is " << thp / 1.e5 << " thp limit is " << thp_limit / 1.e5 << std::endl;
@@ -1508,9 +1509,9 @@ namespace Opm
             if (thp < thp_limit) {
                 this->operability_status_.obey_thp_limit_under_bhp_limit = false;
             }
-        } else {
-            this->operability_status_.obey_thp_limit_under_bhp_limit = false;
-        }
+        // } else {
+        //     this->operability_status_.obey_thp_limit_under_bhp_limit = false;
+        // }
 
         /* if ( !this->wellHasTHPConstraints() ) return;
 
@@ -1588,6 +1589,7 @@ namespace Opm
     StandardWell<TypeTag>::
     solveForBhpUnderZeroRate(const Simulator& ebos_simulator,
                              const std::vector<double>& B_avg,
+                             double& thp,
                              DeferredLogger& deferred_logger) const
     {
         StandardWell<TypeTag> well(*this);
@@ -1605,6 +1607,7 @@ namespace Opm
         const int invalid_vfp = -1;
         bool ok = false;
         ok = well_controls_add_new(RESERVOIR_RATE, 0., invalid_alq, invalid_vfp, distr.data(), wc);
+        // ok = well_controls_add_new(RESERVOIR_RATE, 1./86400., invalid_alq, invalid_vfp, distr.data(), wc);
 
         if (!ok) {
             std::cout << " well " << name() << " failed in adding RESERVOIR_RATE limit in solveForBhpUnderZeroRate " << std::endl;
@@ -1630,6 +1633,12 @@ namespace Opm
         well.initPrimaryVariablesEvaluation();
         const bool converged = well.solveWellEqUntilConverged(ebos_simulator, B_avg, false, well_state_copy, deferred_logger);
 
+        if (converged) {
+            std::cout << " well_rates " << well_state_copy.wellRates()[number_of_phases_ * index_of_well_]
+                      <<  " " << well_state_copy.wellRates()[number_of_phases_ * index_of_well_ + 1]
+                      <<  " " << well_state_copy.wellRates()[number_of_phases_ * index_of_well_ + 2] << std::endl;
+        }
+
         if (!converged) {
             std::cout << " well " << name() << " solveWellEqUntilConverged NOT converged " << std::endl;
         }
@@ -1646,6 +1655,31 @@ namespace Opm
         // std::cout << " well rates " << well_state_copy.wellRates()[number_of_phases_ * index_of_well_] << " "
         //                             << well_state_copy.wellRates()[number_of_phases_ * index_of_well_ + 1] << " "
         //                             << well_state_copy.wellRates()[number_of_phases_ * index_of_well_ + 2] << std::endl;
+        //
+        // calculating the THP to see what happens
+        double total_rate = 0.;
+        for (int p = 0; p < number_of_phases_; ++p) {
+            total_rate += well_state_copy.wellRates()[number_of_phases_ * index_of_well_ + p];
+        }
+        std::cout << "total_rate is " << total_rate << std::endl;
+        if (bhp_for_zero_rate > bhp_limit && wellHasTHPConstraints()) { // get the bhp value under zero rate target
+            std::vector<double> cmix_s(well.num_components_);
+            std::cout << " cmix_s " << std::endl;
+            for (int componentIdx = 0; componentIdx < well.num_components_; ++componentIdx) {
+                cmix_s[componentIdx] = well.wellSurfaceVolumeFraction(componentIdx).value();
+                std::cout << " " << cmix_s[componentIdx];
+            }
+            std::cout << std::endl;
+
+            // oil water location switch
+            const double temp = cmix_s[0];
+            cmix_s[0] = cmix_s[1];
+            cmix_s[1] = temp;
+
+            const double rho = well.perf_densities_[0];
+            const double thp_for_zero_rate = calculateThpFromBhpFractions(cmix_s, total_rate, bhp_for_zero_rate, rho, deferred_logger);
+            std::cout << " thp_for_zero_rate is " << thp_for_zero_rate/1.e5 << std::endl;
+        }
 
         well_controls_destroy(wc);
         return bhp_for_zero_rate;
@@ -2258,6 +2292,9 @@ namespace Opm
             }
         }
 
+        std::cout << " well " << name() << " well_flux_residual " << well_flux_residual[0]
+                  << " " << well_flux_residual[1] << " " << well_flux_residual[2] << std::endl;
+
         checkConvergenceControlEq(report, deferred_logger);
 
         checkConvergenceExtraEqs(res, report);
@@ -2749,6 +2786,10 @@ namespace Opm
             if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
                 const int index_gas = pu.phase_pos[Gas];
                 primary_variables_[GFrac] = scalingFactor(pu.phase_pos[Gas]) * (well_state.wellRates()[np*well_index + pu.phase_pos[Gas]] - well_state.solventWellRate(well_index)) / total_well_rate ;
+                if (primary_variables_[GFrac] < 0.) {
+                    std::cout << " index_gas " << index_gas << " scaling factor " << scalingFactor(index_gas)
+                              << " well rate " << well_state.wellRates()[np * well_index + index_gas] << " solvent rate " << well_state.solventWellRate(well_index) << " total_well_rate " << total_well_rate;
+                }
             }
             if (has_solvent) {
                 primary_variables_[SFrac] = scalingFactor(pu.phase_pos[Gas]) * well_state.solventWellRate(well_index) / total_well_rate ;
@@ -2896,11 +2937,41 @@ namespace Opm
             const double vfp_ref_depth = vfp_properties_->getProd()->getTable(table_id)->getDatumDepth();
             const double dp = wellhelpers::computeHydrostaticCorrection(ref_depth_, vfp_ref_depth, rho, gravity_);
 
+            if (bhp + dp < 1.e5) {
+                return -1.e6;
+            }
+
             thp = vfp_properties_->getProd()->thp(table_id, aqua, liquid, vapour, bhp + dp, alq);
         }
         else {
             OPM_DEFLOG_THROW(std::logic_error, "Expected INJECTOR or PRODUCER well", deferred_logger);
         }
+
+        return thp;
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    double
+    StandardWell<TypeTag>::
+    calculateThpFromBhpFractions(const std::vector<double>& fractions,
+                                 const double total_rate,
+                                 const double bhp,
+                                 const double rho,
+                                 Opm::DeferredLogger& deferred_logger) const
+    {
+
+        assert(well_type_ != INJECTOR);
+
+        const int table_id = well_ecl_.vfp_table_number();
+        const double alq = well_ecl_.alq_value();
+        const double vfp_ref_depth = vfp_properties_->getProd()->getTable(table_id)->getDatumDepth();
+        const double dp = wellhelpers::computeHydrostaticCorrection(ref_depth_, vfp_ref_depth, rho, gravity_);
+
+        double thp = vfp_properties_->getProd()->thp(table_id, fractions, total_rate, bhp + dp, alq);
 
         return thp;
     }
@@ -3389,6 +3460,7 @@ namespace Opm
         } else if ( well_control_residual > control_tolerance) {
             report.setWellFailed({ctrltype, CR::Severity::Normal, dummy_component, name()});
         }
+        std::cout << " well " << name() << " well_control_residual " <<  well_control_residual << " control_tolerance " << control_tolerance << std::endl;
     }
 
 
@@ -3475,5 +3547,62 @@ namespace Opm
             }
         }
         connectionRates_[perf][this->contiPolymerMWEqIdx] = Base::restrictEval(cq_s_polymw);
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    void
+    StandardWell<TypeTag>::
+    computeFloSamplingVFP(const Simulator& ebos_simulator,
+                          const std::vector<double>& B_avg,
+                          DeferredLogger& deferred_logger) const
+    {
+        // to check the bhp and thp values that produces the FLO rates
+        // the FLO type is Liquid rate
+
+        StandardWell<TypeTag> well(*this);
+        well.well_controls_ =  well_controls_create();
+        well_controls_assert_number_of_phases(wc, number_of_phases_);
+
+        const std::vector<double> distr{1., 1., 0.};
+        const double invalid_alq = -1.e100;
+        const int invalid_vfp = -1;
+        bool ok = false;
+        ok = well_controls_add_new(SURFACE_RATE, 0., invalid_alq, invalid_vfp, distr.data(), wc);
+        const double bhp_limit = mostStrictBhpFromBhpLimits(deferred_logger);
+        ok = well_controls_add_new(BHP, bhp_limit, invalid_alq, invalid_vfp, NULL, wc);
+        assert(well_controls_get_num(wc) == 2);
+        const int rate_control_index = 0;
+        well_controls_set_current(wc, rate_control_index);
+
+        const int thp_control_index = getControlIndex(THP);
+        const int vfp_table_id = well_controls_iget_vfp(well_controls_, thp_control_index);
+        const double alq = well_controls_iget_alq(well_controls_, thp_control_index);
+
+        const std::vector<double>& flo_samples = vfp_properties_->getProd()->getTable(vfp_table_id)->getFloAxis();
+
+        for (auto& value : flo_samples) {
+            value *= 86400.; // unit conversion
+        }
+
+        // solve with the surface rate limit to see what is the BHP and THP values are.
+        const int n_samples = flo_samples.size();
+
+        for (int i = 0; i < n_samples; ++i) {
+            well_state_copy = ebos_simulator.problem().wellModel().wellState();
+            well_state_copy.currentControls()[index_of_well_] = rate_control_index;
+
+            updateWellStateWithTarget(ebos_simulator, well_state_copy, deferred_logger);
+            updatePrimaryVariables(well_state_copy, deferred_logger);
+            initPrimaryVariablesEvaluation();
+
+            const bool converged = solveWellEqUntilConverged(ebos_simulator, B_avg, false, well_state_copy, deferred_logger);
+            // checking the BHP and THP separately
+            // checking the current well control
+        }
+
     }
 }
