@@ -164,14 +164,15 @@ opm_add_test(flow
   SOURCES
   flow/flow.cpp
   flow/flow_ebos_blackoil.cpp
-  flow/flow_ebos_gasoil.cpp
-  flow/flow_ebos_oilwater.cpp
-  flow/flow_ebos_polymer.cpp
-  flow/flow_ebos_foam.cpp
-  flow/flow_ebos_solvent.cpp
-  flow/flow_ebos_energy.cpp
-  flow/flow_ebos_oilwater_polymer.cpp
-  flow/flow_ebos_oilwater_polymer_injectivity.cpp)
+  #flow/flow_ebos_gasoil.cpp
+  #flow/flow_ebos_oilwater.cpp
+  #flow/flow_ebos_polymer.cpp
+  #flow/flow_ebos_foam.cpp
+  #flow/flow_ebos_solvent.cpp
+  #flow/flow_ebos_energy.cpp
+  #flow/flow_ebos_oilwater_polymer.cpp
+  #flow/flow_ebos_oilwater_polymer_injectivity.cpp
+        )
 
 if (NOT BUILD_FLOW_VARIANTS)
   set(FLOW_VARIANTS_DEFAULT_ENABLE_IF "FALSE")

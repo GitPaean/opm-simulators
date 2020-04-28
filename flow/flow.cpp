@@ -369,7 +369,7 @@ int main(int argc, char** argv)
         //       requested.
 
         // Twophase cases
-        if( phases.size() == 2 ) {
+        /* if( phases.size() == 2 ) {
             // oil-gas
             if (phases.active( Opm::Phase::GAS ))
             {
@@ -430,7 +430,7 @@ int main(int argc, char** argv)
             return Opm::flowEbosEnergyMain(argc, argv, outputCout, outputFiles);
         }
         // Blackoil case
-        else if( phases.size() == 3 ) {
+        else */ if( phases.size() == 3 ) {
             Opm::flowEbosBlackoilSetDeck(externalSetupTimer.elapsed(), *deck, *eclipseState, *schedule, *summaryConfig);
             return Opm::flowEbosBlackoilMain(argc, argv, outputCout, outputFiles);
         }

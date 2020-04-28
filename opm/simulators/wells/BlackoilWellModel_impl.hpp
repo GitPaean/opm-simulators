@@ -1230,7 +1230,7 @@ namespace Opm {
     computeWellPotentials(std::vector<double>& well_potentials, const int reportStepIdx, Opm::DeferredLogger& deferred_logger)
     {
         // number of wells and phases
-        const int nw = numLocalWells();
+       /* const int nw = numLocalWells();
         const int np = numPhases();
         well_potentials.resize(nw * np, 0.0);
 
@@ -1274,6 +1274,7 @@ namespace Opm {
 
         // Store it in the well state
         well_state_.wellPotentials() = well_potentials;
+        */
 
     }
 

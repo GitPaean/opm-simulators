@@ -616,7 +616,11 @@ namespace Opm
         duneB_.mv(x, Bx);
 
         // invDBx = duneD^-1 * Bx_
-        const BVectorWell invDBx = mswellhelpers::invDXDirect(duneD_, Bx);
+        bool found_nan;
+        const BVectorWell invDBx = mswellhelpers::invDXDirect(duneD_, Bx, found_nan);
+        if (found_nan) {
+            OPM_THROW(Opm::NumericalIssue, "nan or inf value found in invDXDirect due to singular matrix in apply(x, Ax) ");
+        }
 
         // Ax = Ax - duneC_^T * invDBx
         duneC_.mmtv(invDBx,Ax);
@@ -632,7 +636,11 @@ namespace Opm
     apply(BVector& r) const
     {
         // invDrw_ = duneD^-1 * resWell_
-        const BVectorWell invDrw = mswellhelpers::invDXDirect(duneD_, resWell_);
+        bool found_nan;
+        const BVectorWell invDrw = mswellhelpers::invDXDirect(duneD_, resWell_, found_nan);
+        if (found_nan) {
+            OPM_THROW(Opm::NumericalIssue, "nan or inf value found in invDXDirect due to singular matrix in apply(r) ");
+        }
         // r = r - duneC_^T * invDrw
         duneC_.mmtv(invDrw, r);
     }
@@ -932,7 +940,11 @@ namespace Opm
         // resWell = resWell - B * x
         duneB_.mmv(x, resWell);
         // xw = D^-1 * resWell
-        xw = mswellhelpers::invDXDirect(duneD_, resWell);
+        bool found_nan;
+        xw = mswellhelpers::invDXDirect(duneD_, resWell, found_nan);
+        if (found_nan) {
+            OPM_THROW(Opm::NumericalIssue, "nan or inf value found in invDXDirect due to singular matrix in recoverSolutionWell");
+        }
     }
 
 
@@ -946,7 +958,12 @@ namespace Opm
     {
         // We assemble the well equations, then we check the convergence,
         // which is why we do not put the assembleWellEq here.
-        const BVectorWell dx_well = mswellhelpers::invDXDirect(duneD_, resWell_);
+        bool found_nan;
+        const BVectorWell dx_well = mswellhelpers::invDXDirect(duneD_, resWell_, found_nan);
+        if (found_nan) {
+            OPM_THROW(Opm::NumericalIssue, "nan or inf value found in invDXDirect due to singular matrix in solveEqAndUpdateWellState");
+        }
+
 
         updateWellState(dx_well, well_state, deferred_logger);
     }
@@ -1589,7 +1606,6 @@ namespace Opm
             // calculate the average viscosity
             for (int comp_idx = 0; comp_idx < num_components_; ++comp_idx) {
                 const EvalWell fraction =  mix[comp_idx] / b[comp_idx] / volrat;
-                // TODO: a little more work needs to be done to handle the negative fractions here
                 segment_phase_fractions_[seg][comp_idx] = fraction; // >= 0.0 ? fraction : 0.0;
                 segment_viscosities_[seg] += visc[comp_idx] * segment_phase_fractions_[seg][comp_idx];
             }
@@ -2408,6 +2424,8 @@ namespace Opm
         pressure_equation -= getHydroPressureLoss(seg);
 
         if (frictionalPressureLossConsidered()) {
+//            const EvalWell friction_force = getFrictionPressureLoss(seg);
+//            pressure_equation -= friction_force;
             pressure_equation -= getFrictionPressureLoss(seg);
         }
 
@@ -2462,6 +2480,10 @@ namespace Opm
         const double diameter = segmentSet()[seg].internalDiameter();
 
         const double sign = mass_rate < 0. ? 1.0 : - 1.0;
+
+        if (sign < 0.) {
+            std::cout << " well " << name() << " sign changed for seg " << seg << " during getFrictionPressureLoss " << std::endl;
+        }
 
         return sign * mswellhelpers::frictionPressureLoss(length, diameter, area, roughness, density, mass_rate, visc);
     }
@@ -2723,7 +2745,12 @@ namespace Opm
 
             assembleWellEqWithoutIteration(ebosSimulator, dt, inj_controls, prod_controls, well_state, deferred_logger);
 
-            const BVectorWell dx_well = mswellhelpers::invDXDirect(duneD_, resWell_);
+            bool found_nan;
+            const BVectorWell dx_well = mswellhelpers::invDXDirect(duneD_, resWell_, found_nan);
+
+            if (found_nan) {
+                OPM_THROW(Opm::NumericalIssue, "nan or inf value found in invDXDirect due to singular matrix in iterateWellEquations ");
+            }
 
 
             const auto report = getWellConvergence(well_state, B_avg, deferred_logger);
@@ -4066,6 +4093,10 @@ namespace Opm
         const double strength = sicd.strength();
 
         const double sign = reservoir_rate_icd <= 0. ? 1.0 : -1.0;
+
+        if (sign < 0.) {
+            std::cout << " sign changed for well " << name() << " seg " << seg << " during pressureDropSpiralICD " << std::endl;
+        }
 
         return sign * temp_value1 * temp_value2 * strength * reservoir_rate_icd * reservoir_rate_icd;
     }

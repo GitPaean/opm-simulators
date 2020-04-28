@@ -39,8 +39,9 @@ namespace mswellhelpers
     // obtain y = D^-1 * x with a direct solver
     template <typename MatrixType, typename VectorType>
     VectorType
-    invDXDirect(const MatrixType& D, VectorType x)
+    invDXDirect(const MatrixType& D, VectorType x, bool& found_nan)
     {
+        found_nan = false;
 #if HAVE_UMFPACK
         VectorType y(x.size());
         y = 0.;
@@ -55,10 +56,10 @@ namespace mswellhelpers
 
         // Checking if there is any inf or nan in y
         // it will be the solution before we find a way to catch the singularity of the matrix
-        for (size_t i_block = 0; i_block < y.size(); ++i_block) {
-            for (size_t i_elem = 0; i_elem < y[i_block].size(); ++i_elem) {
+        for (size_t i_block = 0; i_block < y.size() && !found_nan; ++i_block) {
+            for (size_t i_elem = 0; i_elem < y[i_block].size() && !found_nan; ++i_elem) {
                 if (std::isinf(y[i_block][i_elem]) || std::isnan(y[i_block][i_elem]) ) {
-                    OPM_THROW(Opm::NumericalIssue, "nan or inf value found in invDXDirect due to singular matrix");
+                    found_nan = true;
                 }
             }
         }
