@@ -228,6 +228,17 @@ opm_add_test(flow_blackoil
   flow/flow_ebos_blackoil.cpp)
 target_compile_definitions(flow_blackoil PRIVATE "FLOW_BLACKOIL_ONLY")
 
+opm_add_test(flow_sequential
+  ONLY_COMPILE
+  ALWAYS_ENABLE
+  DEFAULT_ENABLE_IF ${FLOW_BLACKOIL_ONLY_DEFAULT_ENABLE_IF}
+  DEPENDS "opmsimulators"
+  LIBRARIES "opmsimulators"
+  SOURCES
+  flow/flow_sequential.cpp
+  flow/flow_seq.cpp)
+# target_compile_definitions(flow_sequential)
+
 if (NOT BUILD_FLOW_VARIANTS)
   set(FLOW_VARIANTS_DEFAULT_ENABLE_IF "FALSE")
 else()
