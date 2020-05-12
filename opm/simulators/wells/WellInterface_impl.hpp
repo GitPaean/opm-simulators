@@ -1846,9 +1846,13 @@ namespace Opm
         const auto& pu = phaseUsage();
         const double efficiencyFactor = well_ecl_.getEfficiencyFactor();
 
+        const double day = 86400.;
+
         switch (current) {
         case Well::InjectorCMode::RATE: {
             control_eq = injection_rate - controls.surface_rate;
+            std::cout << " well " << name() << " injection_rate " << injection_rate.value() * day
+                      << " rate_target " << controls.surface_rate * day << std::endl;
             break;
         }
         case Well::InjectorCMode::RESV: {
@@ -1875,6 +1879,8 @@ namespace Opm
             }
 
             control_eq = coeff * injection_rate - controls.reservoir_rate;
+            std::cout << " well " << name() << " coeff " << coeff << " injection_rate " << injection_rate.value() * day
+                      << " rate_target " << controls.reservoir_rate * day << std::endl;
             break;
         }
         case Well::InjectorCMode::THP: {
@@ -1924,17 +1930,20 @@ namespace Opm
         const Well::ProducerCMode& current = well_state.currentProductionControls()[index_of_well_];
         const auto& pu = phaseUsage();
         const double efficiencyFactor = well_ecl_.getEfficiencyFactor();
+        const double day = 86400.;
 
         switch (current) {
         case Well::ProducerCMode::ORAT: {
             assert(FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx));
             const EvalWell rate = -rates[BlackoilPhases::Liquid];
+            std::cout << " well " << name() << " rate " << rate.value() * day << " oil target " << controls.oil_rate * day << std::endl;
             control_eq = rate - controls.oil_rate;
             break;
         }
         case Well::ProducerCMode::WRAT: {
             assert(FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx));
             const EvalWell rate = -rates[BlackoilPhases::Aqua];
+            std::cout << " well " << name() << " rate " << rate.value() * day << " water target " << controls.water_rate * day << std::endl;
             control_eq = rate - controls.water_rate;
             break;
         }
@@ -1942,6 +1951,7 @@ namespace Opm
             assert(FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx));
             const EvalWell rate = -rates[BlackoilPhases::Vapour];
             control_eq = rate - controls.gas_rate;
+            std::cout << " well " << name() << " rate " << rate.value() * day << " gas target " << controls.gas_rate * day << std::endl;
             break;
         }
         case Well::ProducerCMode::LRAT: {
@@ -2036,6 +2046,8 @@ namespace Opm
                                                      EvalWell& control_eq,
                                                      double efficiencyFactor)
     {
+        const double day = 86400.;
+
         const auto& well = well_ecl_;
         const auto pu = phaseUsage();
 
@@ -2131,6 +2143,8 @@ namespace Opm
             double coeff = convert_coeff[phasePos];
             double target = std::max(0.0, (groupcontrols.resv_max_rate/coeff - groupTargetReduction)) / efficiencyFactor;
             control_eq = injection_rate - fraction * target;
+            std::cout << " well " << name() << " injection_rate " << injection_rate.value() * day
+                      << " fraction " << fraction << " target " << target * day << std::endl;
             break;
         }
         case Group::InjectionCMode::REIN:
@@ -2265,22 +2279,29 @@ namespace Opm
         };
 
         const double orig_target = tcalc.groupTarget(group.productionControls(summaryState));
+        std::cout << " orig_target " << orig_target * 86400. << std::endl;
         const auto chain = WellGroupHelpers::groupChainTopBot(name(), group.name(), schedule, current_step_);
         // Because 'name' is the last of the elements, and not an ancestor, we subtract one below.
         const size_t num_ancestors = chain.size() - 1;
+        std::cout << " num_ancestors " << num_ancestors << std::endl;
         double target = orig_target;
         for (size_t ii = 0; ii < num_ancestors; ++ii) {
             if ((ii == 0) || guide_rate_->has(chain[ii])) {
                 // Apply local reductions only at the control level
                 // (top) and for levels where we have a specified
                 // group guide rate.
+                const double local_reduction = localReduction(chain[ii]);
+                std::cout << " chain[ii] " << chain[ii]  << " target " << target * 86400. << " local reduction " << local_reduction * 86400. << std::endl;
                 target -= localReduction(chain[ii]);
             }
+            std::cout << " chain[ii+1] " << chain[ii+1] <<  " target " << target * 86400. << " local fraction " << localFraction(chain[ii+1]) << std::endl;
             target *= localFraction(chain[ii+1]);
         }
         // Avoid negative target rates coming from too large local reductions.
         const double target_rate = std::max(0.0, target / efficiencyFactor);
         const auto current_rate = -tcalc.calcModeRateFromRates(rates); // Switch sign since 'rates' are negative for producers.
+        std::cout << " well " << name() << " current_rate " << current_rate.value() * 86400. 
+                  << " target_rate " << target_rate * 86400. << std::endl;
         control_eq = current_rate - target_rate;
     }
 

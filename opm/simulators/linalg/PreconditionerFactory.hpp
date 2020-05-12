@@ -251,7 +251,8 @@ private:
         doAddCreator("amg", [](const O& op, const P& prm, const std::function<Vector()>&, const C& comm) {
             const std::string smoother = prm.get<std::string>("smoother", "ParOverILU0");
             if (smoother == "ILU0" || smoother == "ParOverILU0") {
-                using Smoother = Opm::ParallelOverlappingILU0<M, V, V, C>;
+                // using Smoother = Opm::ParallelOverlappingILU0<M, V, V, C>;
+                using Smoother = Dune::BlockPreconditioner<V, V, C, Dune::SeqILU0<M, V, V>>;
                 auto crit = amgCriterion(prm);
                 auto sargs = amgSmootherArgs<Smoother>(prm);
                 return std::make_shared<Dune::Amg::AMGCPR<O, V, Smoother, C>>(op, crit, sargs, comm);
