@@ -522,7 +522,7 @@ namespace Opm
         const auto inj_controls = well_ecl_.isInjector() ? well_ecl_.injectionControls(summary_state) : Well::InjectionControls(0);
         const auto prod_controls = well_ecl_.isProducer() ? well_ecl_.productionControls(summary_state) : Well::ProductionControls(0);
         if (use_inner_iterations) {
-            Base::solveWellEqUntilConverged(ebosSimulator, B_avg, well_state, deferred_logger);
+            Base::iterateWellEquations(ebosSimulator, B_avg, dt, inj_controls, prod_controls, well_state, deferred_logger);
         }
         assembleWellEqWithoutIteration(ebosSimulator, B_avg, dt, inj_controls, prod_controls, well_state, deferred_logger);
     }
@@ -2473,7 +2473,11 @@ namespace Opm
         }
         well_state_copy.bhp()[index_of_well_] = bhp;
 
-        bool converged = this->solveWellEqUntilConverged(ebosSimulator, B_avg, well_state_copy, deferred_logger);
+        const double dt = ebosSimulator.timeStepSize();
+        const auto& summary_state = ebosSimulator.vanguard().summaryState();
+        const auto inj_controls = well_ecl_.isInjector() ? well_ecl_.injectionControls(summary_state) : Well::InjectionControls(0);
+        const auto prod_controls = well_ecl_.isProducer() ? well_ecl_.productionControls(summary_state) : Well::ProductionControls(0);
+        bool converged = this->iterateWellEquations(ebosSimulator, B_avg, dt, inj_controls, prod_controls, well_state_copy, deferred_logger);
 
         if (!converged) {
             const std::string msg = " well " + name() + " did not get converged during well potential calculations "
@@ -3024,7 +3028,11 @@ namespace Opm
 
         calculateExplicitQuantities(ebos_simulator, well_state_copy, deferred_logger);
 
-        const bool converged = this->solveWellEqUntilConverged(ebos_simulator, B_avg, well_state_copy, deferred_logger);
+        const double dt = ebos_simulator.timeStepSize();
+        const auto& summary_state = ebos_simulator.vanguard().summaryState();
+        const auto inj_controls = well_ecl_.isInjector() ? well_ecl_.injectionControls(summary_state) : Well::InjectionControls(0);
+        const auto prod_controls = well_ecl_.isProducer() ? well_ecl_.productionControls(summary_state) : Well::ProductionControls(0);
+        const bool converged = this->iterateWellEquations(ebos_simulator, B_avg, dt, inj_controls, prod_controls, well_state_copy, deferred_logger);
 
         if (!converged) {
             const std::string msg = " well " + name() + " did not get converged during well testing for physical reason";

@@ -1283,18 +1283,20 @@ namespace Opm
 
     template<typename TypeTag>
     bool
-    WellInterface<TypeTag>::
-    solveWellEqUntilConverged(const Simulator& ebosSimulator,
-                              const std::vector<double>& B_avg,
-                              WellState& well_state,
-                              Opm::DeferredLogger& deferred_logger)
+    WellInterface<TypeTag>::iterateWellEquations(const Simulator& ebosSimulator,
+                                                 const std::vector<double>& B_avg,
+                                                 const double dt,
+                                                 const Well::InjectionControls& inj_controls,
+                                                 const Well::ProductionControls& prod_controls,
+                                                 WellState& well_state,
+                                                 Opm::DeferredLogger& deferred_logger)
     {
         const int max_iter = param_.max_welleq_iter_;
         int it = 0;
-        const double dt = ebosSimulator.timeStepSize();
-        const auto& summary_state = ebosSimulator.vanguard().summaryState();
-        const auto inj_controls = well_ecl_.isInjector() ? well_ecl_.injectionControls(summary_state) : Well::InjectionControls(0);
-        const auto prod_controls = well_ecl_.isProducer() ? well_ecl_.productionControls(summary_state) : Well::ProductionControls(0);
+        // const double dt = ebosSimulator.timeStepSize();
+        // const auto& summary_state = ebosSimulator.vanguard().summaryState();
+        // const auto inj_controls = well_ecl_.isInjector() ? well_ecl_.injectionControls(summary_state) : Well::InjectionControls(0);
+        // const auto prod_controls = well_ecl_.isProducer() ? well_ecl_.productionControls(summary_state) : Well::ProductionControls(0);
         bool converged;
         do {
             assembleWellEqWithoutIteration(ebosSimulator, B_avg, dt, inj_controls, prod_controls, well_state, deferred_logger);
@@ -1367,7 +1369,11 @@ namespace Opm
     {
         // keep a copy of the original well state
         const WellState well_state0 = well_state;
-        const bool converged = solveWellEqUntilConverged(ebosSimulator, B_avg, well_state, deferred_logger);
+        const double dt = ebosSimulator.timeStepSize();
+        const auto& summary_state = ebosSimulator.vanguard().summaryState();
+        const auto inj_controls = well_ecl_.isInjector() ? well_ecl_.injectionControls(summary_state) : Well::InjectionControls(0);
+        const auto prod_controls = well_ecl_.isProducer() ? well_ecl_.productionControls(summary_state) : Well::ProductionControls(0);
+        const bool converged = iterateWellEquations(ebosSimulator, B_avg, dt, inj_controls, prod_controls, well_state, deferred_logger);
         if (converged) {
             deferred_logger.debug("WellTest: Well equation for well " + name() +  " converged");
         } else {

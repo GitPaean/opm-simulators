@@ -2356,7 +2356,7 @@ namespace Opm
 
 
     template<typename TypeTag>
-    void
+    bool
     MultisegmentWell<TypeTag>::
     iterateWellEquations(const Simulator& ebosSimulator,
                          const std::vector<Scalar>& B_avg,
@@ -2416,7 +2416,7 @@ namespace Opm
                             converged = true;
                             sstr << " well " << name() << " manages to get converged with relaxed tolerances in " << it << " inner iterations";
                             deferred_logger.debug(sstr.str());
-                            return;
+                            return converged;
                         }
                     }
                 }
@@ -2461,6 +2461,8 @@ namespace Opm
             }
             deferred_logger.debug(sstr.str());
         }
+
+        return converged;
     }
 
 
