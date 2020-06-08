@@ -461,13 +461,13 @@ namespace Opm
                                                     Opm::DeferredLogger& deferred_logger) = 0;
 
         // iterate well equations with the specified control until converged
-        bool iterateWellEquations(const Simulator& ebosSimulator,
+        virtual bool iterateWellEquations(const Simulator& ebosSimulator,
                                   const std::vector<double>& B_avg,
                                   const double dt,
                                   const Well::InjectionControls& inj_controls,
                                   const Well::ProductionControls& prod_controls,
                                   WellState& well_state,
-                                  Opm::DeferredLogger& deferred_logger);// = 0;
+                                  Opm::DeferredLogger& deferred_logger) = 0;
 
         void updateWellTestStateEconomic(const WellState& well_state,
                                          const double simulation_time,

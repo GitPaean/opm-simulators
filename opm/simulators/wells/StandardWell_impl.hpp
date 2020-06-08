@@ -522,7 +522,7 @@ namespace Opm
         const auto inj_controls = well_ecl_.isInjector() ? well_ecl_.injectionControls(summary_state) : Well::InjectionControls(0);
         const auto prod_controls = well_ecl_.isProducer() ? well_ecl_.productionControls(summary_state) : Well::ProductionControls(0);
         if (use_inner_iterations) {
-            Base::iterateWellEquations(ebosSimulator, B_avg, dt, inj_controls, prod_controls, well_state, deferred_logger);
+            this->iterateWellEquations(ebosSimulator, B_avg, dt, inj_controls, prod_controls, well_state, deferred_logger);
         }
         assembleWellEqWithoutIteration(ebosSimulator, B_avg, dt, inj_controls, prod_controls, well_state, deferred_logger);
     }
@@ -3796,6 +3796,49 @@ namespace Opm
             return std::optional<double>();
         }
 
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    bool
+    StandardWell<TypeTag>::
+    iterateWellEquations(const Simulator& ebosSimulator,
+                         const std::vector<double>& B_avg,
+                         const double dt,
+                         const Well::InjectionControls& inj_controls,
+                         const Well::ProductionControls& prod_controls,
+                         WellState& well_state,
+                         Opm::DeferredLogger& deferred_logger)
+    {
+        const int max_iter = param_.max_welleq_iter_;
+        int it = 0;
+        // const double dt = ebosSimulator.timeStepSize();
+        // const auto& summary_state = ebosSimulator.vanguard().summaryState();
+        // const auto inj_controls = well_ecl_.isInjector() ? well_ecl_.injectionControls(summary_state) : Well::InjectionControls(0);
+        // const auto prod_controls = well_ecl_.isProducer() ? well_ecl_.productionControls(summary_state) : Well::ProductionControls(0);
+        bool converged;
+        do {
+            assembleWellEqWithoutIteration(ebosSimulator, B_avg, dt, inj_controls, prod_controls, well_state, deferred_logger);
+
+            auto report = getWellConvergence(well_state, B_avg, deferred_logger);
+
+            converged = report.converged();
+            if (converged) {
+                break;
+            }
+
+            ++it;
+            solveEqAndUpdateWellState(well_state, deferred_logger);
+
+            // We don't allow for switching well controls while computing well potentials and testing wells
+            // updateWellControl(ebosSimulator, well_state, deferred_logger);
+            initPrimaryVariablesEvaluation();
+        } while (it < max_iter);
+
+        return converged;
     }
 
 
