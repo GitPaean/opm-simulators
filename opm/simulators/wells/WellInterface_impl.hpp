@@ -1331,7 +1331,8 @@ namespace Opm
         const auto& summary_state = ebosSimulator.vanguard().summaryState();
         const auto inj_controls = well_ecl_.isInjector() ? well_ecl_.injectionControls(summary_state) : Well::InjectionControls(0);
         const auto prod_controls = well_ecl_.isProducer() ? well_ecl_.productionControls(summary_state) : Well::ProductionControls(0);
-        const bool converged = iterateWellEquations(ebosSimulator, B_avg, dt, inj_controls, prod_controls, well_state, deferred_logger);
+        const bool converged = iterateWellEqWithControl(ebosSimulator, B_avg, dt, inj_controls, prod_controls,
+                                                        well_state, deferred_logger);
         if (converged) {
             deferred_logger.debug("WellTest: Well equation for well " + name() +  " converged");
         } else {

@@ -261,7 +261,7 @@ namespace Opm
         const bool use_inner_iterations = param_.use_inner_iterations_ms_wells_;
         if (use_inner_iterations) {
 
-            iterateWellEquations(ebosSimulator, B_avg, dt, inj_controls, prod_controls, well_state, deferred_logger);
+            iterateWellEqWithControl(ebosSimulator, B_avg, dt, inj_controls, prod_controls, well_state, deferred_logger);
         }
 
         assembleWellEqWithoutIteration(ebosSimulator, B_avg, dt, inj_controls, prod_controls, well_state, deferred_logger);
@@ -846,7 +846,8 @@ namespace Opm
         well_copy.calculateExplicitQuantities(ebosSimulator, well_state_copy, deferred_logger);
         const double dt = ebosSimulator.timeStepSize();
         // iterate to get a solution at the given bhp.
-        well_copy.iterateWellEquations(ebosSimulator, B_avg, dt, inj_controls, prod_controls, well_state_copy, deferred_logger);
+        well_copy.iterateWellEqWithControl(ebosSimulator, B_avg, dt, inj_controls, prod_controls, well_state_copy,
+                                           deferred_logger);
 
         // compute the potential and store in the flux vector.
         well_flux.clear();
@@ -2358,13 +2359,13 @@ namespace Opm
     template<typename TypeTag>
     bool
     MultisegmentWell<TypeTag>::
-    iterateWellEquations(const Simulator& ebosSimulator,
-                         const std::vector<Scalar>& B_avg,
-                         const double dt,
-                         const Well::InjectionControls& inj_controls,
-                         const Well::ProductionControls& prod_controls,
-                         WellState& well_state,
-                         Opm::DeferredLogger& deferred_logger)
+    iterateWellEqWithControl(const Simulator& ebosSimulator,
+                             const std::vector<Scalar>& B_avg,
+                             const double dt,
+                             const Well::InjectionControls& inj_controls,
+                             const Well::ProductionControls& prod_controls,
+                             WellState& well_state,
+                             Opm::DeferredLogger& deferred_logger)
     {
         const int max_iter_number = param_.max_inner_iter_ms_wells_;
         const WellState well_state0 = well_state;
