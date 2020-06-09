@@ -263,7 +263,7 @@ namespace Opm
         const auto& summary_state = ebosSimulator.vanguard().summaryState();
         const auto inj_controls = well_ecl_.isInjector() ? well_ecl_.injectionControls(summary_state) : Well::InjectionControls(0);
         const auto prod_controls = well_ecl_.isProducer() ? well_ecl_.productionControls(summary_state) : Well::ProductionControls(0);
-        assembleWellEqWithoutIteration(ebosSimulator, B_avg, dt, inj_controls, prod_controls, well_state, deferred_logger);
+        assembleWellEqWithoutIteration(ebosSimulator, dt, inj_controls, prod_controls, well_state, deferred_logger);
     }
 
 
@@ -2380,7 +2380,7 @@ namespace Opm
         bool relax_convergence = false;
         for (; it < max_iter_number; ++it, ++debug_cost_counter_) {
 
-            assembleWellEqWithoutIteration(ebosSimulator, B_avg, dt, inj_controls, prod_controls, well_state, deferred_logger);
+            assembleWellEqWithoutIteration(ebosSimulator, dt, inj_controls, prod_controls, well_state, deferred_logger);
 
             const BVectorWell dx_well = mswellhelpers::invDXDirect(duneD_, resWell_);
 
@@ -2473,7 +2473,6 @@ namespace Opm
     void
     MultisegmentWell<TypeTag>::
     assembleWellEqWithoutIteration(const Simulator& ebosSimulator,
-                                   const std::vector<Scalar>& /* B_avg */,
                                    const double dt,
                                    const Well::InjectionControls& inj_controls,
                                    const Well::ProductionControls& prod_controls,
