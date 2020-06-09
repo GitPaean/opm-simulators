@@ -469,6 +469,12 @@ namespace Opm
                                               WellState& well_state,
                                               Opm::DeferredLogger& deferred_logger) = 0;
 
+        bool iterateWellEquations(const Simulator& ebosSimulator,
+                                  const std::vector<double>& B_avg,
+                                  const double dt,
+                                  WellState& well_state,
+                                  Opm::DeferredLogger& deferred_logger);
+
         void updateWellTestStateEconomic(const WellState& well_state,
                                          const double simulation_time,
                                          const bool write_message_to_opmlog,
