@@ -270,6 +270,7 @@ opm_add_test(flow_blackoil_dunecpr_noflex
   ONLY_COMPILE
   DEFAULT_ENABLE_IF ${FLOW_VARIANTS_DEFAULT_ENABLE_IF}
   SOURCES flow/flow_blackoil_dunecpr_noflex.cpp
+  $<TARGET_OBJECTS:moduleVersion>
   EXE_NAME flow_blackoil_dunecpr_noflex
   DEPENDS "opmsimulators"
   LIBRARIES "opmsimulators")
@@ -278,6 +279,7 @@ opm_add_test(flow_blackoil_dunecpr_seq
   ONLY_COMPILE
   DEFAULT_ENABLE_IF ${FLOW_VARIANTS_DEFAULT_ENABLE_IF}
   SOURCES flow/flow_blackoil_dunecpr_seq.cpp
+  $<TARGET_OBJECTS:moduleVersion>
   EXE_NAME flow_blackoil_dunecpr_seq
   DEPENDS "opmsimulators"
   LIBRARIES "opmsimulators")
