@@ -209,7 +209,12 @@ template Dune::FlexibleSolver<OBM<n>, BV<n>>::FlexibleSolver(const MatrixType& m
                                                              const boost::property_tree::ptree& prm,          \
                                                              const std::function<BV<n>()>& weightsCalculator);
 #else
-#define INSTANTIATE_FLEXIBLESOLVER_CONSTRUCTOR(n)
+using Comm = Dune::Amg::SequentialInformation;
+#define INSTANTIATE_FLEXIBLESOLVER_CONSTRUCTOR(n) \
+template Dune::FlexibleSolver<BM<n>, BV<n>>::FlexibleSolver(const MatrixType& matrix,                        \
+                                                            const Comm& comm,                                \
+                                                            const boost::property_tree::ptree& prm,          \
+                                                            const std::function<BV<n>()>& weightsCalculator);
 #endif
 
 // INSTANTIATE instantiates the class including any templated constructors if necessary.
