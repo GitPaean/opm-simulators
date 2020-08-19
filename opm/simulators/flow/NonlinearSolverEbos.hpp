@@ -210,7 +210,7 @@ namespace Opm {
                     model_->ebosSimulator().model().linearizer().setLinearizationType(linearizationType);                   
                     model_->updateSolution();                    
                     std::vector<double> residual_norms;
-                    auto asreport = model_->assembleReservoir(timer, seqiterations);
+                    model_->assembleReservoir(timer, seqiterations);
                     auto convrep = model_->getConvergence(timer, seqiterations,residual_norms);
                     converged = convrep.converged();
                 }else{
