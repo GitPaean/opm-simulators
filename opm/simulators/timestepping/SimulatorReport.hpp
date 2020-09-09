@@ -35,6 +35,9 @@ namespace Opm
         double solver_time;
         double assemble_time;
         double assemble_time_well;
+        double update_well_control_time;
+        double communication_time_well;
+        double communication_well_rate_time;
         double linear_solve_setup_time;
         double linear_solve_time;
         double update_time;

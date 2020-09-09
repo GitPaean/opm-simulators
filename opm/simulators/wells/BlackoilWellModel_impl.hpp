@@ -1184,6 +1184,8 @@ namespace Opm {
     BlackoilWellModel<TypeTag>::
     updateWellControls(Opm::DeferredLogger& deferred_logger, const bool checkGroupControls)
     {
+        Dune::Timer perfTimer;
+        perfTimer.start();
         // Even if there are no wells active locally, we cannot
         // return as the DeferredLogger uses global communication.
         // For no well active globally we simply return.
@@ -1224,6 +1226,7 @@ namespace Opm {
         }
         updateAndCommunicateGroupData();
 
+        last_report_.update_well_control_time+= perfTimer.stop();
     }
 
 
@@ -1235,6 +1238,8 @@ namespace Opm {
     BlackoilWellModel<TypeTag>::
     updateAndCommunicateGroupData()
     {
+        Dune::Timer perfTimer;
+        perfTimer.start();
         const int reportStepIdx = ebosSimulator_.episodeIndex();
         const Group& fieldGroup = schedule().getGroup("FIELD", reportStepIdx);
         const int nupcol = schedule().getNupcol(reportStepIdx);
@@ -1271,11 +1276,16 @@ namespace Opm {
 
         // We use the rates from the privious time-step to reduce oscilations
         WellGroupHelpers::updateWellRates(fieldGroup, schedule(), reportStepIdx, previous_well_state_, well_state_);
-        well_state_.communicateGroupRates(comm);
+        {
+            Dune::Timer perfTimer2;
+            perfTimer2.start();
+            well_state_.communicateGroupRates(comm);
+            last_report_.communication_well_rate_time += perfTimer2.stop();
+        }
 
         // compute wsolvent fraction for REIN wells
         updateWsolvent(fieldGroup, schedule(), reportStepIdx,  well_state_nupcol_);
-
+        last_report_.communication_time_well+= perfTimer.stop();
     }
 
 

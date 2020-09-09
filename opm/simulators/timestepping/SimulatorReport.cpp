@@ -36,6 +36,9 @@ namespace Opm
           solver_time(0.0),
           assemble_time(0.0),
           assemble_time_well(0.0),
+          update_well_control_time(0.0),
+          communication_time_well(0.0),
+          communication_well_rate_time(0.0),
           linear_solve_setup_time(0.0),
           linear_solve_time(0.0),
           update_time(0.0),
@@ -60,6 +63,9 @@ namespace Opm
         solver_time += sr.solver_time;
         assemble_time += sr.assemble_time;
         assemble_time_well += sr.assemble_time_well;
+        update_well_control_time += sr.update_well_control_time;
+        communication_time_well += sr.communication_time_well;
+        communication_well_rate_time += sr.communication_well_rate_time;
         update_time += sr.update_time;
         output_write_time += sr.output_write_time;
         total_time += sr.total_time;
@@ -111,6 +117,30 @@ namespace Opm
             }
             os << std::endl;
 
+            t = update_well_control_time + (failureReport ? failureReport->update_well_control_time: 0.0);
+            os << "     Update well control time (seconds): " << t;
+            if (failureReport) {
+                os << " (Failed: " << failureReport->update_well_control_time << "; "
+                   << 100*failureReport->update_well_control_time/t << "%)";
+            }
+            os << std::endl;
+
+            t = communication_time_well + (failureReport ? failureReport->communication_time_well: 0.0);
+            os << "       Communication time well (seconds): " << t;
+            if (failureReport) {
+                os << " (Failed: " << failureReport->communication_time_well << "; "
+                   << 100*failureReport->communication_time_well/t << "%)";
+            }
+            os << std::endl;
+
+            t = communication_well_rate_time + (failureReport ? failureReport->communication_well_rate_time: 0.0);
+            os << "         Communication well rates time (seconds): " << t;
+            if (failureReport) {
+                os << " (Failed: " << failureReport->communication_well_rate_time<< "; "
+                   << 100*failureReport->communication_well_rate_time/t << "%)";
+            }
+            os << std::endl;
+
             t = linear_solve_time + (failureReport ? failureReport->linear_solve_time : 0.0);
             os << " Linear solve time (seconds): " << t;
             if (failureReport) {
@@ -141,7 +171,7 @@ namespace Opm
 
         }
 
-        int n = total_well_iterations + (failureReport ? failureReport->total_well_iterations : 0);
+        unsigned int n = total_well_iterations + (failureReport ? failureReport->total_well_iterations : 0);
         os << "Overall Well Iterations:      " << n;
         if (failureReport) {
             os << " (Failed: " << failureReport->total_well_iterations << "; "
