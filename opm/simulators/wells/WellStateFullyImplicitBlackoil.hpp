@@ -1039,6 +1039,128 @@ namespace Opm
             return globalIsProductionGrup_[it->second];
         }
 
+        void output(const Schedule& schedule, const int reportStepIdx) const {
+            std::cout << " outputting the well state !" << std::endl;
+            const int np = numPhases();
+            for (const auto& well : schedule.getWells(reportStepIdx)) {
+                if (well.isInjector())
+                    continue;
+                const auto it = wellMap().find(well.name());
+                if (it == wellMap().end()) {
+                    std::cout << " could not find well " << well.name() << std::endl;
+                    continue;
+                }
+                const int w = it->second[0];
+                const auto& current_control = current_production_controls_[w];
+                if (current_control != Well::ProducerCMode::GRUP)
+                    continue;
+
+                std::cout << " well " << well.name() << " is under " << Well::ProducerCMode2String(current_control)
+                    << " control " << std::endl;
+
+                std::cout << " outputting the well state for well " << well.name() << std::endl;
+                std::cout << " bhp " << bhp()[w] / 1.e5;
+                std::cout << " well rates ";
+                for (int p = 0; p < np; ++p) {
+                    std::cout << wellRates()[np*w + p] * 86400. << " ";
+                }
+                std::cout << std::endl;
+            }
+            for (const auto& well : schedule.getWells(reportStepIdx)) {
+                if (well.isInjector())
+                    continue;
+                const auto it = wellMap().find(well.name());
+                if (it == wellMap().end()) {
+                    std::cout << " could not find well " << well.name() << std::endl;
+                    continue;
+                }
+                const int w = it->second[0];
+                const auto& current_control = current_production_controls_[w];
+                if (current_control == Well::ProducerCMode::GRUP)
+                    continue;
+
+                std::cout << " well " << well.name() << " is under " << Well::ProducerCMode2String(current_control)
+                          << " control " << std::endl;
+
+                std::cout << " outputting the well state for well " << well.name() << std::endl;
+                std::cout << " bhp " << bhp()[w] / 1.e5;
+                std::cout << " well rates ";
+                for (int p = 0; p < np; ++p) {
+                    std::cout << wellRates()[np*w + p] * 86400. << " ";
+                }
+                std::cout << std::endl;
+            }
+
+            for (const auto& well : schedule.getWells(reportStepIdx)) {
+                if (!well.isInjector())
+                    continue;
+                std::cout << " outputting the well state for well " << well.name() << std::endl;
+                const auto it = wellMap().find(well.name());
+
+                if (it == wellMap().end()) {
+                    std::cout << " could not find well " << well.name() << std::endl;
+                    continue;
+                }
+
+                const int w = it->second[0];
+                const auto& current_control = current_injection_controls_[w];
+
+                std::cout << " well " << well.name() << " is under " << Well::InjectorCMode2String(current_control)
+                          << " control " << std::endl;
+
+                std::cout << " bhp " << bhp()[w] / 1.e5;
+                std::cout << " well rates ";
+                for (int p = 0; p < np; ++p) {
+                    std::cout << wellRates()[np*w + p] * 86400. << " ";
+                }
+                std::cout << std::endl;
+            }
+
+                /* std::cout << " well " << well.name() << " is under "
+                if (well.isInjector()) {
+                    const auto& current_control = current_injection_controls_[w];
+                    switch (current_control) {
+                    case Opm::Well::InjectorCMode::
+                    }
+                } else { // producer
+                    const auto& current_control = current_production_controls_[w];
+                }
+                std::cout << " control " << std::endl; */
+
+                /* std::cout << " perforation phase rates " << std::endl;
+                for (int perf = 0; perf < num_perf_this_well; ++perf) {
+                    const int perf_index = perf + first_perf;
+                    for (int p = 0; p < np; ++p) {
+                        std::cout << "  " << perfPhaseRates()[np * perf_index + p] * 86400.;
+                    }
+                    std::cout << std::endl;
+                } */
+
+                /* if (!top_segment_index_.empty()) {
+                    const int first_seg = top_segment_index_[w];
+                    int nseg;
+                    if (w < nw - 1 ) {
+                        nseg = top_segment_index_[w+1] - top_segment_index_[w];
+                    } else {
+                        nseg = nseg_ - top_segment_index_[w];
+                    }
+                    std::cout << " output the segment rates " << std::endl;
+                    for (int seg = 0;  seg < nseg; ++seg) {
+                        const int seg_index = first_seg + seg;
+                        for (int p = 0; p < np; ++p) {
+                            std::cout << "  " << segRates()[np * seg_index + p] * 86400.;
+                        }
+                        std::cout << std::endl;
+                    }
+                    std::cout << " output the segment pressure " << std::endl;
+                    for (int seg = 0; seg < nseg; ++seg) {
+                        const int seg_index = first_seg + seg;
+                        std::cout << " " << segPress()[seg_index] / 1.e5 << std::endl;
+                    }
+                } */
+        }
+
+
     private:
         std::vector<double> perfphaserates_;
         std::vector<Opm::Well::InjectorCMode> current_injection_controls_;

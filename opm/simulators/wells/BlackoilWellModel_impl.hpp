@@ -865,6 +865,8 @@ namespace Opm {
     BlackoilWellModel<TypeTag>::
     assembleWellEq(const std::vector<Scalar>& B_avg, const double dt, Opm::DeferredLogger& deferred_logger)
     {
+        const int reportStepIdx = ebosSimulator_.episodeIndex();
+        well_state_.output(schedule(), reportStepIdx);
         for (auto& well : well_container_) {
             well->assembleWellEq(ebosSimulator_, B_avg, dt, well_state_, deferred_logger);
         }
@@ -1223,6 +1225,9 @@ namespace Opm {
     {
         const int reportStepIdx = ebosSimulator_.episodeIndex();
         const Group& fieldGroup = schedule().getGroup("FIELD", reportStepIdx);
+
+        well_state_.output(schedule(), reportStepIdx);
+
         const int nupcol = schedule().getNupcol(reportStepIdx);
         const int iterationIdx = ebosSimulator_.model().newtonMethod().numIterations();
 

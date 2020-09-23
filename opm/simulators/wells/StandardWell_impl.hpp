@@ -939,15 +939,43 @@ namespace Opm
     updatePrimaryVariablesNewton(const BVectorWell& dwells,
                                  const WellState& /* well_state */) const
     {
+        std::cout << " updatePrimaryVariablesNewton for well " << this->name() << std::endl;
         const double dFLimit = param_.dwell_fraction_max_;
 
         const std::vector<double> old_primary_variables = primary_variables_;
+
+        std::cout << " old_primary_variables ";
+        for (int i = 0; i < 4; ++i) {
+            const double value = old_primary_variables[i];
+            if (i == 0) {
+                std::cout << "   " << value * 86400.;
+            } else if (i == 3) {
+                std::cout << "   " << value / 1.e5;
+            } else {
+                std::cout << "   " << value;
+            }
+        }
+        std::cout << std::endl;
+
+        std::cout << " the dwells            ";
+        for (int i = 0; i < 4; ++i) {
+            const double value = dwells[0][i];
+            if (i == 0) {
+                std::cout << "   " << value * 86400.;
+            } else if (i == 3) {
+                std::cout << "   " << value / 1.e5;
+            } else {
+                std::cout << "   " << value;
+            }
+        }
+        std::cout << std::endl;
 
         // for injectors, very typical one of the fractions will be one, and it is easy to get zero value
         // fractions. not sure what is the best way to handle it yet, so we just use 1.0 here
         const double relaxation_factor_fractions = (this->isProducer()) ?
                                          relaxationFactorFractionsProducer(old_primary_variables, dwells)
                                        : 1.0;
+        std::cout << " relaxation_factor_fractions " << relaxation_factor_fractions << std::endl;
 
         // update the second and third well variable (The flux fractions)
         if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
@@ -985,6 +1013,19 @@ namespace Opm
         }
 
         updateExtraPrimaryVariables(dwells);
+
+        std::cout << " new_primary_variables ";
+        for (int i = 0; i < 4; ++i) {
+            const double value = primary_variables_[i];
+            if (i == 0) {
+                std::cout << "   " << value * 86400.;
+            } else if (i == 3) {
+                std::cout << "   " << value / 1.e5;
+            } else {
+                std::cout << "   " << value;
+            }
+        }
+        std::cout << std::endl;
 
 #ifndef NDEBUG
         for (double v : primary_variables_) {
