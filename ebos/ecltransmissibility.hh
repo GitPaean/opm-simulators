@@ -42,7 +42,6 @@
 
 #include <opm/grid/CpGrid.hpp>
 
-#include <opm/material/common/Exceptions.hpp>
 #include <opm/material/common/ConditionalStorage.hpp>
 
 #include <dune/grid/common/mcmgmapper.hh>
@@ -66,14 +65,14 @@ namespace Opm {
 template <class TypeTag>
 class EclTransmissibility
 {
-    typedef typename GET_PROP_TYPE(TypeTag, Grid) Grid;
-    typedef typename GET_PROP_TYPE(TypeTag, GridView) GridView;
-    typedef typename GET_PROP_TYPE(TypeTag, Scalar) Scalar;
-    typedef typename GET_PROP_TYPE(TypeTag, Vanguard) Vanguard;
-    typedef typename GET_PROP_TYPE(TypeTag, ElementMapper) ElementMapper;
-    typedef typename GridView::Intersection Intersection;
+    using Grid = GetPropType<TypeTag, Properties::Grid>;
+    using GridView = GetPropType<TypeTag, Properties::GridView>;
+    using Scalar = GetPropType<TypeTag, Properties::Scalar>;
+    using Vanguard = GetPropType<TypeTag, Properties::Vanguard>;
+    using ElementMapper = GetPropType<TypeTag, Properties::ElementMapper>;
+    using Intersection = typename GridView::Intersection;
 
-    static const bool enableEnergy = GET_PROP_VALUE(TypeTag, EnableEnergy);
+    static const bool enableEnergy = getPropValue<TypeTag, Properties::EnableEnergy>();
 
     // Grid and world dimension
     enum { dimWorld = GridView::dimensionworld };
@@ -273,13 +272,13 @@ public:
                         A * (n*d)/(d*d);
                 }
 
-                // we only need to calculate a face's transmissibility
-                // once...
-                if (elemIdx > outsideElemIdx)
-                    continue;
-
                 unsigned insideCartElemIdx = cartMapper.cartesianIndex(elemIdx);
                 unsigned outsideCartElemIdx = cartMapper.cartesianIndex(outsideElemIdx);
+
+                // we only need to calculate a face's transmissibility
+                // once...
+                if (insideCartElemIdx > outsideCartElemIdx)
+                    continue;
 
                 // local indices of the faces of the inside and
                 // outside elements which contain the intersection
@@ -345,11 +344,19 @@ public:
                 // for the inside ...
 
                 if (useSmallestMultiplier)
-                    applyAllZMultipliers_(trans, insideFaceIdx, insideCartElemIdx, outsideCartElemIdx, transMult, cartDims);
+                {
+                    // Currently PINCH(4) is never queries and hence  PINCH(4) == TOPBOT is assumed
+                    // and in this branch PINCH(5) == ALL holds
+                    applyAllZMultipliers_(trans, insideFaceIdx, outsideFaceIdx, insideCartElemIdx,
+                                          outsideCartElemIdx, transMult, cartDims,
+                                          /* pinchTop= */ false);
+                }
                 else
+                {
                     applyMultipliers_(trans, insideFaceIdx, insideCartElemIdx, transMult);
-                // ... and outside elements
-                applyMultipliers_(trans, outsideFaceIdx, outsideCartElemIdx, transMult);
+                    // ... and outside elements
+                    applyMultipliers_(trans, outsideFaceIdx, outsideCartElemIdx, transMult);
+                }
 
                 // apply the region multipliers (cf. the MULTREGT keyword)
                 Opm::FaceDir::DirEnum faceDir;
@@ -382,7 +389,7 @@ public:
         }
 
         // potentially overwrite and/or modify  transmissibilities based on input from deck
-        updateFromEclState_();
+        updateFromEclState_(global);
 
         // Create mapping from global to local index
         const size_t cartesianSize = cartMapper.cartesianSize();
@@ -465,46 +472,88 @@ private:
         }
     }
 
+    /// \brief Apply the Multipliers for the case PINCH(4)==TOPBOT
+    ///
+    /// \param pinchTop Whether PINCH(5) is TOP, otherwise ALL is assumed.
     void applyAllZMultipliers_(Scalar& trans,
                                unsigned insideFaceIdx,
+                               unsigned outsideFaceIdx,
                                unsigned insideCartElemIdx,
                                unsigned outsideCartElemIdx,
                                const Opm::TransMult& transMult,
-                               const std::array<int, dimWorld>& cartDims)
+                               const std::array<int, dimWorld>& cartDims,
+                               bool pinchTop)
     {
         if (insideFaceIdx > 3) { // top or or bottom
-            Scalar mult = 1e20;
-            unsigned cartElemIdx = insideCartElemIdx;
-            // pick the smallest multiplier while looking down the pillar untill reaching the other end of the connection
-            // for the inbetween cells we apply it from both sides
-            while (cartElemIdx != outsideCartElemIdx) {
-                if (insideFaceIdx == 4 || cartElemIdx !=insideCartElemIdx )
-                    mult = std::min(mult, transMult.getMultiplier(cartElemIdx, Opm::FaceDir::ZMinus));
-                if (insideFaceIdx == 5 || cartElemIdx !=insideCartElemIdx)
-                    mult = std::min(mult, transMult.getMultiplier(cartElemIdx, Opm::FaceDir::ZPlus));
+            assert(insideFaceIdx==5); // as insideCartElemIdx < outsideCartElemIdx holds for the Z column
+            assert(outsideCartElemIdx > insideCartElemIdx);
+            auto lastCartElemIdx = outsideCartElemIdx - cartDims[0]*cartDims[1];
+            // Last multiplier
+            Scalar mult = transMult.getMultiplier(lastCartElemIdx , Opm::FaceDir::ZPlus);
 
-                cartElemIdx += cartDims[0]*cartDims[1];
+            if ( !pinchTop )
+            {
+                // pick the smallest multiplier for Z+ while looking down the pillar until reaching the other end of the connection
+                // While Z- is not all used here.
+                for(auto cartElemIdx = insideCartElemIdx; cartElemIdx < lastCartElemIdx;
+                    cartElemIdx += cartDims[0]*cartDims[1])
+                {
+                    mult = std::min(mult, transMult.getMultiplier(cartElemIdx, Opm::FaceDir::ZPlus));
+                }
             }
+
             trans *= mult;
+            applyMultipliers_(trans, outsideFaceIdx, outsideCartElemIdx, transMult);
         }
         else
+        {
             applyMultipliers_(trans, insideFaceIdx, insideCartElemIdx, transMult);
+            applyMultipliers_(trans, outsideFaceIdx, outsideCartElemIdx, transMult);
+        }
     }
 
-    void updateFromEclState_()
+    void updateFromEclState_(bool global)
+    {
+        const FieldPropsManager* fp =
+            (global) ? &(vanguard_.eclState().fieldProps()) :
+            &(vanguard_.eclState().globalFieldProps());
+
+        std::array<bool,3> is_tran {fp->tran_active("TRANX"),
+                                    fp->tran_active("TRANY"),
+                                    fp->tran_active("TRANZ")};
+
+        if( !(is_tran[0] ||is_tran[1] || is_tran[2]) )
+        {
+            // Skip unneeded expensive traversals
+            return;
+        }
+
+        std::array<std::string, 3> keywords {"TRANX", "TRANY", "TRANZ"};
+        std::array<std::vector<double>,3> trans = createTransmissibilityArrays(is_tran);
+        auto key = keywords.begin();
+        auto perform = is_tran.begin();
+
+        for (auto it = trans.begin(); it != trans.end(); ++it, ++key, ++perform)
+        {
+            if(perform)
+                fp->apply_tran(*key, *it);
+        }
+
+        resetTransmissibilityFromArrays(is_tran, trans);
+    }
+
+    /// \brief overwrites calculated transmissibilities
+    ///
+    /// \param is_tran Whether TRAN{XYZ} have been modified.
+    /// \param trans Arrays with modified transmissibilities TRAN{XYZ}
+    void resetTransmissibilityFromArrays(const std::array<bool,3>& is_tran,
+                                         const std::array<std::vector<double>,3>& trans)
     {
         const auto& gridView = vanguard_.gridView();
         const auto& cartMapper = vanguard_.cartesianIndexMapper();
         const auto& cartDims = cartMapper.cartesianDimensions();
         ElementMapper elemMapper(gridView, Dune::mcmgElementLayout());
 
-        const auto& fp = vanguard_.eclState().fieldProps();
-        const auto& inputTranxData = fp.get_double("TRANX");
-        const auto& inputTranyData = fp.get_double("TRANY");
-        const auto& inputTranzData = fp.get_double("TRANZ");
-        bool tranx_deckAssigned = false;                     // Ohh my ....
-        bool trany_deckAssigned = false;
-        bool tranz_deckAssigned = false;
         // compute the transmissibilities for all intersections
         auto elemIt = gridView.template begin</*codim=*/ 0>();
         const auto& elemEndIt = gridView.template end</*codim=*/ 0>();
@@ -519,44 +568,111 @@ private:
                 if (!intersection.neighbor())
                     continue; // intersection is on the domain boundary
 
+                // In the EclState TRANX[c1] is transmissibility in X+
+                // direction. Ordering of compressed (c1,c2) and cartesian index
+                // (gc1, gc2) is coherent (c1 < c2 <=> gc1 < gc2). This also
+                // holds for the global grid. While distributing changes the
+                // order of the local indices, the transmissibilities are still
+                // stored at the cell with the lower global cartesian index as
+                // the fieldprops are communicated by the grid.
                 unsigned c1 = elemMapper.index(intersection.inside());
                 unsigned c2 = elemMapper.index(intersection.outside());
-
-                if (c1 > c2)
+                int gc1 = cartMapper.cartesianIndex(c1);
+                int gc2 = cartMapper.cartesianIndex(c2);
+                if (gc1 > gc2)
                     continue; // we only need to handle each connection once, thank you.
 
                 auto isId = isId_(c1, c2);
 
-                int gc1 = std::min(cartMapper.cartesianIndex(c1), cartMapper.cartesianIndex(c2));
-                int gc2 = std::max(cartMapper.cartesianIndex(c1), cartMapper.cartesianIndex(c2));
-
                 if (gc2 - gc1 == 1 && cartDims[0] > 1) {
-                    if (tranx_deckAssigned)
+                    if (is_tran[0])
                         // set simulator internal transmissibilities to values from inputTranx
-                        trans_[isId] = inputTranxData[c1];
-                    else
-                        // Scale transmissibilities with scale factor from inputTranx
-                        trans_[isId] *= inputTranxData[c1];
+                        trans_[isId] = trans[0][c1];
                 }
                 else if (gc2 - gc1 == cartDims[0] && cartDims[1] > 1) {
-                    if (trany_deckAssigned)
+                    if (is_tran[1])
                         // set simulator internal transmissibilities to values from inputTrany
-                        trans_[isId] = inputTranyData[c1];
-                    else
-                        // Scale transmissibilities with scale factor from inputTrany
-                        trans_[isId] *= inputTranyData[c1];
+                        trans_[isId] = trans[1][c1];
                 }
                 else if (gc2 - gc1 == cartDims[0]*cartDims[1]) {
-                    if (tranz_deckAssigned)
+                    if (is_tran[2])
                         // set simulator internal transmissibilities to values from inputTranz
-                        trans_[isId] = inputTranzData[c1];
-                    else
-                        // Scale transmissibilities with scale factor from inputTranz
-                        trans_[isId] *= inputTranzData[c1];
+                        trans_[isId] = trans[2][c1];
                 }
                 //else.. We don't support modification of NNC at the moment.
             }
         }
+    }
+
+    /// \brief Creates TRANS{XYZ} arrays for modification by FieldProps data
+    ///
+    /// \param is_tran Whether TRAN{XYZ} will be modified. If entry is false the array will be empty
+    /// \returns an array of vector (TRANX, TRANY, TRANZ}
+    std::array<std::vector<double>,3>
+    createTransmissibilityArrays(const std::array<bool,3>& is_tran)
+    {
+        const auto& gridView = vanguard_.gridView();
+        const auto& cartMapper = vanguard_.cartesianIndexMapper();
+        const auto& cartDims = cartMapper.cartesianDimensions();
+        ElementMapper elemMapper(gridView, Dune::mcmgElementLayout());
+
+        auto numElem = vanguard_.gridView().size(/*codim=*/0);
+        std::array<std::vector<double>,3> trans =
+            { std::vector<double>(is_tran[0] ? numElem : 0, 0),
+              std::vector<double>(is_tran[1] ? numElem : 0, 0),
+              std::vector<double>(is_tran[2] ? numElem : 0, 0)};
+
+        // compute the transmissibilities for all intersections
+        auto elemIt = gridView.template begin</*codim=*/ 0>();
+        const auto& elemEndIt = gridView.template end</*codim=*/ 0>();
+
+        for (; elemIt != elemEndIt; ++elemIt) {
+            const auto& elem = *elemIt;
+            auto isIt = gridView.ibegin(elem);
+            const auto& isEndIt = gridView.iend(elem);
+            for (; isIt != isEndIt; ++ isIt) {
+                // store intersection, this might be costly
+                const auto& intersection = *isIt;
+                if (!intersection.neighbor())
+                    continue; // intersection is on the domain boundary
+
+                // In the EclState TRANX[c1] is transmissibility in X+
+                // direction. Ordering of compressed (c1,c2) and cartesian index
+                // (gc1, gc2) is coherent (c1 < c2 <=> gc1 < gc2). This also
+                // holds for the global grid. While distributing changes the
+                // order of the local indices, the transmissibilities are still
+                // stored at the cell with the lower global cartesian index as
+                // the fieldprops are communicated by the grid.
+                unsigned c1 = elemMapper.index(intersection.inside());
+                unsigned c2 = elemMapper.index(intersection.outside());
+                int gc1 = cartMapper.cartesianIndex(c1);
+                int gc2 = cartMapper.cartesianIndex(c2);
+
+                if (gc1 > gc2)
+                    continue; // we only need to handle each connection once, thank you.
+
+                auto isId = isId_(c1, c2);
+
+                if (gc2 - gc1 == 1 && cartDims[0] > 1) {
+                    if (is_tran[0])
+                        // set simulator internal transmissibilities to values from inputTranx
+                         trans[0][c1] = trans_[isId];
+                }
+                else if (gc2 - gc1 == cartDims[0] && cartDims[1] > 1) {
+                    if (is_tran[1])
+                        // set simulator internal transmissibilities to values from inputTrany
+                         trans[1][c1] = trans_[isId];
+                }
+                else if (gc2 - gc1 == cartDims[0]*cartDims[1]) {
+                    if (is_tran[2])
+                        // set simulator internal transmissibilities to values from inputTranz
+                         trans[2][c1] = trans_[isId];
+                }
+                //else.. We don't support modification of NNC at the moment.
+            }
+        }
+
+        return trans;
     }
 
 

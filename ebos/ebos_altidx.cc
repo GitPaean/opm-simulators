@@ -50,23 +50,29 @@ public:
 };
 }
 
-BEGIN_PROPERTIES
 
-NEW_TYPE_TAG(EbosAltIdxTypeTag, INHERITS_FROM(EbosTypeTag));
+namespace Opm::Properties {
+
+namespace TTag {
+struct EbosAltIdxTypeTag {
+    using InheritsFrom = std::tuple<EbosTypeTag>;
+};
+}
 
 // use a fluid system with different indices than the default
-SET_PROP(EbosAltIdxTypeTag, FluidSystem)
+template<class TypeTag>
+struct FluidSystem<TypeTag, TTag::EbosAltIdxTypeTag>
 {
-    typedef typename GET_PROP_TYPE(TypeTag, Scalar) Scalar;
+    using Scalar = GetPropType<TypeTag, Properties::Scalar>;
 
 public:
     typedef Opm::BlackOilFluidSystem<Scalar, Opm::EclAlternativeBlackOilIndexTraits> type;
 };
 
-END_PROPERTIES
+} // namespace Opm::Properties
 
 int main(int argc, char **argv)
 {
-    typedef TTAG(EbosAltIdxTypeTag) ProblemTypeTag;
+    using ProblemTypeTag = Opm::Properties::TTag::EbosAltIdxTypeTag;
     return Opm::startEbos<ProblemTypeTag>(argc, argv);
 }

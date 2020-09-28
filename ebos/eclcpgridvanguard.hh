@@ -47,16 +47,29 @@ template <class TypeTag>
 class EclCpGridVanguard;
 }
 
-BEGIN_PROPERTIES
+namespace Opm::Properties {
 
-NEW_TYPE_TAG(EclCpGridVanguard, INHERITS_FROM(EclBaseVanguard));
+namespace TTag {
+struct EclCpGridVanguard {
+    using InheritsFrom = std::tuple<EclBaseVanguard>;
+};
+}
 
 // declare the properties
-SET_TYPE_PROP(EclCpGridVanguard, Vanguard, Opm::EclCpGridVanguard<TypeTag>);
-SET_TYPE_PROP(EclCpGridVanguard, Grid, Dune::CpGrid);
-SET_TYPE_PROP(EclCpGridVanguard, EquilGrid, typename GET_PROP_TYPE(TypeTag, Grid));
+template<class TypeTag>
+struct Vanguard<TypeTag, TTag::EclCpGridVanguard> {
+    using type = Opm::EclCpGridVanguard<TypeTag>;
+};
+template<class TypeTag>
+struct Grid<TypeTag, TTag::EclCpGridVanguard> {
+    using type = Dune::CpGrid;
+};
+template<class TypeTag>
+struct EquilGrid<TypeTag, TTag::EclCpGridVanguard> {
+    using type = GetPropType<TypeTag, Properties::Grid>;
+};
 
-END_PROPERTIES
+} // namespace Opm::Properties
 
 namespace Opm {
 
@@ -73,14 +86,14 @@ class EclCpGridVanguard : public EclBaseVanguard<TypeTag>
     friend class EclBaseVanguard<TypeTag>;
     typedef EclBaseVanguard<TypeTag> ParentType;
 
-    typedef typename GET_PROP_TYPE(TypeTag, Scalar) Scalar;
-    typedef typename GET_PROP_TYPE(TypeTag, Simulator) Simulator;
-    typedef typename GET_PROP_TYPE(TypeTag, ElementMapper) ElementMapper;
+    using Scalar = GetPropType<TypeTag, Properties::Scalar>;
+    using Simulator = GetPropType<TypeTag, Properties::Simulator>;
+    using ElementMapper = GetPropType<TypeTag, Properties::ElementMapper>;
 
 public:
-    typedef typename GET_PROP_TYPE(TypeTag, Grid) Grid;
-    typedef typename GET_PROP_TYPE(TypeTag, EquilGrid) EquilGrid;
-    typedef typename GET_PROP_TYPE(TypeTag, GridView) GridView;
+    using Grid = GetPropType<TypeTag, Properties::Grid>;
+    using EquilGrid = GetPropType<TypeTag, Properties::EquilGrid>;
+    using GridView = GetPropType<TypeTag, Properties::GridView>;
 
 private:
     typedef Dune::CartesianIndexMapper<Grid> CartesianIndexMapper;
@@ -205,7 +218,7 @@ public:
 
                     PropsCentroidsDataHandle<Dune::CpGrid> handle(*grid_, eclState, eclGrid, this->centroids_,
                                                                   cartesianIndexMapper());
-                    defunctWellNames_ = std::get<1>(grid_->loadBalance(handle, edgeWeightsMethod, &wells, faceTrans.data(), ownersFirst));
+                    this->parallelWells_ = std::get<1>(grid_->loadBalance(handle, edgeWeightsMethod, &wells, faceTrans.data(), ownersFirst));
                 }
                 catch(const std::bad_cast& e)
                 {
@@ -282,9 +295,6 @@ public:
         return *equilCartesianIndexMapper_;
     }
 
-    std::unordered_set<std::string> defunctWellNames() const
-    { return defunctWellNames_; }
-
     const EclTransmissibility<TypeTag>& globalTransmissibility() const
     {
         assert( globalTrans_ != nullptr );
@@ -348,7 +358,6 @@ protected:
     std::unique_ptr<CartesianIndexMapper> equilCartesianIndexMapper_;
 
     std::unique_ptr<EclTransmissibility<TypeTag> > globalTrans_;
-    std::unordered_set<std::string> defunctWellNames_;
     int mpiRank;
 };
 
