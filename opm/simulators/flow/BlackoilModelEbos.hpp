@@ -158,6 +158,7 @@ namespace Opm {
 
         using Simulator = GetPropType<TypeTag, Properties::Simulator>;
         using Grid = GetPropType<TypeTag, Properties::Grid>;
+        using GridView = GetPropType<TypeTag, Properties::GridView>;
         using ElementContext = GetPropType<TypeTag, Properties::ElementContext>;
         using SparseMatrixAdapter = GetPropType<TypeTag, Properties::SparseMatrixAdapter>;
         using SolutionVector = GetPropType<TypeTag, Properties::SolutionVector>;
