@@ -242,16 +242,16 @@ opm_add_test(flow
   LIBRARIES opmsimulators
   SOURCES
   flow/flow.cpp
-  flow/flow_ebos_gasoil.cpp
+#  flow/flow_ebos_gasoil.cpp
   flow/flow_ebos_oilwater.cpp
-  flow/flow_ebos_polymer.cpp
-  flow/flow_ebos_foam.cpp
-  flow/flow_ebos_brine.cpp
-  flow/flow_ebos_oilwater_brine.cpp
-  flow/flow_ebos_solvent.cpp
-  flow/flow_ebos_energy.cpp
-  flow/flow_ebos_oilwater_polymer.cpp
-  flow/flow_ebos_oilwater_polymer_injectivity.cpp
+#  flow/flow_ebos_polymer.cpp
+#  flow/flow_ebos_foam.cpp
+#  flow/flow_ebos_brine.cpp
+#  flow/flow_ebos_oilwater_brine.cpp
+#  flow/flow_ebos_solvent.cpp
+#  flow/flow_ebos_energy.cpp
+#  flow/flow_ebos_oilwater_polymer.cpp
+#  flow/flow_ebos_oilwater_polymer_injectivity.cpp
   $<TARGET_OBJECTS:moduleVersion>
   $<TARGET_OBJECTS:flow_libblackoil>
   )

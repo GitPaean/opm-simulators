@@ -25,16 +25,16 @@
 #include <flow/flow_ebos_blackoil.hpp>
 
 # ifndef FLOW_BLACKOIL_ONLY
-#  include <flow/flow_ebos_gasoil.hpp>
+// #  include <flow/flow_ebos_gasoil.hpp>
 #  include <flow/flow_ebos_oilwater.hpp>
-#  include <flow/flow_ebos_solvent.hpp>
-#  include <flow/flow_ebos_polymer.hpp>
-#  include <flow/flow_ebos_foam.hpp>
-#  include <flow/flow_ebos_brine.hpp>
-#  include <flow/flow_ebos_oilwater_brine.hpp>
-#  include <flow/flow_ebos_energy.hpp>
-#  include <flow/flow_ebos_oilwater_polymer.hpp>
-#  include <flow/flow_ebos_oilwater_polymer_injectivity.hpp>
+// #  include <flow/flow_ebos_solvent.hpp>
+// #  include <flow/flow_ebos_polymer.hpp>
+// #  include <flow/flow_ebos_foam.hpp>
+// #  include <flow/flow_ebos_brine.hpp>
+// #  include <flow/flow_ebos_oilwater_brine.hpp>
+// #  include <flow/flow_ebos_energy.hpp>
+// #  include <flow/flow_ebos_oilwater_polymer.hpp>
+// #  include <flow/flow_ebos_oilwater_polymer_injectivity.hpp>
 # endif
 
 #include <opm/parser/eclipse/Deck/Deck.hpp>
@@ -207,13 +207,13 @@ namespace Opm
             // Twophase cases
             else if( phases.size() == 2 ) {
                 // oil-gas
-                if (phases.active( Opm::Phase::GAS )) {
+                /* if (phases.active( Opm::Phase::GAS )) {
                     Opm::flowEbosGasOilSetDeck(setupTime_, std::move(deck_), std::move(eclipseState_),
                                                std::move(schedule_), std::move(summaryConfig_));
                     return Opm::flowEbosGasOilMain(argc_, argv_, outputCout_, outputFiles_);
                 }
                 // oil-water
-                else if ( phases.active( Opm::Phase::WATER ) ) {
+                else */ if ( phases.active( Opm::Phase::WATER ) ) {
                     Opm::flowEbosOilWaterSetDeck(setupTime_, std::move(deck_), std::move(eclipseState_), std::move(schedule_), std::move(summaryConfig_));
                     return Opm::flowEbosOilWaterMain(argc_, argv_, outputCout_, outputFiles_);
                 }
@@ -222,7 +222,7 @@ namespace Opm
                         std::cerr << "No suitable configuration found, valid are Twophase (oilwater and oilgas), polymer, solvent, or blackoil" << std::endl;
                     return EXIT_FAILURE;
                 }
-            }
+            } /*
             // Polymer case
             else if ( phases.active( Opm::Phase::POLYMER ) ) {
                 if ( !phases.active( Opm::Phase::WATER) ) {
@@ -299,7 +299,7 @@ namespace Opm
                                            std::move(schedule_),
                                            std::move(summaryConfig_));
                 return Opm::flowEbosEnergyMain(argc_, argv_, outputCout_, outputFiles_);
-            }
+            } */
 #endif // FLOW_BLACKOIL_ONLY
             // Blackoil case
             else if( phases.size() == 3 ) {
