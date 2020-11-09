@@ -2261,6 +2261,7 @@ private:
         const auto& vanguard = simulator.vanguard();
         const auto& gridView = vanguard.gridView();
         const auto& elemMapper = this->elementMapper();;
+        const auto& ecl_state = vanguard.eclState();
 
         int numElements = gridView.size(/*codim=*/0);
         elementCenterDepth_.resize(numElements);
@@ -2272,6 +2273,15 @@ private:
             const unsigned int elemIdx = elemMapper.index(element);
 
             elementCenterDepth_[elemIdx] = cellCenterDepth(element);
+            if (ecl_state.aquifer().hasNumericalAquifer()) {
+                const auto& num_aquifer = ecl_state.aquifer().numericalAquifers();
+                const unsigned int global_index = vanguard.cartesianIndex(elemIdx);
+                if (num_aquifer.hasCell(global_index)) {
+                    const auto& cell = num_aquifer.aquiferCells().at(global_index);
+                    elementCenterDepth_[elemIdx] = cell.depth;
+                }
+            }
+
         }
     }
 
@@ -2694,6 +2704,13 @@ private:
             auto& elemFluidState = initialFluidStates_[elemIdx];
             elemFluidState.assign(equilInitializer.initialFluidState(elemIdx));
         }
+        const auto& aquifer_cells = simulator.vanguard().eclState().aquifer().numericalAquifers().aquiferCells();
+
+        const auto& vanguard = simulator.vanguard();
+        size_t numCartDof = vanguard.cartesianSize();
+        std::vector<int> cartesianToCompressedElemIdx(numCartDof, -1);
+        for (unsigned elemIdx = 0; elemIdx < numElems; ++elemIdx)
+            cartesianToCompressedElemIdx[vanguard.cartesianIndex(elemIdx)] = elemIdx;
     }
 
     void readEclRestartSolution_()
