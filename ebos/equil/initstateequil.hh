@@ -1709,8 +1709,9 @@ public:
         // EXTRACT the initial salt concentration
         updateInitialSaltConcentration_(eclipseState, eqlmap, grid);
 
+        const auto& num_aquifers = eclipseState.aquifer().numericalAquifers();
         // Compute pressures, saturations, rs and rv factors.
-        calcPressSatRsRv(eqlmap, rec, materialLawManager, grid, grav);
+        calcPressSatRsRv(eqlmap, rec, materialLawManager, grid, num_aquifers, grav);
 
         // Modify oil pressure in no-oil regions so that the pressures of present phases can
         // be recovered from the oil pressure and capillary relations.
@@ -1790,6 +1791,7 @@ private:
                           const std::vector< Opm::EquilRecord >& rec,
                           MaterialLawManager& materialLawManager,
                           const Grid& grid,
+                          const NumericalAquifers& aquifer,
                           const double grav)
     {
         using PhaseSat = Details::PhaseSaturations<
@@ -1824,7 +1826,7 @@ private:
             const auto acc = eqreg.equilibrationAccuracy();
             if (acc == 0) {
                 // Centre-point method
-                this->equilibrateCellCentres(cells, eqreg, grid, ptable, psat);
+                this->equilibrateCellCentres(cells, eqreg, grid, ptable, aquifer, psat);
             }
             else if (acc < 0) {
                 // Horizontal subdivision
@@ -1881,22 +1883,33 @@ private:
                                 const EquilReg&   eqreg,
                                 const Grid&       grid,
                                 const PressTable& ptable,
+                                const NumericalAquifers& aquifer,
                                 PhaseSat&         psat)
     {
         using CellPos = typename PhaseSat::Position;
         using CellID  = std::remove_cv_t<std::remove_reference_t<
             decltype(std::declval<CellPos>().cell)>>;
 
-        this->cellLoop(cells, [this, &eqreg, &grid, &ptable, &psat]
+        this->cellLoop(cells, [this, &eqreg, &grid, &ptable, &aquifer, &psat]
             (const CellID                 cell,
              Details::PhaseQuantityValue& pressures,
              Details::PhaseQuantityValue& saturations,
              double&                      Rs,
              double&                      Rv) -> void
         {
-            const auto pos = CellPos {
+            auto pos = CellPos {
                 cell, UgGridHelpers::cellCenterDepth(grid, cell)
             };
+
+            const size_t global_index = UgGridHelpers::globalCell(grid)[cell];
+
+            if (aquifer.hasCell(global_index)) {
+                const auto& aqu_cells = aquifer.aquiferCells();
+                const auto& aqu_cell = aqu_cells.at(global_index);
+                pos = CellPos {
+                    cell, aqu_cell.depth
+                };
+            }
 
             saturations = psat.deriveSaturations(pos, eqreg, ptable);
             pressures   = psat.correctedPhasePressures();
