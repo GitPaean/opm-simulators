@@ -34,6 +34,7 @@
 
 #include <opm/simulators/aquifers/AquiferCarterTracy.hpp>
 #include <opm/simulators/aquifers/AquiferFetkovich.hpp>
+#include <opm/simulators/aquifers/AquiferNumerical.hpp>
 
 #include <opm/material/densead/Math.hpp>
 
@@ -88,6 +89,7 @@ protected:
     // they share the base class
     mutable std::vector<AquiferCarterTracy_object> aquifers_CarterTracy;
     mutable std::vector<AquiferFetkovich_object> aquifers_Fetkovich;
+    std::vector<AquiferNumerical<TypeTag>> aquifers_numerical;
 
     // This initialization function is used to connect the parser objects with the ones needed by AquiferCarterTracy
     void init();
@@ -95,6 +97,7 @@ protected:
     bool aquiferActive() const;
     bool aquiferCarterTracyActive() const;
     bool aquiferFetkovichActive() const;
+    bool aquiferNumericalActive() const;
 };
 
 

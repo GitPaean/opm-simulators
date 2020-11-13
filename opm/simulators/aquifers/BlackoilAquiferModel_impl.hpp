@@ -19,6 +19,8 @@
 */
 
 #include <opm/grid/utility/cartesianToCompressed.hpp>
+#include "BlackoilAquiferModel.hpp"
+
 namespace Opm
 {
 
@@ -186,6 +188,12 @@ BlackoilAquiferModel<TypeTag>::init()
         aquifers_Fetkovich.emplace_back(connections[aq.aquiferID],
                                         cartesian_to_compressed_, this->simulator_, aq);
     }
+
+    if (aquifer.hasNumericalAquifer()) {
+        for (const auto& elem : aquifer.numericalAquifers().aquifers()) {
+            this->aquifers_numerical.emplace_back(elem.second);
+        }
+    }
 }
 template <typename TypeTag>
 bool
@@ -207,6 +215,13 @@ BlackoilAquiferModel<TypeTag>::aquiferFetkovichActive() const
 }
 
 template<typename TypeTag>
+bool
+BlackoilAquiferModel<TypeTag>::aquiferNumericalActive() const
+{
+    return !(this->aquifers_numerical.empty());
+}
+
+template<typename TypeTag>
 Opm::data::Aquifers BlackoilAquiferModel<TypeTag>::aquiferData() const {
     Opm::data::Aquifers data;
     if (this->aquiferCarterTracyActive()) {
@@ -222,6 +237,14 @@ Opm::data::Aquifers BlackoilAquiferModel<TypeTag>::aquiferData() const {
             data[aqu_data.aquiferID] = aqu_data;
         }
     }
+
+    if (this->aquiferNumericalActive()) {
+        for (const auto& aqu : this->aquifers_numerical) {
+            Opm::data::AquiferData aqu_data = aqu.aquiferData();
+            data[aqu_data.aquiferID] = aqu_data;
+        }
+    }
+
     return data;
 }
 } // namespace Opm
