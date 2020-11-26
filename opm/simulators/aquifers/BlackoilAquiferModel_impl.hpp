@@ -186,8 +186,9 @@ BlackoilAquiferModel<TypeTag>::init()
     const auto& ugrid = simulator_.vanguard().grid();
     const int number_of_cells = simulator_.gridView().size(0);
 
+    const int* global_cell = Opm::UgGridHelpers::globalCell(ugrid);
     cartesian_to_compressed_ = cartesianToCompressed(number_of_cells,
-                                                     Opm::UgGridHelpers::globalCell(ugrid));
+                                                     global_cell);
 
     const auto& connections = aquifer.connections();
     for (const auto& aq : aquifer.ct()) {
@@ -203,7 +204,7 @@ BlackoilAquiferModel<TypeTag>::init()
     if (aquifer.hasNumericalAquifer()) {
         for (const auto& elem : aquifer.numericalAquifers().aquifers()) {
             this->aquifers_numerical.emplace_back(elem.second,
-                              this->cartesian_to_compressed_, this->simulator_);
+                              this->cartesian_to_compressed_, this->simulator_, global_cell);
         }
     }
 }
