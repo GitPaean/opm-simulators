@@ -122,7 +122,120 @@ namespace Opm {
                                                  const SimulatorTimerInterface& timer,
                                                  NonlinearSolverType& nonlinear_solver)
         {
-            return base_model_.nonlinearIteration(iteration, timer, nonlinear_solver);
+            SimulatorReportSingle report;
+            failureReport_ = SimulatorReportSingle();
+            Dune::Timer perfTimer;
+
+            perfTimer.start();
+            if (iteration == 0) {
+                // For each iteration we store in a vector the norms of the residual of
+                // the mass balance for each active phase, the well flux and the well equations.
+                residual_norms_history_.clear();
+                current_relaxation_ = 1.0;
+                dx_old_ = 0.0;
+                convergence_reports_.push_back({timer.reportStepNum(), timer.currentStepNum(), {}});
+                convergence_reports_.back().report.reserve(11);
+            }
+
+            report.total_linearizations = 1;
+
+            try {
+                report += base_model_.assembleReservoir(timer, iteration);
+                report.assemble_time += perfTimer.stop();
+            }
+            catch (...) {
+                report.assemble_time += perfTimer.stop();
+                failureReport_ += report;
+                // todo (?): make the report an attribute of the class
+                throw; // continue throwing the stick
+            }
+
+            std::vector<double> residual_norms;
+            perfTimer.reset();
+            perfTimer.start();
+            // the step is not considered converged until at least minIter iterations is done
+            {
+                auto convrep = getConvergence(timer, iteration,residual_norms);
+                report.converged = convrep.converged()  && iteration > nonlinear_solver.minIter();;
+                ConvergenceReport::Severity severity = convrep.severityOfWorstFailure();
+                convergence_reports_.back().report.push_back(std::move(convrep));
+
+                // Throw if any NaN or too large residual found.
+                if (severity == ConvergenceReport::Severity::NotANumber) {
+                    OPM_THROW(Opm::NumericalIssue, "NaN residual found!");
+                } else if (severity == ConvergenceReport::Severity::TooLarge) {
+                    OPM_THROW(Opm::NumericalIssue, "Too large residual found!");
+                }
+            }
+            report.update_time += perfTimer.stop();
+            residual_norms_history_.push_back(residual_norms);
+            if (!report.converged) {
+                perfTimer.reset();
+                perfTimer.start();
+                report.total_newton_iterations = 1;
+
+                // enable single precision for solvers when dt is smaller then 20 days
+                //residual_.singlePrecision = (unit::convert::to(dt, unit::day) < 20.) ;
+
+                // Compute the nonlinear update.
+                const int nc = UgGridHelpers::numCells(grid_);
+                BVector x(nc);
+
+                // apply the Schur compliment of the well model to the reservoir linearized
+                // equations
+                wellModel().linearize(ebosSimulator().model().linearizer().jacobian(),
+                                      ebosSimulator().model().linearizer().residual());
+
+                // Solve the linear system.
+                linear_solve_setup_time_ = 0.0;
+                try {
+                    solveJacobianSystem(x);
+                    report.linear_solve_setup_time += linear_solve_setup_time_;
+                    report.linear_solve_time += perfTimer.stop();
+                    report.total_linear_iterations += linearIterationsLastSolve();
+                }
+                catch (...) {
+                    report.linear_solve_setup_time += linear_solve_setup_time_;
+                    report.linear_solve_time += perfTimer.stop();
+                    report.total_linear_iterations += linearIterationsLastSolve();
+
+                    failureReport_ += report;
+                    throw; // re-throw up
+                }
+
+                perfTimer.reset();
+                perfTimer.start();
+
+                // handling well state update before oscillation treatment is a decision based
+                // on observation to avoid some big performance degeneration under some circumstances.
+                // there is no theorectical explanation which way is better for sure.
+                wellModel().postSolve(x);
+
+                if (param_.use_update_stabilization_) {
+                    // Stabilize the nonlinear update.
+                    bool isOscillate = false;
+                    bool isStagnate = false;
+                    nonlinear_solver.detectOscillations(residual_norms_history_, iteration, isOscillate, isStagnate);
+                    if (isOscillate) {
+                        current_relaxation_ -= nonlinear_solver.relaxIncrement();
+                        current_relaxation_ = std::max(current_relaxation_, nonlinear_solver.relaxMax());
+                        if (terminalOutputEnabled()) {
+                            std::string msg = "    Oscillating behavior detected: Relaxation set to "
+                                    + std::to_string(current_relaxation_);
+                            OpmLog::info(msg);
+                        }
+                    }
+                    nonlinear_solver.stabilizeNonlinearUpdate(x, dx_old_, current_relaxation_);
+                }
+
+                // Apply the update, with considering model-dependent limitations and
+                // chopping of the update.
+                updateSolution(x);
+
+                report.update_time += perfTimer.stop();
+            }
+
+            return report;
         }
 
     private:
