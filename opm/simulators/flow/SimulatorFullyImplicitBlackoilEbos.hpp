@@ -23,7 +23,7 @@
 #define OPM_SIMULATORFULLYIMPLICITBLACKOILEBOS_HEADER_INCLUDED
 
 #include <opm/simulators/flow/NonlinearSolverEbos.hpp>
-#include <opm/simulators/flow/BlackoilModelAspin.hpp>
+#include <opm/simulators/flow/BlackoilModelEbos.hpp>
 #include <opm/simulators/flow/BlackoilModelParametersEbos.hpp>
 #include <opm/simulators/wells/WellStateFullyImplicitBlackoil.hpp>
 #include <opm/simulators/aquifers/BlackoilAquiferModel.hpp>
@@ -81,8 +81,7 @@ public:
     typedef BlackOilPolymerModule<TypeTag> PolymerModule;
 
     typedef WellStateFullyImplicitBlackoil WellState;
-    // typedef BlackoilModelEbos<TypeTag> Model;
-    typedef BlackoilModelAspin<TypeTag> Model;
+    typedef BlackoilModelEbos<TypeTag> Model;
     typedef NonlinearSolverEbos<TypeTag, Model> Solver;
     typedef typename Model::ModelParameters ModelParameters;
     typedef typename Solver::SolverParameters SolverParameters;
