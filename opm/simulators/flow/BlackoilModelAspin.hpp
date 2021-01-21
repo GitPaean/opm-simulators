@@ -43,19 +43,11 @@ namespace Opm {
         using BaseModel = BlackoilModelEbos<TypeTag>;
         using Simulator       = typename BaseModel::Simulator;
         using ModelParameters = typename BaseModel::ModelParameters;
+        using WellState       = typename BaseModel::WellState;
 
         // ---------  Public methods  ---------
 
-        /// Construct the model. It will retain references to the
-        /// arguments of this functions, and they are expected to
-        /// remain in scope for the lifetime of the solver.
-        /// \param[in] param            parameters
-        /// \param[in] grid             grid data structure
-        /// \param[in] wells            well structure
-        /// \param[in] vfp_properties   Vertical flow performance tables
-        /// \param[in] linsolver        linear solver
-        /// \param[in] eclState         eclipse state
-        /// \param[in] terminal_output  request output to cout/cerr
+        /// Construct the model.
         BlackoilModelAspin(Simulator& ebosSimulator,
                            const ModelParameters& param,
                            BlackoilWellModel<TypeTag>& well_model,
@@ -63,6 +55,76 @@ namespace Opm {
             : base_model_(ebosSimulator, param, well_model, terminal_output)
         {
         }
+
+        void beginReportStep()
+        {
+            base_model_.beginReportStep();
+        }
+
+        void endReportStep()
+        {
+            base_model_.endReportStep();
+        }
+
+        const auto& wellModel() const
+        {
+            return base_model_.wellModel();
+        }
+
+        auto& wellModel()
+        {
+            return base_model_.wellModel();
+        }
+
+        auto numPhases() const
+        {
+            return base_model_.numPhases();
+        }
+
+        Simulator& ebosSimulator()
+        {
+            return base_model_.ebosSimulator();
+        }
+
+        const auto& failureReport() const
+        {
+            return base_model_.failureReport();
+        }
+
+        const auto& stepReports() const
+        {
+            return base_model_.stepReports();
+        }
+
+        auto computeFluidInPlace(const std::vector<int>& fipnum) const
+        {
+            // TODO: this is weird, check it.
+            return base_model_.computeFluidInPlace(fipnum);
+        }
+
+        double relativeChange() const
+        {
+            return base_model_.relativeChange();
+        }
+
+        SimulatorReportSingle prepareStep(const SimulatorTimerInterface& timer)
+        {
+            return base_model_.prepareStep(timer);
+        }
+
+        SimulatorReportSingle afterStep(const SimulatorTimerInterface& timer)
+        {
+            return base_model_.afterStep(timer);
+        }
+
+        template <class NonlinearSolverType>
+        SimulatorReportSingle nonlinearIteration(const int iteration,
+                                                 const SimulatorTimerInterface& timer,
+                                                 NonlinearSolverType& nonlinear_solver)
+        {
+            return base_model_.nonlinearIteration(iteration, timer, nonlinear_solver);
+        }
+
     private:
         BaseModel base_model_;
     };
