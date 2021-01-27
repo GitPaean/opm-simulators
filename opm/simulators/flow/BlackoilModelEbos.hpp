@@ -457,25 +457,6 @@ namespace Opm {
             }
             report.total_linearizations = 1;
 
-            // -----------   Solve each ASPIN domain separately   -----------
-            for (const auto& domain : domains_) {
-                auto local_report = solveLocal(domain);
-                // This should have updated the global matrix to be
-                // dR_i/du_j evaluated at new local solutions for
-                // i == j, at old solution for i != j.
-                // Where is the solution written?
-            }
-
-            // -----------   Compute ASPIN residual, check convergence   -----------
-
-            // -----------   Solve global linear system   -----------
-
-            // -----------   Update solution   -----------
-
-
-
-
-
             // -----------   Assemble   -----------
             try {
                 report += assembleReservoir(timer, iteration);
@@ -509,18 +490,33 @@ namespace Opm {
             report.update_time += perfTimer.stop();
             residual_norms_history_.push_back(residual_norms);
 
-            // -----------   If not converged, solve linear system   -----------
+            // Take a copy of the FI residual.
+            auto fully_implicit_residual = ebosSimulator().model().linearizer().residual();
+
+            // -----------   If not converged, do an ASPIN iteration   -----------
             if (!report.converged) {
+
                 perfTimer.reset();
                 perfTimer.start();
                 report.total_newton_iterations = 1;
-
-                // enable single precision for solvers when dt is smaller then 20 days
-                //residual_.singlePrecision = (unit::convert::to(dt, unit::day) < 20.) ;
-
-                // Compute the nonlinear update.
                 const int nc = UgGridHelpers::numCells(grid_);
                 BVector x(nc);
+
+                // -----------   Solve each ASPIN domain separately   -----------
+                for (const auto& domain : domains_) {
+                    auto local_report = solveLocal(domain, timer);
+                    // This should have updated the global matrix to be
+                    // dR_i/du_j evaluated at new local solutions for
+                    // i == j, at old solution for i != j.
+                }
+
+                // -----------   Compute ASPIN residual, check convergence   -----------
+
+                // -----------   Solve global linear system   -----------
+
+                // -----------   Update solution   -----------
+
+                // Compute the nonlinear update.
 
                 // apply the Schur compliment of the well model to the reservoir linearized
                 // equations
@@ -582,9 +578,48 @@ namespace Opm {
 
 
 
-        SimulatorReportSingle solveLocal(const Domain& /*domain*/)
+        SimulatorReportSingle solveLocal(const Domain& domain,
+                                         const SimulatorTimerInterface& timer)
         {
             SimulatorReportSingle report;
+
+            // When called, assembly has already been performed
+            // with the initial values, we only need to check
+            // for local convergence.
+            std::vector<double> resnorms;
+            auto convreport = getLocalConvergence(domain, timer, 0, resnorms);
+            if (convreport.converged()) {
+                // TODO: set more info, timing etc.
+                report.converged = true;
+                return report;
+            }
+
+            // Local Newton loop.
+            const int max_iter = 10;
+            int iter = 0;
+            bool converged = false;
+            do {
+                // Solve local linear system.
+                // Note that x has full size, we expect it to be nonzero only for in-domain cells.
+                const int nc = UgGridHelpers::numCells(grid_);
+                BVector x(nc);
+                solveLocalJacobianSystem(domain, x);
+                wellModel().postSolve(x);
+
+                // Update local solution.
+                updateSolution(x);
+
+                ++iter;
+
+                // Assemble locally.
+                report += assembleReservoirLocal(domain, iter);
+
+                // Check for local convergence.
+                convreport = getLocalConvergence(domain, timer, iter, resnorms);
+            } while (!convreport.converged() && iter <= max_iter);
+
+            report.converged = convreport.converged();
+            // TODO: set more info, timing etc.
             return report;
         }
 
@@ -624,6 +659,23 @@ namespace Opm {
             ebosSimulator_.model().newtonMethod().setIterationIndex(iterationIdx);
             ebosSimulator_.problem().beginIteration();
             ebosSimulator_.model().linearizer().linearizeDomain();
+            ebosSimulator_.problem().endIteration();
+
+            return wellModel().lastReport();
+        }
+
+        /// Assemble the residual and Jacobian of the nonlinear system.
+        /// \param[in]      reservoir_state   reservoir state variables
+        /// \param[in, out] well_state        well state variables
+        /// \param[in]      initial_assembly  pass true if this is the first call to assemble() in this timestep
+        SimulatorReportSingle assembleReservoirLocal(const Domain& domain,
+                                                     const int iterationIdx)
+        {
+            // -------- Mass balance equations --------
+            ebosSimulator_.model().newtonMethod().setIterationIndex(iterationIdx);
+            ebosSimulator_.problem().beginIteration();
+            DomainGridView gv(ebosSimulator_.gridView(), domain);
+            ebosSimulator_.model().linearizer().linearizeDomain(gv);
             ebosSimulator_.problem().endIteration();
 
             return wellModel().lastReport();
@@ -718,6 +770,13 @@ namespace Opm {
         int linearIterationsLastSolve() const
         {
             return ebosSimulator_.model().newtonMethod().linearSolver().iterations ();
+        }
+
+
+        void solveLocalJacobianSystem(const Domain& /* domain */, BVector& x)
+        {
+            // TODO: make local.
+            solveJacobianSystem(x);
         }
 
         /// Solve the Jacobian system Jx = r where J is the Jacobian and
@@ -990,7 +1049,7 @@ namespace Opm {
             // max_strict_iter_ is 8. Hence only iteration chooses
             // whether to use relaxed or not.
             // To activate only fraction use fraction below 1 and iter 0.
-            const bool use_relaxed = cnvErrorPvFraction < param_.relaxed_max_pv_fraction_ && iteration >= param_.max_strict_iter_;                                              
+            const bool use_relaxed = cnvErrorPvFraction < param_.relaxed_max_pv_fraction_ && iteration >= param_.max_strict_iter_;
             const double tol_cnv = use_relaxed ? param_.tolerance_cnv_relaxed_ :  param_.tolerance_cnv_;
 
             // Finish computation
@@ -1103,6 +1162,15 @@ namespace Opm {
             }
 
             return report;
+        }
+
+        ConvergenceReport getLocalConvergence(const Domain& /*domain*/,
+                                              const SimulatorTimerInterface& timer,
+                                              const int iteration,
+                                              std::vector<double>& residual_norms)
+        {
+            // TODO: Make this a proper local convergence check.
+            return getConvergence(timer, iteration, residual_norms);
         }
 
         /// Compute convergence based on total mass balance (tol_mb) and maximum
