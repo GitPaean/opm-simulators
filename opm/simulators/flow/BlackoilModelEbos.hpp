@@ -36,7 +36,7 @@
 #include <opm/simulators/wells/WellConnectionAuxiliaryModule.hpp>
 #include <opm/simulators/flow/countGlobalCells.hpp>
 
-#include <opm/grid/UnstructuredGrid.h>
+#include <opm/grid/common/SubGridView.hpp>
 #include <opm/simulators/timestepping/SimulatorReport.hpp>
 #include <opm/simulators/linalg/ParallelIstlInformation.hpp>
 #include <opm/core/props/phaseUsageFromDeck.hpp>
@@ -217,9 +217,10 @@ namespace Opm {
             // compute global sum of number of cells
             global_nc_ = detail::countGlobalCells(grid_);
             convergence_reports_.reserve(300); // Often insufficient, but avoids frequent moves.
-            if (aspin_) {
+            // TODO: remember to fix!
+            //if (aspin_) {
                 setupAspinDomains();
-            }
+            //}
         }
 
 
@@ -655,12 +656,18 @@ namespace Opm {
         SimulatorReportSingle assembleReservoir(const SimulatorTimerInterface& /* timer */,
                                                 const int iterationIdx)
         {
+            /*
             // -------- Mass balance equations --------
             ebosSimulator_.model().newtonMethod().setIterationIndex(iterationIdx);
             ebosSimulator_.problem().beginIteration();
             ebosSimulator_.model().linearizer().linearizeDomain();
             ebosSimulator_.problem().endIteration();
+            */
 
+            ebosSimulator_.model().linearizer().resetSystem();
+            for (const auto& domain : domains_) {
+                assembleReservoirLocal(domain, iterationIdx);
+            }
             return wellModel().lastReport();
         }
 
@@ -674,7 +681,7 @@ namespace Opm {
             // -------- Mass balance equations --------
             ebosSimulator_.model().newtonMethod().setIterationIndex(iterationIdx);
             ebosSimulator_.problem().beginIteration();
-            DomainGridView gv(ebosSimulator_.gridView(), domain);
+            Dune::SubGridView<Grid> gv(ebosSimulator_.vanguard().grid(), domain);
             ebosSimulator_.model().linearizer().linearizeDomain(gv);
             ebosSimulator_.problem().endIteration();
 
