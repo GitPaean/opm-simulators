@@ -219,9 +219,9 @@ namespace Opm {
             global_nc_ = detail::countGlobalCells(grid_);
             convergence_reports_.reserve(300); // Often insufficient, but avoids frequent moves.
             // TODO: remember to fix!
-            //if (aspin_) {
+            if (param_.enable_aspin_) {
                 setupAspinDomains();
-            //}
+            }
         }
 
 
@@ -310,7 +310,7 @@ namespace Opm {
                                                  NonlinearSolverType& nonlinear_solver)
         {
             // -----------   Use ASPIN variant if requested   -----------
-            if (aspin_) {
+            if (param_.enable_aspin_) {
                 return nonlinearIterationAspin(iteration, timer, nonlinear_solver);
             }
 
@@ -585,6 +585,8 @@ namespace Opm {
         {
             SimulatorReportSingle report;
 
+            ebosSimulator_.model().newtonMethod().setIterationIndex(0);
+            ebosSimulator_.problem().beginIteration();
             // When called, assembly has already been performed
             // with the initial values, we only need to check
             // for local convergence.
@@ -610,8 +612,12 @@ namespace Opm {
 
                 // Update local solution.
                 updateSolution(x);
+                ebosSimulator_.problem().endIteration();
 
                 ++iter;
+
+                ebosSimulator_.model().newtonMethod().setIterationIndex(iter);
+                ebosSimulator_.problem().beginIteration();
 
                 // Assemble locally.
                 report += assembleReservoirLocal(domain, iter);
@@ -619,6 +625,8 @@ namespace Opm {
                 // Check for local convergence.
                 convreport = getLocalConvergence(domain, timer, iter, resnorms);
             } while (!convreport.converged() && iter <= max_iter);
+
+            ebosSimulator_.problem().endIteration();
 
             report.converged = convreport.converged();
             // TODO: set more info, timing etc.
@@ -657,18 +665,21 @@ namespace Opm {
         SimulatorReportSingle assembleReservoir(const SimulatorTimerInterface& /* timer */,
                                                 const int iterationIdx)
         {
-            /*
-            // -------- Mass balance equations --------
-            ebosSimulator_.model().newtonMethod().setIterationIndex(iterationIdx);
-            ebosSimulator_.problem().beginIteration();
-            ebosSimulator_.model().linearizer().linearizeDomain();
-            ebosSimulator_.problem().endIteration();
-            */
-
-            ebosSimulator_.model().linearizer().resetSystem();
-            for (const auto& domain : domains_) {
-                assembleReservoirLocal(domain, iterationIdx);
-            }
+            // TODO: Undo this temporary testing change.
+            // if (param_.enable_aspin_) {
+            //     ebosSimulator_.model().newtonMethod().setIterationIndex(iterationIdx);
+            //     ebosSimulator_.problem().beginIteration();
+            //     ebosSimulator_.model().linearizer().resetSystem();
+            //     for (const auto& domain : domains_) {
+            //         assembleReservoirLocal(domain, iterationIdx);
+            //     }
+            //     ebosSimulator_.problem().endIteration();
+            // } else {
+                ebosSimulator_.model().newtonMethod().setIterationIndex(iterationIdx);
+                ebosSimulator_.problem().beginIteration();
+                ebosSimulator_.model().linearizer().linearizeDomain();
+                ebosSimulator_.problem().endIteration();
+            // }
             return wellModel().lastReport();
         }
 
@@ -680,11 +691,11 @@ namespace Opm {
                                                      const int iterationIdx)
         {
             // -------- Mass balance equations --------
-            ebosSimulator_.model().newtonMethod().setIterationIndex(iterationIdx);
-            ebosSimulator_.problem().beginIteration();
+            // ebosSimulator_.model().newtonMethod().setIterationIndex(iterationIdx);
+            // ebosSimulator_.problem().beginIteration();
             Dune::SubGridView<Grid> gv(ebosSimulator_.vanguard().grid(), domain);
             ebosSimulator_.model().linearizer().linearizeDomain(gv);
-            ebosSimulator_.problem().endIteration();
+            // ebosSimulator_.problem().endIteration();
 
             return wellModel().lastReport();
         }
@@ -1276,7 +1287,6 @@ namespace Opm {
 
         std::vector<StepReport> convergence_reports_;
 
-        bool aspin_ = false;
         std::vector<Domain> domains_;
 
     public:
