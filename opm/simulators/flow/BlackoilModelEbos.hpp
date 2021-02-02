@@ -802,7 +802,7 @@ namespace Opm {
         void solveJacobianSystem(BVector& x)
         {
 
-            auto& ebosJac = ebosSimulator_.model().linearizer().jacobian();
+            auto& ebosJac = ebosSimulator_.model().linearizer().jacobian().istlMatrix();
             auto& ebosResid = ebosSimulator_.model().linearizer().residual();
 
             // set initial guess

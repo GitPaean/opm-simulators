@@ -192,7 +192,7 @@ namespace Opm
         void eraseMatrix() {
         }
 
-        void prepare(const SparseMatrixAdapter& M, Vector& b)
+        void prepare(const Matrix& M, Vector& b)
         {
             static bool firstcall = true;
 #if HAVE_MPI
@@ -200,7 +200,7 @@ namespace Opm
                 // Parallel case.
                 const ParallelISTLInformation* parinfo = std::any_cast<ParallelISTLInformation>(&parallelInformation_);
                 assert(parinfo);
-                const size_t size = M.istlMatrix().N();
+                const size_t size = M.N();
                 parinfo->copyValuesTo(comm_->indexSet(), comm_->remoteIndices(), size, 1);
             }
 #endif
@@ -210,12 +210,12 @@ namespace Opm
                 // ebos will not change the matrix object. Hence simply store a pointer
                 // to the original one with a deleter that does nothing.
                 // Outch! We need to be able to scale the linear system! Hence const_cast
-                matrix_ = const_cast<Matrix*>(&M.istlMatrix());
+                matrix_ = const_cast<Matrix*>(&M);
             } else {
                 // Pointers should not change
-                if ( &(M.istlMatrix()) != matrix_ ) {
+                if ( &(M) != matrix_ ) {
                         OPM_THROW(std::logic_error, "Matrix objects are expected to be reused when reassembling!"
-                                  <<" old pointer was " << matrix_ << ", new one is " << (&M.istlMatrix()) );
+                                  <<" old pointer was " << matrix_ << ", new one is " << (&M) );
                 }
             }
             rhs_ = &b;
@@ -236,8 +236,8 @@ namespace Opm
             b = *rhs_;
         }
 
-        void setMatrix(const SparseMatrixAdapter& /* M */) {
-            // matrix_ = &M.istlMatrix(); // Must be handled in prepare() instead.
+        void setMatrix(const Matrix& /* M */) {
+            // matrix_ = &M; // Must be handled in prepare() instead.
         }
 
         bool solve(Vector& x) {
