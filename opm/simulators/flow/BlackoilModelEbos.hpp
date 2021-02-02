@@ -35,6 +35,7 @@
 #include <opm/simulators/aquifers/BlackoilAquiferModel.hpp>
 #include <opm/simulators/wells/WellConnectionAuxiliaryModule.hpp>
 #include <opm/simulators/flow/countGlobalCells.hpp>
+#include <opm/simulators/linalg/extractMatrix.hpp>
 
 #include <opm/grid/common/SubGridView.hpp>
 #include <opm/simulators/timestepping/SimulatorReport.hpp>
@@ -791,10 +792,27 @@ namespace Opm {
         }
 
 
-        void solveLocalJacobianSystem(const Domain& /* domain */, BVector& x)
+        void solveLocalJacobianSystem(const Domain& domain, BVector& global_x)
         {
-            // TODO: make local.
-            solveJacobianSystem(x);
+            auto jac = Details::extractMatrix(ebosSimulator_.model().linearizer().jacobian().istlMatrix(), domain);
+            auto res = Details::extractVector(ebosSimulator_.model().linearizer().residual(), domain);
+            auto x = res;
+
+            // set initial guess
+            global_x = 0.0;
+            x = 0.0;
+
+            auto& ebosSolver = ebosSimulator_.model().newtonMethod().linearSolver();
+
+            Dune::Timer perfTimer;
+            perfTimer.start();
+            ebosSolver.prepare(jac, res);
+            linear_solve_setup_time_ = perfTimer.stop();
+            ebosSolver.setResidual(res);
+            ebosSolver.setMatrix(jac);
+            ebosSolver.solve(x);
+
+            Details::setGlobal(x, domain, global_x);
         }
 
         /// Solve the Jacobian system Jx = r where J is the Jacobian and
