@@ -247,6 +247,7 @@ list (APPEND PUBLIC_HEADER_FILES
   opm/simulators/linalg/PreconditionerWithUpdate.hpp
   opm/simulators/linalg/WellOperators.hpp
   opm/simulators/linalg/WriteSystemMatrixHelper.hpp
+  opm/simulators/linalg/extractMatrix.hpp
   opm/simulators/linalg/findOverlapRowsAndColumns.hpp
   opm/simulators/linalg/getQuasiImpesWeights.hpp
   opm/simulators/linalg/setupPropertyTree.hpp
