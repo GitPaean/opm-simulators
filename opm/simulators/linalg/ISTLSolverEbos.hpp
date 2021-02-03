@@ -194,7 +194,7 @@ namespace Opm
 
         void prepare(const Matrix& M, Vector& b)
         {
-            static bool firstcall = true;
+            const bool firstcall = (matrix_ == nullptr);
 #if HAVE_MPI
             if (firstcall && parallelInformation_.type() == typeid(ParallelISTLInformation)) {
                 // Parallel case.
@@ -224,7 +224,6 @@ namespace Opm
                 makeOverlapRowsInvalid(getMatrix());
             }
             prepareFlexibleSolver();
-            firstcall = false;
         }
 
 
