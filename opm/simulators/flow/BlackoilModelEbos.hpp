@@ -802,15 +802,18 @@ namespace Opm {
             global_x = 0.0;
             x = 0.0;
 
-            auto& ebosSolver = ebosSimulator_.model().newtonMethod().linearSolver();
+            // TODO: Inefficient to recreate all the time, and
+            // the constructor will make parallel structures appropriate
+            // for the full grid only.
+            ISTLSolverEbos<TypeTag> linsolver(ebosSimulator_);
 
             Dune::Timer perfTimer;
             perfTimer.start();
-            ebosSolver.prepare(jac, res);
+            linsolver.prepare(jac, res);
             linear_solve_setup_time_ = perfTimer.stop();
-            ebosSolver.setResidual(res);
-            ebosSolver.setMatrix(jac);
-            ebosSolver.solve(x);
+            linsolver.setResidual(res);
+            linsolver.setMatrix(jac);
+            linsolver.solve(x);
 
             Details::setGlobal(x, domain, global_x);
         }
