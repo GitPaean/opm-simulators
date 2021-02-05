@@ -506,10 +506,14 @@ namespace Opm {
 
                 // -----------   Solve each ASPIN domain separately   -----------
                 for (const auto& domain : domains_) {
-                    auto local_report = solveLocal(domain, timer);
+                    SimulatorReportSingle local_report = solveLocal(domain, timer);
                     // This should have updated the global matrix to be
                     // dR_i/du_j evaluated at new local solutions for
                     // i == j, at old solution for i != j.
+                    if (!local_report.converged) {
+                        // TODO: more proper treatment, including in parallel.
+                        OpmLog::debug("Convergence failure in ASPIN domain containing cell " + std::to_string(domain[0]));
+                    }
                 }
 
                 // -----------   Compute ASPIN residual, check convergence   -----------
@@ -599,7 +603,7 @@ namespace Opm {
             }
 
             // Local Newton loop.
-            const int max_iter = 10;
+            const int max_iter = 10;//EWOMS_GET_PARAM(TypeTag, int, FlowNewtonMaxIterations);;
             int iter = 0;
             bool converged = false;
             do {
@@ -621,6 +625,11 @@ namespace Opm {
 
                 // Assemble locally.
                 report += assembleReservoirLocal(domain, iter);
+                // apply the Schur compliment of the well model to the reservoir linearized
+                // equations
+                // TODO: this does work for all wells, not just this domain.
+                wellModel().linearize(ebosSimulator().model().linearizer().jacobian(),
+                                      ebosSimulator().model().linearizer().residual());
 
                 // Check for local convergence.
                 convreport = getLocalConvergence(domain, timer, iter, resnorms);
@@ -1030,6 +1039,121 @@ namespace Opm {
             return pvSumLocal;
         }
 
+
+        // Get reservoir quantities on this process needed for convergence calculations.
+        double localDomainConvergenceData(const Domain& domain,
+                                          std::vector<Scalar>& R_sum,
+                                          std::vector<Scalar>& maxCoeff,
+                                          std::vector<Scalar>& B_avg)
+        {
+            double pvSumLocal = 0.0;
+            const auto& ebosModel = ebosSimulator_.model();
+            const auto& ebosProblem = ebosSimulator_.problem();
+
+            const auto& ebosResid = ebosSimulator_.model().linearizer().residual();
+
+            ElementContext elemCtx(ebosSimulator_);
+            const auto& gridView = ebosSimulator().gridView();
+            const auto& elemEndIt = gridView.template end</*codim=*/0, Dune::Interior_Partition>();
+
+            for (auto elemIt = gridView.template begin</*codim=*/0, Dune::Interior_Partition>();
+                 elemIt != elemEndIt;
+                 ++elemIt)
+            {
+                const auto& elem = *elemIt;
+                elemCtx.updatePrimaryStencil(elem);
+                elemCtx.updatePrimaryIntensiveQuantities(/*timeIdx=*/0);
+                const unsigned cell_idx = elemCtx.globalSpaceIndex(/*spaceIdx=*/0, /*timeIdx=*/0);
+
+                // TODO: fix slow hack.
+                if (std::find(domain.begin(), domain.end(), cell_idx) == domain.end()) {
+                    continue;
+                }
+
+                const auto& intQuants = elemCtx.intensiveQuantities(/*spaceIdx=*/0, /*timeIdx=*/0);
+                const auto& fs = intQuants.fluidState();
+
+                const double pvValue = ebosProblem.referencePorosity(cell_idx, /*timeIdx=*/0) * ebosModel.dofTotalVolume( cell_idx );
+                pvSumLocal += pvValue;
+
+                for (unsigned phaseIdx = 0; phaseIdx < FluidSystem::numPhases; ++phaseIdx)
+                {
+                    if (!FluidSystem::phaseIsActive(phaseIdx)) {
+                        continue;
+                    }
+
+                    const unsigned compIdx = Indices::canonicalToActiveComponentIndex(FluidSystem::solventComponentIndex(phaseIdx));
+
+                    B_avg[ compIdx ] += 1.0 / fs.invB(phaseIdx).value();
+                    const auto R2 = ebosResid[cell_idx][compIdx];
+
+                    R_sum[ compIdx ] += R2;
+                    maxCoeff[ compIdx ] = std::max( maxCoeff[ compIdx ], std::abs( R2 ) / pvValue );
+                }
+
+                if constexpr (has_solvent_) {
+                    B_avg[ contiSolventEqIdx ] += 1.0 / intQuants.solventInverseFormationVolumeFactor().value();
+                    const auto R2 = ebosResid[cell_idx][contiSolventEqIdx];
+                    R_sum[ contiSolventEqIdx ] += R2;
+                    maxCoeff[ contiSolventEqIdx ] = std::max( maxCoeff[ contiSolventEqIdx ], std::abs( R2 ) / pvValue );
+                }
+                if constexpr (has_extbo_) {
+                    B_avg[ contiZfracEqIdx ] += 1.0 / fs.invB(FluidSystem::gasPhaseIdx).value();
+                    const auto R2 = ebosResid[cell_idx][contiZfracEqIdx];
+                    R_sum[ contiZfracEqIdx ] += R2;
+                    maxCoeff[ contiZfracEqIdx ] = std::max( maxCoeff[ contiZfracEqIdx ], std::abs( R2 ) / pvValue );
+                }
+                if constexpr (has_polymer_) {
+                    B_avg[ contiPolymerEqIdx ] += 1.0 / fs.invB(FluidSystem::waterPhaseIdx).value();
+                    const auto R2 = ebosResid[cell_idx][contiPolymerEqIdx];
+                    R_sum[ contiPolymerEqIdx ] += R2;
+                    maxCoeff[ contiPolymerEqIdx ] = std::max( maxCoeff[ contiPolymerEqIdx ], std::abs( R2 ) / pvValue );
+                }
+                if constexpr (has_foam_) {
+                    B_avg[ contiFoamEqIdx ] += 1.0 / fs.invB(FluidSystem::gasPhaseIdx).value();
+                    const auto R2 = ebosResid[cell_idx][contiFoamEqIdx];
+                    R_sum[ contiFoamEqIdx ] += R2;
+                    maxCoeff[ contiFoamEqIdx ] = std::max( maxCoeff[ contiFoamEqIdx ], std::abs( R2 ) / pvValue );
+                }
+                if constexpr (has_brine_) {
+                    B_avg[ contiBrineEqIdx ] += 1.0 / fs.invB(FluidSystem::waterPhaseIdx).value();
+                    const auto R2 = ebosResid[cell_idx][contiBrineEqIdx];
+                    R_sum[ contiBrineEqIdx ] += R2;
+                    maxCoeff[ contiBrineEqIdx ] = std::max( maxCoeff[ contiBrineEqIdx ], std::abs( R2 ) / pvValue );
+                }
+
+                if constexpr (has_polymermw_) {
+                    static_assert(has_polymer_);
+
+                    B_avg[contiPolymerMWEqIdx] += 1.0 / fs.invB(FluidSystem::waterPhaseIdx).value();
+                    // the residual of the polymer molecular equation is scaled down by a 100, since molecular weight
+                    // can be much bigger than 1, and this equation shares the same tolerance with other mass balance equations
+                    // TODO: there should be a more general way to determine the scaling-down coefficient
+                    const auto R2 = ebosResid[cell_idx][contiPolymerMWEqIdx] / 100.;
+                    R_sum[contiPolymerMWEqIdx] += R2;
+                    maxCoeff[contiPolymerMWEqIdx] = std::max( maxCoeff[contiPolymerMWEqIdx], std::abs( R2 ) / pvValue );
+                }
+
+                if constexpr (has_energy_) {
+                    B_avg[ contiEnergyEqIdx ] += 1.0;
+                    const auto R2 = ebosResid[cell_idx][contiEnergyEqIdx];
+                    R_sum[ contiEnergyEqIdx ] += R2;
+                    maxCoeff[ contiEnergyEqIdx ] = std::max( maxCoeff[ contiEnergyEqIdx ], std::abs( R2 ) / pvValue );
+                }
+
+            }
+
+            // compute local average in terms of global number of elements
+            const int bSize = B_avg.size();
+            for ( int i = 0; i<bSize; ++i )
+            {
+                B_avg[ i ] /= Scalar( global_nc_ );
+            }
+
+            return pvSumLocal;
+        }
+
+
         double computeCnvErrorPv(const std::vector<Scalar>& B_avg, double dt)
         {
             double errorPV{};
@@ -1063,6 +1187,149 @@ namespace Opm {
 
             return grid_.comm().sum(errorPV);
         }
+
+
+        ConvergenceReport getLocalReservoirConvergence(const double dt,
+                                                       const int iteration,
+                                                       const Domain& domain,
+                                                       std::vector<Scalar>& B_avg,
+                                                       std::vector<Scalar>& residual_norms)
+        {
+            typedef std::vector< Scalar > Vector;
+
+            const int numComp = numEq;
+            Vector R_sum(numComp, 0.0 );
+            Vector maxCoeff(numComp, std::numeric_limits< Scalar >::lowest() );
+            const double pvSum = localDomainConvergenceData(domain, R_sum, maxCoeff, B_avg);
+
+            // compute global sum and max of quantities
+            // const double pvSum = convergenceReduction(grid_.comm(), pvSumLocal,
+            //                                           R_sum, maxCoeff, B_avg);
+
+            auto cnvErrorPvFraction = computeCnvErrorPv(B_avg, dt);
+            cnvErrorPvFraction /= pvSum;
+
+            const double tol_mb  = param_.tolerance_mb_;
+            // Default value of relaxed_max_pv_fraction_ is 1 and
+            // max_strict_iter_ is 8. Hence only iteration chooses
+            // whether to use relaxed or not.
+            // To activate only fraction use fraction below 1 and iter 0.
+            const bool use_relaxed = cnvErrorPvFraction < param_.relaxed_max_pv_fraction_ && iteration >= param_.max_strict_iter_;
+            const double tol_cnv = use_relaxed ? param_.tolerance_cnv_relaxed_ :  param_.tolerance_cnv_;
+
+            // Finish computation
+            std::vector<Scalar> CNV(numComp);
+            std::vector<Scalar> mass_balance_residual(numComp);
+            for ( int compIdx = 0; compIdx < numComp; ++compIdx )
+            {
+                CNV[compIdx]                    = B_avg[compIdx] * dt * maxCoeff[compIdx];
+                mass_balance_residual[compIdx]  = std::abs(B_avg[compIdx]*R_sum[compIdx]) * dt / pvSum;
+                residual_norms.push_back(CNV[compIdx]);
+            }
+
+            // Setup component names, only the first time the function is run.
+            static std::vector<std::string> compNames;
+            if (compNames.empty()) {
+                compNames.resize(numComp);
+                for (unsigned phaseIdx = 0; phaseIdx < FluidSystem::numPhases; ++phaseIdx) {
+                    if (!FluidSystem::phaseIsActive(phaseIdx)) {
+                        continue;
+                    }
+                    const unsigned canonicalCompIdx = FluidSystem::solventComponentIndex(phaseIdx);
+                    const unsigned compIdx = Indices::canonicalToActiveComponentIndex(canonicalCompIdx);
+                    compNames[compIdx] = FluidSystem::componentName(canonicalCompIdx);
+                }
+                if constexpr (has_solvent_) {
+                    compNames[solventSaturationIdx] = "Solvent";
+                }
+                if constexpr (has_extbo_) {
+                    compNames[zFractionIdx] = "ZFraction";
+                }
+                if constexpr (has_polymer_) {
+                    compNames[polymerConcentrationIdx] = "Polymer";
+                }
+                if constexpr (has_polymermw_) {
+                    assert(has_polymer_);
+                    compNames[polymerMoleWeightIdx] = "MolecularWeightP";
+                }
+                if constexpr (has_energy_) {
+                    compNames[temperatureIdx] = "Energy";
+                }
+                if constexpr (has_foam_) {
+                    compNames[foamConcentrationIdx] = "Foam";
+                }
+                if constexpr (has_brine_) {
+                    compNames[saltConcentrationIdx] = "Brine";
+                }
+            }
+
+            // Create convergence report.
+            ConvergenceReport report;
+            using CR = ConvergenceReport;
+            for (int compIdx = 0; compIdx < numComp; ++compIdx) {
+                double res[2] = { mass_balance_residual[compIdx], CNV[compIdx] };
+                CR::ReservoirFailure::Type types[2] = { CR::ReservoirFailure::Type::MassBalance,
+                                                        CR::ReservoirFailure::Type::Cnv };
+                double tol[2] = { tol_mb, tol_cnv };
+                for (int ii : {0, 1}) {
+                    if (std::isnan(res[ii])) {
+                        report.setReservoirFailed({types[ii], CR::Severity::NotANumber, compIdx});
+                        if ( terminal_output_ ) {
+                            OpmLog::debug("NaN residual for " + compNames[compIdx] + " equation.");
+                        }
+                    } else if (res[ii] > maxResidualAllowed()) {
+                        report.setReservoirFailed({types[ii], CR::Severity::TooLarge, compIdx});
+                        if ( terminal_output_ ) {
+                            OpmLog::debug("Too large residual for " + compNames[compIdx] + " equation.");
+                        }
+                    } else if (res[ii] < 0.0) {
+                        report.setReservoirFailed({types[ii], CR::Severity::Normal, compIdx});
+                        if ( terminal_output_ ) {
+                            OpmLog::debug("Negative residual for " + compNames[compIdx] + " equation.");
+                        }
+                    } else if (res[ii] > tol[ii]) {
+                        report.setReservoirFailed({types[ii], CR::Severity::Normal, compIdx});
+                    }
+                }
+            }
+
+            // Output of residuals.
+            if ( terminal_output_ )
+            {
+                // Only rank 0 does print to std::cout
+                if (iteration == 0) {
+                    std::string msg = "Domain with cell " + std::to_string(domain[0]) + "\nIter";
+                    for (int compIdx = 0; compIdx < numComp; ++compIdx) {
+                        msg += "    MB(";
+                        msg += compNames[compIdx][0];
+                        msg += ")  ";
+                    }
+                    for (int compIdx = 0; compIdx < numComp; ++compIdx) {
+                        msg += "    CNV(";
+                        msg += compNames[compIdx][0];
+                        msg += ") ";
+                    }
+                    OpmLog::debug(msg);
+                }
+                std::ostringstream ss;
+                const std::streamsize oprec = ss.precision(3);
+                const std::ios::fmtflags oflags = ss.setf(std::ios::scientific);
+                ss << std::setw(4) << iteration;
+                for (int compIdx = 0; compIdx < numComp; ++compIdx) {
+                    ss << std::setw(11) << mass_balance_residual[compIdx];
+                }
+                for (int compIdx = 0; compIdx < numComp; ++compIdx) {
+                    ss << std::setw(11) << CNV[compIdx];
+                }
+                ss.precision(oprec);
+                ss.flags(oflags);
+                OpmLog::debug(ss.str());
+            }
+
+            return report;
+        }
+
+
 
         ConvergenceReport getReservoirConvergence(const double dt,
                                                   const int iteration,
@@ -1203,13 +1470,14 @@ namespace Opm {
             return report;
         }
 
-        ConvergenceReport getLocalConvergence(const Domain& /*domain*/,
+        ConvergenceReport getLocalConvergence(const Domain& domain,
                                               const SimulatorTimerInterface& timer,
                                               const int iteration,
                                               std::vector<double>& residual_norms)
         {
-            // TODO: Make this a proper local convergence check.
-            return getConvergence(timer, iteration, residual_norms);
+            // TODO: we ignore well convergence here for now.
+            std::vector<Scalar> B_avg(numEq, 0.0);
+            return getLocalReservoirConvergence(timer.currentStepLength(), iteration, domain, B_avg, residual_norms);
         }
 
         /// Compute convergence based on total mass balance (tol_mb) and maximum
