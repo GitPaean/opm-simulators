@@ -604,10 +604,16 @@ namespace Opm {
             }
 
             // Local Newton loop.
-            const int max_iter = 10;//EWOMS_GET_PARAM(TypeTag, int, FlowNewtonMaxIterations);;
+            const int max_iter = EWOMS_GET_PARAM(TypeTag, int, FlowNewtonMaxIterations);;
             int iter = 0;
             bool converged = false;
             do {
+                // apply the Schur compliment of the well model to the reservoir linearized
+                // equations
+                // TODO: this does work for all wells, not just this domain.
+                wellModel().linearize(ebosSimulator().model().linearizer().jacobian(),
+                                      ebosSimulator().model().linearizer().residual());
+
                 // Solve local linear system.
                 // Note that x has full size, we expect it to be nonzero only for in-domain cells.
                 const int nc = UgGridHelpers::numCells(grid_);
@@ -626,11 +632,6 @@ namespace Opm {
 
                 // Assemble locally.
                 report += assembleReservoirLocal(domain, iter);
-                // apply the Schur compliment of the well model to the reservoir linearized
-                // equations
-                // TODO: this does work for all wells, not just this domain.
-                wellModel().linearize(ebosSimulator().model().linearizer().jacobian(),
-                                      ebosSimulator().model().linearizer().residual());
 
                 // Check for local convergence.
                 convreport = getLocalConvergence(domain, timer, iter, resnorms);
@@ -704,6 +705,9 @@ namespace Opm {
             // ebosSimulator_.model().newtonMethod().setIterationIndex(iterationIdx);
             // ebosSimulator_.problem().beginIteration();
             Dune::SubGridView<Grid> gv(ebosSimulator_.vanguard().grid(), domain);
+            // Need to set residual and jacobian to zero in the domain.
+            ebosSimulator_.model().linearizer().resetSystem(gv);
+            // Call the domain-dependent linearization.
             ebosSimulator_.model().linearizer().linearizeDomain(gv);
             // ebosSimulator_.problem().endIteration();
 
@@ -1155,6 +1159,34 @@ namespace Opm {
         }
 
 
+        double computeCnvErrorPvLocal(const Domain& domain, const std::vector<Scalar>& B_avg, double dt)
+        {
+            double errorPV{};
+            const auto& ebosModel = ebosSimulator_.model();
+            const auto& ebosProblem = ebosSimulator_.problem();
+            const auto& ebosResid = ebosSimulator_.model().linearizer().residual();
+
+            for (const int cell_idx : domain)
+            {
+                const double pvValue = ebosProblem.referencePorosity(cell_idx, /*timeIdx=*/0) * ebosModel.dofTotalVolume( cell_idx );
+                const auto& cellResidual = ebosResid[cell_idx];
+                bool cnvViolated = false;
+
+                for (unsigned eqIdx = 0; eqIdx < cellResidual.size(); ++eqIdx)
+                {
+                    using std::fabs;
+                    Scalar CNV = cellResidual[eqIdx] * dt * B_avg[eqIdx] / pvValue;
+                    cnvViolated = cnvViolated || (fabs(CNV) > param_.tolerance_cnv_);
+                }
+
+                if (cnvViolated)
+                {
+                    errorPV += pvValue;
+                }
+            }
+            return errorPV;
+        }
+
         double computeCnvErrorPv(const std::vector<Scalar>& B_avg, double dt)
         {
             double errorPV{};
@@ -1207,7 +1239,7 @@ namespace Opm {
             // const double pvSum = convergenceReduction(grid_.comm(), pvSumLocal,
             //                                           R_sum, maxCoeff, B_avg);
 
-            auto cnvErrorPvFraction = computeCnvErrorPv(B_avg, dt);
+            auto cnvErrorPvFraction = computeCnvErrorPvLocal(domain, B_avg, dt);
             cnvErrorPvFraction /= pvSum;
 
             const double tol_mb  = param_.tolerance_mb_;
