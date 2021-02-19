@@ -495,14 +495,16 @@ namespace Opm {
             // Take a copy of the FI residual.
             auto fully_implicit_residual = ebosSimulator().model().linearizer().residual();
 
+            // ... and the solution state that generated it.
+            auto initial_solution = ebosSimulator().model().solution(0);
+
+
             // -----------   If not converged, do an ASPIN iteration   -----------
             if (!report.converged) {
 
                 perfTimer.reset();
                 perfTimer.start();
                 report.total_newton_iterations = 1;
-                const int nc = UgGridHelpers::numCells(grid_);
-                BVector x(nc);
 
                 // -----------   Solve each ASPIN domain separately   -----------
                 for (const auto& domain : domains_) {
@@ -517,8 +519,21 @@ namespace Opm {
                 }
 
                 // -----------   Compute ASPIN residual, check convergence   -----------
+                auto locally_solved = ebosSimulator().model().solution(0);
+                const int nc = UgGridHelpers::numCells(grid_);
+                BVector aspin_residual(nc);
+                for (int c = 0; c < nc; ++c) {
+                    aspin_residual[c] = initial_solution[c] - locally_solved[c];
+                }
 
                 // -----------   Solve global linear system   -----------
+                // The matrix is kept as is for now.
+                // TODO: test with proper ASPIN (in what we have now, columns are updated outside the diagonal
+                // domain-domain interaction blocks in a Gauss-Seidel-like manner), and other variations.
+                // Compute rhs.
+                // ...
+                BVector rhs(nc);
+                BVector x(nc);
 
                 // -----------   Update solution   -----------
 
