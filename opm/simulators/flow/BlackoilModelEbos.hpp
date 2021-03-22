@@ -833,7 +833,7 @@ namespace Opm {
             // TODO: Inefficient to recreate all the time, and
             // the constructor will make parallel structures appropriate
             // for the full grid only.
-            ISTLSolverEbos<TypeTag> linsolver(ebosSimulator_);
+            ISTLSolverEbos<TypeTag> linsolver(ebosSimulator_, false);
 
             Dune::Timer perfTimer;
             perfTimer.start();
@@ -1345,7 +1345,7 @@ namespace Opm {
             {
                 // Only rank 0 does print to std::cout
                 if (iteration == 0) {
-                    std::string msg = "Domain with cell " + std::to_string(domain[0]) + "\nIter";
+                    std::string msg = "Domain with cell " + std::to_string(domain[0]) + "\n| Iter";
                     for (int compIdx = 0; compIdx < numComp; ++compIdx) {
                         msg += "    MB(";
                         msg += compNames[compIdx][0];
@@ -1359,6 +1359,7 @@ namespace Opm {
                     OpmLog::debug(msg);
                 }
                 std::ostringstream ss;
+                ss << "| ";
                 const std::streamsize oprec = ss.precision(3);
                 const std::ios::fmtflags oflags = ss.setf(std::ios::scientific);
                 ss << std::setw(4) << iteration;

@@ -115,7 +115,7 @@ namespace Opm
         /// Construct a system solver.
         /// \param[in] parallelInformation In the case of a parallel run
         ///                                with dune-istl the information about the parallelization.
-        explicit ISTLSolverEbos(const Simulator& simulator)
+        explicit ISTLSolverEbos(const Simulator& simulator, const bool print_json_info = true)
             : simulator_(simulator),
               iterations_( 0 ),
               converged_(false),
@@ -180,7 +180,7 @@ namespace Opm
             interiorCellNum_ = detail::numMatrixRowsToUseInSolver(simulator_.vanguard().grid(), true);
 
             // Print parameters to PRT/DBG logs.
-            if (on_io_rank) {
+            if (on_io_rank && print_json_info) {
                 std::ostringstream os;
                 os << "Property tree for linear solver:\n";
                 prm_.write_json(os, true);
