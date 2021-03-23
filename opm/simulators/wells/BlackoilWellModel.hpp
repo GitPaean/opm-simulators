@@ -150,6 +150,7 @@ namespace Opm {
             {}
 
             void linearize(SparseMatrixAdapter& jacobian, GlobalEqVector& res) override;
+            void linearizeDomain(const std::vector<int>& domain_cells, SparseMatrixAdapter& jacobian, GlobalEqVector& res) override;
 
             void postSolve(GlobalEqVector& deltaX) override
             {

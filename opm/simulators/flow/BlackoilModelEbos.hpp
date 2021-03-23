@@ -349,7 +349,7 @@ namespace Opm {
             perfTimer.start();
             // the step is not considered converged until at least minIter iterations is done
             {
-                auto convrep = getConvergence(timer, iteration,residual_norms);
+                auto convrep = getConvergence(timer, iteration, residual_norms);
                 report.converged = convrep.converged()  && iteration > nonlinear_solver.minIter();;
                 ConvergenceReport::Severity severity = convrep.severityOfWorstFailure();
                 convergence_reports_.back().report.push_back(std::move(convrep));
@@ -471,13 +471,16 @@ namespace Opm {
                 throw; // continue throwing the stick
             }
 
+            wellModel().linearize(ebosSimulator().model().linearizer().jacobian(),
+                                  ebosSimulator().model().linearizer().residual());
+
             // -----------   Check if converged   -----------
             std::vector<double> residual_norms;
             perfTimer.reset();
             perfTimer.start();
             // the step is not considered converged until at least minIter iterations is done
             {
-                auto convrep = getConvergence(timer, iteration,residual_norms);
+                auto convrep = getConvergence(timer, iteration, residual_norms);
                 report.converged = convrep.converged()  && iteration > nonlinear_solver.minIter();;
                 ConvergenceReport::Severity severity = convrep.severityOfWorstFailure();
                 convergence_reports_.back().report.push_back(std::move(convrep));
@@ -517,6 +520,7 @@ namespace Opm {
                         OpmLog::debug("Convergence failure in ASPIN domain containing cell " + std::to_string(domain[0]));
                     }
                 }
+                return report;
 
                 // -----------   Compute ASPIN residual, check convergence   -----------
                 auto locally_solved = ebosSimulator().model().solution(0);
@@ -541,8 +545,8 @@ namespace Opm {
 
                 // apply the Schur compliment of the well model to the reservoir linearized
                 // equations
-                wellModel().linearize(ebosSimulator().model().linearizer().jacobian(),
-                                      ebosSimulator().model().linearizer().residual());
+                // wellModel().linearize(ebosSimulator().model().linearizer().jacobian(),
+                //                       ebosSimulator().model().linearizer().residual());
 
                 // Solve the linear system.
                 linear_solve_setup_time_ = 0.0;
@@ -622,12 +626,6 @@ namespace Opm {
             int iter = 0;
             bool converged = false;
             do {
-                // apply the Schur compliment of the well model to the reservoir linearized
-                // equations
-                // TODO: this does work for all wells, not just this domain.
-                wellModel().linearize(ebosSimulator().model().linearizer().jacobian(),
-                                      ebosSimulator().model().linearizer().residual());
-
                 // Solve local linear system.
                 // Note that x has full size, we expect it to be nonzero only for in-domain cells.
                 const int nc = UgGridHelpers::numCells(grid_);
@@ -646,6 +644,12 @@ namespace Opm {
 
                 // Assemble locally.
                 report += assembleReservoirLocal(domain, iter);
+
+                // apply the Schur compliment of the well model to the reservoir linearized
+                // equations
+                wellModel().linearizeDomain(domain,
+                                            ebosSimulator().model().linearizer().jacobian(),
+                                            ebosSimulator().model().linearizer().residual());
 
                 // Check for local convergence.
                 convreport = getLocalConvergence(domain, timer, iter, resnorms);

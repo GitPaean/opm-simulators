@@ -170,6 +170,49 @@ namespace Opm {
     }
 
 
+    namespace {
+        template <typename TypeTag>
+        bool wellIsInDomain(const WellInterface<TypeTag>& well, const std::vector<int>& domain_cells)
+        {
+            const int first_well_cell = well.cells()[0];
+            return std::lower_bound(domain_cells.begin(), domain_cells.end(), first_well_cell) != domain_cells.end();
+        }
+    }
+
+
+    template<typename TypeTag>
+    void
+    BlackoilWellModel<TypeTag>::
+    linearizeDomain(const std::vector<int>& domain_cells, SparseMatrixAdapter& jacobian, GlobalEqVector& res)
+    {
+        if (!localWellsActive())
+            return;
+
+        if (!param_.matrix_add_well_contributions_) {
+            // if the well contributions are not supposed to be included explicitly in
+            // the matrix, we only apply the vector part of the Schur complement here.
+            for (const auto& well: well_container_) {
+                if (wellIsInDomain(*well, domain_cells)) {
+                    // r = r - duneC_^T * invDuneD_ * resWell_
+                    well->apply(res);
+                }
+            }
+            return;
+        }
+
+        for (const auto& well: well_container_) {
+            if (wellIsInDomain(*well, domain_cells)) {
+                well->addWellContributions(jacobian);
+                // applying the well residual to reservoir residuals
+                // r = r - duneC_^T * invDuneD_ * resWell_
+                well->apply(res);
+            }
+        }
+    }
+
+
+
+
     template<typename TypeTag>
     void
     BlackoilWellModel<TypeTag>::
