@@ -1217,6 +1217,55 @@ namespace Opm {
     template<typename TypeTag>
     ConvergenceReport
     BlackoilWellModel<TypeTag>::
+    getLocalWellConvergence(const std::vector<int>& domain,
+                            const std::vector<Scalar>& B_avg,
+                            const bool checkGroupConvergence) const
+    {
+
+        Opm::DeferredLogger local_deferredLogger;
+        // Get global (from all processes) convergence report.
+        ConvergenceReport local_report;
+        for (const auto& well : well_container_) {
+            if (wellIsInDomain(*well, domain)) {
+                if (well->isOperable() ) {
+                    local_report += well->getWellConvergence(this->wellState(), B_avg, local_deferredLogger);
+                }
+            }
+        }
+        Opm::DeferredLogger global_deferredLogger = gatherDeferredLogger(local_deferredLogger);
+        if (terminal_output_) {
+            global_deferredLogger.logMessages();
+        }
+
+        ConvergenceReport report = gatherConvergenceReport(local_report);
+
+        // Log debug messages for NaN or too large residuals.
+        if (terminal_output_) {
+            for (const auto& f : report.wellFailures()) {
+                if (f.severity() == ConvergenceReport::Severity::NotANumber) {
+                        OpmLog::debug("NaN residual found with phase " + std::to_string(f.phase()) + " for well " + f.wellName());
+                } else if (f.severity() == ConvergenceReport::Severity::TooLarge) {
+                        OpmLog::debug("Too large residual found with phase " + std::to_string(f.phase()) + " for well " + f.wellName());
+                }
+            }
+        }
+
+        if (checkGroupConvergence) {
+            const int reportStepIdx = ebosSimulator_.episodeIndex();
+            const Group& fieldGroup = schedule().getGroup("FIELD", reportStepIdx);
+            bool violated = checkGroupConstraints(fieldGroup, global_deferredLogger);
+            report.setGroupConverged(!violated);
+        }
+        return report;
+    }
+
+
+
+
+
+    template<typename TypeTag>
+    ConvergenceReport
+    BlackoilWellModel<TypeTag>::
     getWellConvergence(const std::vector<Scalar>& B_avg, bool checkGroupConvergence) const
     {
 

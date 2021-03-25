@@ -1266,7 +1266,10 @@ namespace Opm {
             // whether to use relaxed or not.
             // To activate only fraction use fraction below 1 and iter 0.
             const bool use_relaxed = cnvErrorPvFraction < param_.relaxed_max_pv_fraction_ && iteration >= param_.max_strict_iter_;
-            const double tol_cnv = use_relaxed ? param_.tolerance_cnv_relaxed_ :  param_.tolerance_cnv_;
+            // Tighter bound for local convergence should increase the
+            // likelyhood of: local convergence => global convergence
+            const double local_cnv_tolerance_factor = 0.01;
+            const double tol_cnv = local_cnv_tolerance_factor * (use_relaxed ? param_.tolerance_cnv_relaxed_ :  param_.tolerance_cnv_);
 
             // Finish computation
             std::vector<Scalar> CNV(numComp);
@@ -1527,9 +1530,10 @@ namespace Opm {
                                               const int iteration,
                                               std::vector<double>& residual_norms)
         {
-            // TODO: we ignore well convergence here for now.
             std::vector<Scalar> B_avg(numEq, 0.0);
-            return getLocalReservoirConvergence(timer.currentStepLength(), iteration, domain, B_avg, residual_norms);
+            auto report = getLocalReservoirConvergence(timer.currentStepLength(), iteration, domain, B_avg, residual_norms);
+            report += wellModel().getLocalWellConvergence(domain, B_avg, false);
+            return report;
         }
 
         /// Compute convergence based on total mass balance (tol_mb) and maximum
