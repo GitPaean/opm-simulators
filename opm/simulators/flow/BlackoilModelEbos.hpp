@@ -650,7 +650,7 @@ namespace Opm {
                 wellModel().postSolve(x);
 
                 // Update local solution.
-                updateSolution(x);
+                updateDomainSolution(domain, x);
                 ebosSimulator_.problem().endIteration();
 
                 ++iter;
@@ -889,6 +889,26 @@ namespace Opm {
             ebosSolver.setMatrix(ebosJac);
             ebosSolver.solve(x);
        }
+
+
+
+        /// Apply an update to the primary variables.
+        void updateDomainSolution(const Domain& domain, const BVector& dx)
+        {
+            auto& ebosNewtonMethod = ebosSimulator_.model().newtonMethod();
+            SolutionVector& solution = ebosSimulator_.model().solution(/*timeIdx=*/0);
+
+            ebosNewtonMethod.update_(/*nextSolution=*/solution,
+                                     /*curSolution=*/solution,
+                                     /*update=*/dx,
+                                     /*resid=*/dx); // the update routines of the black
+                                                    // oil model do not care about the
+                                                    // residual
+
+            // if the solution is updated, the intensive quantities need to be recalculated
+            ebosSimulator_.model().invalidateAndUpdateIntensiveQuantities(/*timeIdx=*/0, domain.view);
+        }
+
 
 
 
