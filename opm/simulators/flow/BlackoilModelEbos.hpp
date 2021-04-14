@@ -185,7 +185,12 @@ namespace Opm {
         typedef typename SparseMatrixAdapter::IstlMatrix Mat;
         typedef Dune::BlockVector<VectorBlockType>      BVector;
 
-        using Domain = std::vector<int>;
+        struct Domain
+        {
+            int index;
+            std::vector<int> cells;
+            Dune::SubGridView<Grid> view;
+        };
 
         typedef ISTLSolverEbos<TypeTag> ISTLSolverType;
         //typedef typename SolutionVector :: value_type            PrimaryVariables ;
@@ -239,19 +244,30 @@ namespace Opm {
             // TODO: replace with non-trivial version...
             const int num_domains = 4;
             const int num_cells = detail::countLocalInteriorCells(grid_);
-            domains_.resize(num_domains);
-            int cell = 0;
-            for (int dom = 0; dom < num_domains - 1; ++dom) {
-                domains_[dom].resize(num_cells / num_domains);
-                for (int& c : domains_[dom]) {
-                    c = cell++;
+
+            // Local lambda to return cell indices of a domain.
+            auto createCells = [num_cells](int dom_index) {
+                std::vector<int> cells;
+                const int dom_sz = num_cells/num_domains;
+                const int start = dom_index * dom_sz;
+                if (dom_index < num_domains - 1) {
+                    // Not the last domain
+                    cells.resize(dom_sz);
+                } else {
+                    // The last domain
+                    cells.resize(num_cells - start);
                 }
+                std::iota(cells.begin(), cells.end(), start);
+                return cells;
+            };
+
+            // Create the domains.
+            for (int index = 0; index < num_domains; ++index) {
+                std::vector<int> cells = createCells(index);
+                domains_.push_back(Domain{index, cells, Dune::SubGridView<Grid>(ebosSimulator_.vanguard().grid(), cells)});
             }
-            domains_.back().resize(num_cells - cell);
-            for (int& c : domains_.back()) {
-                c = cell++;
-            }
-            assert(cell == num_cells);
+
+            assert(int(domains_.size()) == num_domains);
         }
 
 
@@ -517,7 +533,7 @@ namespace Opm {
                     // i == j, at old solution for i != j.
                     if (!local_report.converged) {
                         // TODO: more proper treatment, including in parallel.
-                        OpmLog::debug("Convergence failure in ASPIN domain containing cell " + std::to_string(domain[0]));
+                        OpmLog::debug("Convergence failure in ASPIN domain containing cell " + std::to_string(domain.cells[0]));
                     }
                 }
                 return report;
@@ -647,7 +663,7 @@ namespace Opm {
 
                 // apply the Schur compliment of the well model to the reservoir linearized
                 // equations
-                wellModel().linearizeDomain(domain,
+                wellModel().linearizeDomain(domain.cells,
                                             ebosSimulator().model().linearizer().jacobian(),
                                             ebosSimulator().model().linearizer().residual());
 
@@ -722,11 +738,10 @@ namespace Opm {
             // -------- Mass balance equations --------
             // ebosSimulator_.model().newtonMethod().setIterationIndex(iterationIdx);
             // ebosSimulator_.problem().beginIteration();
-            Dune::SubGridView<Grid> gv(ebosSimulator_.vanguard().grid(), domain);
             // Need to set residual and jacobian to zero in the domain.
-            ebosSimulator_.model().linearizer().resetSystem(gv);
+            ebosSimulator_.model().linearizer().resetSystem(domain.view);
             // Call the domain-dependent linearization.
-            ebosSimulator_.model().linearizer().linearizeDomain(gv);
+            ebosSimulator_.model().linearizer().linearizeDomain(domain.view);
             // ebosSimulator_.problem().endIteration();
 
             return wellModel().lastReport();
@@ -826,8 +841,8 @@ namespace Opm {
 
         void solveLocalJacobianSystem(const Domain& domain, BVector& global_x)
         {
-            auto jac = Details::extractMatrix(ebosSimulator_.model().linearizer().jacobian().istlMatrix(), domain);
-            auto res = Details::extractVector(ebosSimulator_.model().linearizer().residual(), domain);
+            auto jac = Details::extractMatrix(ebosSimulator_.model().linearizer().jacobian().istlMatrix(), domain.cells);
+            auto res = Details::extractVector(ebosSimulator_.model().linearizer().residual(), domain.cells);
             auto x = res;
 
             // set initial guess
@@ -847,7 +862,7 @@ namespace Opm {
             linsolver.setMatrix(jac);
             linsolver.solve(x);
 
-            Details::setGlobal(x, domain, global_x);
+            Details::setGlobal(x, domain.cells, global_x);
         }
 
         /// Solve the Jacobian system Jx = r where J is the Jacobian and
@@ -1076,10 +1091,11 @@ namespace Opm {
             const auto& ebosResid = ebosSimulator_.model().linearizer().residual();
 
             ElementContext elemCtx(ebosSimulator_);
-            const auto& gridView = ebosSimulator().gridView();
-            const auto& elemEndIt = gridView.template end</*codim=*/0, Dune::Interior_Partition>();
-
-            for (auto elemIt = gridView.template begin</*codim=*/0, Dune::Interior_Partition>();
+            const auto& gridView = domain.view;
+            // const auto& elemEndIt = gridView.template end</*codim=*/0, Dune::Interior_Partition>();
+            const auto& elemEndIt = gridView.template end</*codim=*/0>();
+            // for (auto elemIt = gridView.template begin</*codim=*/0, Dune::Interior_Partition>();
+            for (auto elemIt = gridView.template begin</*codim=*/0>();
                  elemIt != elemEndIt;
                  ++elemIt)
             {
@@ -1087,11 +1103,6 @@ namespace Opm {
                 elemCtx.updatePrimaryStencil(elem);
                 elemCtx.updatePrimaryIntensiveQuantities(/*timeIdx=*/0);
                 const unsigned cell_idx = elemCtx.globalSpaceIndex(/*spaceIdx=*/0, /*timeIdx=*/0);
-
-                // TODO: fix slow hack.
-                if (std::find(domain.begin(), domain.end(), cell_idx) == domain.end()) {
-                    continue;
-                }
 
                 const auto& intQuants = elemCtx.intensiveQuantities(/*spaceIdx=*/0, /*timeIdx=*/0);
                 const auto& fs = intQuants.fluidState();
@@ -1170,7 +1181,7 @@ namespace Opm {
             const int bSize = B_avg.size();
             for ( int i = 0; i<bSize; ++i )
             {
-                B_avg[ i ] /= Scalar( global_nc_ );
+                B_avg[ i ] /= Scalar( global_nc_ ); // TODO this must be wrong?!?
             }
 
             return pvSumLocal;
@@ -1184,7 +1195,7 @@ namespace Opm {
             const auto& ebosProblem = ebosSimulator_.problem();
             const auto& ebosResid = ebosSimulator_.model().linearizer().residual();
 
-            for (const int cell_idx : domain)
+            for (const int cell_idx : domain.cells)
             {
                 const double pvValue = ebosProblem.referencePorosity(cell_idx, /*timeIdx=*/0) * ebosModel.dofTotalVolume( cell_idx );
                 const auto& cellResidual = ebosResid[cell_idx];
@@ -1352,7 +1363,7 @@ namespace Opm {
             {
                 // Only rank 0 does print to std::cout
                 if (iteration == 0) {
-                    std::string msg = "Domain with cell " + std::to_string(domain[0]) + "\n| Iter";
+                    std::string msg = "Domain with cell " + std::to_string(domain.cells[0]) + "\n| Iter";
                     for (int compIdx = 0; compIdx < numComp; ++compIdx) {
                         msg += "    MB(";
                         msg += compNames[compIdx][0];
@@ -1532,7 +1543,7 @@ namespace Opm {
         {
             std::vector<Scalar> B_avg(numEq, 0.0);
             auto report = getLocalReservoirConvergence(timer.currentStepLength(), iteration, domain, B_avg, residual_norms);
-            report += wellModel().getLocalWellConvergence(domain, B_avg, false);
+            report += wellModel().getLocalWellConvergence(domain.cells, B_avg, false);
             return report;
         }
 
@@ -1632,6 +1643,8 @@ namespace Opm {
         std::vector<StepReport> convergence_reports_;
 
         std::vector<Domain> domains_;
+        std::vector<Dune::SubGridView<Grid>> domain_views_;
+
 
     public:
         /// return the StandardWells object
