@@ -34,6 +34,7 @@
 #include <opm/simulators/wells/BlackoilWellModel.hpp>
 #include <opm/simulators/aquifers/BlackoilAquiferModel.hpp>
 #include <opm/simulators/wells/WellConnectionAuxiliaryModule.hpp>
+#include <opm/simulators/flow/aspinPartition.hpp>
 #include <opm/simulators/flow/countGlobalCells.hpp>
 #include <opm/simulators/linalg/extractMatrix.hpp>
 
@@ -241,30 +242,14 @@ namespace Opm {
 
         void setupAspinDomains()
         {
-            // TODO: replace with non-trivial version...
-            const int num_domains = 4;
+            // Create partitions.
             const int num_cells = detail::countLocalInteriorCells(grid_);
-
-            // Local lambda to return cell indices of a domain.
-            auto createCells = [num_cells](int dom_index) {
-                std::vector<int> cells;
-                const int dom_sz = num_cells/num_domains;
-                const int start = dom_index * dom_sz;
-                if (dom_index < num_domains - 1) {
-                    // Not the last domain
-                    cells.resize(dom_sz);
-                } else {
-                    // The last domain
-                    cells.resize(num_cells - start);
-                }
-                std::iota(cells.begin(), cells.end(), start);
-                return cells;
-            };
+            auto cells = partitionCells(num_cells);
 
             // Create the domains.
+            const int num_domains = cells.size();
             for (int index = 0; index < num_domains; ++index) {
-                std::vector<int> cells = createCells(index);
-                domains_.push_back(Domain{index, cells, Dune::SubGridView<Grid>(ebosSimulator_.vanguard().grid(), cells)});
+                domains_.push_back(Domain{index, cells[index], Dune::SubGridView<Grid>(ebosSimulator_.vanguard().grid(), cells[index])});
             }
 
             assert(int(domains_.size()) == num_domains);
@@ -318,17 +303,24 @@ namespace Opm {
         /// \param[in] iteration              should be 0 for the first call of a new timestep
         /// \param[in] timer                  simulation timer
         /// \param[in] nonlinear_solver       nonlinear solver used (for oscillation/relaxation control)
-        /// \param[in, out] reservoir_state   reservoir state variables
-        /// \param[in, out] well_state        well state variables
         template <class NonlinearSolverType>
         SimulatorReportSingle nonlinearIteration(const int iteration,
                                                  const SimulatorTimerInterface& timer,
                                                  NonlinearSolverType& nonlinear_solver)
         {
-            // -----------   Use ASPIN variant if requested   -----------
             if (param_.enable_aspin_) {
                 return nonlinearIterationAspin(iteration, timer, nonlinear_solver);
+            } else {
+                return nonlinearIterationNewton(iteration, timer, nonlinear_solver);
             }
+        }
+
+
+        template <class NonlinearSolverType>
+        SimulatorReportSingle nonlinearIterationNewton(const int iteration,
+                                                       const SimulatorTimerInterface& timer,
+                                                       NonlinearSolverType& nonlinear_solver)
+        {
 
             // -----------   Set up reports and timer   -----------
             SimulatorReportSingle report;
@@ -487,8 +479,8 @@ namespace Opm {
                 throw; // continue throwing the stick
             }
 
-            wellModel().linearize(ebosSimulator().model().linearizer().jacobian(),
-                                  ebosSimulator().model().linearizer().residual());
+            // wellModel().linearize(ebosSimulator().model().linearizer().jacobian(),
+            //                       ebosSimulator().model().linearizer().residual());
 
             // -----------   Check if converged   -----------
             std::vector<double> residual_norms;
@@ -513,13 +505,19 @@ namespace Opm {
 
             // Take a copy of the FI residual.
             auto fully_implicit_residual = ebosSimulator().model().linearizer().residual();
-
+            // ... and the Jacobian.
+            auto fully_implicit_jacobian = ebosSimulator().model().linearizer().jacobian().istlMatrix();
             // ... and the solution state that generated it.
             auto initial_solution = ebosSimulator().model().solution(0);
+            auto initial_wellstate = wellModel().wellState();
 
 
             // -----------   If not converged, do an ASPIN iteration   -----------
             if (!report.converged) {
+
+                if (iteration > 0) {
+                    return nonlinearIterationNewton(iteration, timer, nonlinear_solver);
+                }
 
                 perfTimer.reset();
                 perfTimer.start();
@@ -536,7 +534,14 @@ namespace Opm {
                         OpmLog::debug("Convergence failure in ASPIN domain containing cell " + std::to_string(domain.cells[0]));
                     }
                 }
-                return report;
+                // Finish with a Newton step.
+                ebosSimulator().model().linearizer().residual() = fully_implicit_residual;
+                ebosSimulator().model().linearizer().jacobian().istlMatrix() = fully_implicit_jacobian;
+                ebosSimulator().model().solution(0) = initial_solution;
+                wellModel().wellState() = initial_wellstate;
+
+                // wellModel().resetWellState();
+                return nonlinearIterationNewton(iteration, timer, nonlinear_solver);
 
                 // -----------   Compute ASPIN residual, check convergence   -----------
                 auto locally_solved = ebosSimulator().model().solution(0);
