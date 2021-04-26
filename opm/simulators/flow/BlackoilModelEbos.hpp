@@ -479,8 +479,8 @@ namespace Opm {
                 throw; // continue throwing the stick
             }
 
-            // wellModel().linearize(ebosSimulator().model().linearizer().jacobian(),
-            //                       ebosSimulator().model().linearizer().residual());
+            wellModel().linearize(ebosSimulator().model().linearizer().jacobian(),
+                                  ebosSimulator().model().linearizer().residual());
 
             // -----------   Check if converged   -----------
             std::vector<double> residual_norms;
@@ -515,10 +515,6 @@ namespace Opm {
             // -----------   If not converged, do an ASPIN iteration   -----------
             if (!report.converged) {
 
-                if (iteration > 0) {
-                    return nonlinearIterationNewton(iteration, timer, nonlinear_solver);
-                }
-
                 perfTimer.reset();
                 perfTimer.start();
                 report.total_newton_iterations = 1;
@@ -534,13 +530,9 @@ namespace Opm {
                         OpmLog::debug("Convergence failure in ASPIN domain containing cell " + std::to_string(domain.cells[0]));
                     }
                 }
-                // Finish with a Newton step.
-                ebosSimulator().model().linearizer().residual() = fully_implicit_residual;
-                ebosSimulator().model().linearizer().jacobian().istlMatrix() = fully_implicit_jacobian;
-                ebosSimulator().model().solution(0) = initial_solution;
-                wellModel().wellState() = initial_wellstate;
 
-                // wellModel().resetWellState();
+                // Finish with a Newton step.
+                ebosSimulator_.model().invalidateAndUpdateIntensiveQuantities(/*timeIdx=*/0);
                 return nonlinearIterationNewton(iteration, timer, nonlinear_solver);
 
                 // -----------   Compute ASPIN residual, check convergence   -----------
