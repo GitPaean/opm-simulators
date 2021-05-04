@@ -480,9 +480,6 @@ namespace Opm {
                 throw; // continue throwing the stick
             }
 
-            wellModel().linearize(ebosSimulator().model().linearizer().jacobian(),
-                                  ebosSimulator().model().linearizer().residual());
-
             // -----------   Check if converged   -----------
             std::vector<double> residual_norms;
             perfTimer.reset();
@@ -640,6 +637,12 @@ namespace Opm {
             int iter = 0;
             bool converged = false;
             do {
+                // apply the Schur compliment of the well model to the reservoir linearized
+                // equations
+                wellModel().linearizeDomain(domain.cells,
+                                            ebosSimulator().model().linearizer().jacobian(),
+                                            ebosSimulator().model().linearizer().residual());
+
                 // Solve local linear system.
                 // Note that x has full size, we expect it to be nonzero only for in-domain cells.
                 const int nc = UgGridHelpers::numCells(grid_);
@@ -658,12 +661,6 @@ namespace Opm {
 
                 // Assemble locally.
                 report += assembleReservoirLocal(domain, iter);
-
-                // apply the Schur compliment of the well model to the reservoir linearized
-                // equations
-                wellModel().linearizeDomain(domain.cells,
-                                            ebosSimulator().model().linearizer().jacobian(),
-                                            ebosSimulator().model().linearizer().residual());
 
                 // Check for local convergence.
                 convreport = getLocalConvergence(domain, timer, iter, resnorms);
