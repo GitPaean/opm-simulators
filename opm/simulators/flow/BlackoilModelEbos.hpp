@@ -618,8 +618,9 @@ namespace Opm {
         {
             SimulatorReportSingle report;
 
+            assert(ebosSimulator_.model().newtonMethod().numIterations() == 0);
             ebosSimulator_.model().newtonMethod().setIterationIndex(0);
-            ebosSimulator_.problem().beginIteration();
+            //ebosSimulator_.problem().beginIteration();
             // When called, assembly has already been performed
             // with the initial values, we only need to check
             // for local convergence.
