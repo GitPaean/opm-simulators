@@ -244,13 +244,16 @@ namespace Opm {
         {
             // Create partitions.
             const int num_cells = detail::countLocalInteriorCells(grid_);
-            auto cells = partitionCells(num_cells);
+            auto partitions = partitionCells(num_cells);
 
             // Create the domains.
-            const int num_domains = cells.size();
+            const int num_domains = partitions.size();
             for (int index = 0; index < num_domains; ++index) {
-                domains_.push_back(Domain{index, cells[index], Dune::SubGridView<Grid>(ebosSimulator_.vanguard().grid(), cells[index])});
+                domains_.push_back(Domain{index, partitions[index], Dune::SubGridView<Grid>(ebosSimulator_.vanguard().grid(), partitions[index])});
             }
+
+            // This container will store the local system matrices.
+            domain_matrices_.resize(num_domains);
 
             assert(int(domains_.size()) == num_domains);
         }
@@ -836,7 +839,13 @@ namespace Opm {
 
         void solveLocalJacobianSystem(const Domain& domain, BVector& global_x)
         {
-            auto jac = Details::extractMatrix(ebosSimulator_.model().linearizer().jacobian().istlMatrix(), domain.cells);
+            const Mat& main_matrix = ebosSimulator_.model().linearizer().jacobian().istlMatrix();
+            if (domain_matrices_[domain.index]) {
+                Details::copySubMatrix(main_matrix, domain.cells, *domain_matrices_[domain.index]);
+            } else {
+                domain_matrices_[domain.index] = std::make_unique<Mat>(Details::extractMatrix(main_matrix, domain.cells));
+            }
+            auto& jac = *domain_matrices_[domain.index];
             auto res = Details::extractVector(ebosSimulator_.model().linearizer().residual(), domain.cells);
             auto x = res;
 
@@ -1659,6 +1668,7 @@ namespace Opm {
 
         std::vector<Domain> domains_;
         std::vector<Dune::SubGridView<Grid>> domain_views_;
+        std::vector<std::unique_ptr<Mat>> domain_matrices_;
 
 
     public:
