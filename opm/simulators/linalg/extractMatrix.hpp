@@ -28,6 +28,19 @@ namespace Opm
 
 namespace Details
 {
+
+    template <class Matrix>
+    void copySubMatrix(const Matrix& A, const std::vector<int>& indices, Matrix& B)
+    {
+        // Copy elements so that B_{i, j} = A_{indices[i], indices[j]}.
+        for (auto row = B.begin(); row != B.end(); ++row) {
+            for (auto col = row->begin(); col != row->end(); ++col) {
+                *col = A[indices[row.index()]][indices[col.index()]];
+            }
+        }
+    }
+
+
     template <class Matrix>
     Matrix extractMatrix(const Matrix& m, const std::vector<int>& indices)
     {
@@ -79,13 +92,7 @@ namespace Details
             }
         }
 
-        // Copy elements
-        for (auto row = res.begin(); row != res.end(); ++row) {
-            for (auto col = row->begin(); col != row->end(); ++col) {
-                *col = m[indices[row.index()]][indices[col.index()]];
-            }
-        }
-
+        copySubMatrix(m, indices, res);
         return res;
     }
 
