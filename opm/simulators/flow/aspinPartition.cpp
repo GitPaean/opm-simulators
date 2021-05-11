@@ -18,6 +18,9 @@
 */
 
 #include <opm/simulators/flow/aspinPartition.hpp>
+
+#include <algorithm>
+#include <cassert>
 #include <fstream>
 #include <iterator>
 #include <numeric>
