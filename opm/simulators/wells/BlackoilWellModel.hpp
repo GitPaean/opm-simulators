@@ -411,8 +411,17 @@ namespace Opm {
             // at the beginning of each time step (Not report step)
             void prepareTimeStep(DeferredLogger& deferred_logger);
             void initPrimaryVariablesEvaluation() const;
+            void initPrimaryVariablesEvaluationLocal(const std::vector<int>& domain_cells) const;
             void updateWellControls(DeferredLogger& deferred_logger, const bool checkGroupControls);
             WellInterfacePtr getWell(const std::string& well_name) const;
+
+            // prototype for assemble function for ASPIN solveLocal()
+            // will try to merge back to assemble() when done prototyping
+            void assembleLocal(const int iterationIdx,
+                               const double dt,
+                               const std::vector<int>& domain_cells);
+            void updateWellControlsLocal(DeferredLogger& deferred_logger, const bool checkGroupControls,
+                                         const std::vector<int>& domain_cells);
         protected:
             Simulator& ebosSimulator_;
 
@@ -520,6 +529,7 @@ namespace Opm {
             void assemble(const int iterationIdx,
                           const double dt);
 
+
             // called at the end of a time step
             void timeStepSucceeded(const double& simulationTime, const double dt);
 
@@ -565,6 +575,7 @@ namespace Opm {
             int reportStepIndex() const;
 
             void assembleWellEq(const double dt, DeferredLogger& deferred_logger);
+            void assembleWellEqLocal(const double dt, const std::vector<int>& domain_cells, DeferredLogger& deferred_logger);
 
             void maybeDoGasLiftOptimize(DeferredLogger& deferred_logger);
 
