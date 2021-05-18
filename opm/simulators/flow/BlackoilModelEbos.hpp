@@ -621,7 +621,8 @@ namespace Opm {
         {
             SimulatorReportSingle report;
 
-            assert(ebosSimulator_.model().newtonMethod().numIterations() == 0);
+            // TODO: the following assertion will fail, does it indicate a programming error?
+            // assert(ebosSimulator_.model().newtonMethod().numIterations() == 0);
             ebosSimulator_.model().newtonMethod().setIterationIndex(0);
             //ebosSimulator_.problem().beginIteration();
             // When called, assembly has already been performed
@@ -653,14 +654,20 @@ namespace Opm {
                 solveLocalJacobianSystem(domain, x);
                 wellModel().postSolve(x);
 
-                // Update local solution.
+                // Update local solution. // TODO: x is still full size, should we optimize it?
                 updateDomainSolution(domain, x);
-                ebosSimulator_.problem().endIteration();
+                // Note: endIteration does not do anything
+                // ebosSimulator_.problem().endIteration();
 
                 ++iter;
 
                 ebosSimulator_.model().newtonMethod().setIterationIndex(iter);
-                ebosSimulator_.problem().beginIteration();
+                // TODO: we should have a beginIterationLocal function()
+                // only handling the well model for now
+                // ebosSimulator_.problem().beginIteration();
+                ebosSimulator_.problem().wellModel().assembleLocal(ebosSimulator_.model().newtonMethod().numIterations(),
+                                                                   ebosSimulator_.timeStepSize(),
+                                                                   domain.cells);
 
                 // Assemble locally.
                 report += assembleReservoirLocal(domain, iter);

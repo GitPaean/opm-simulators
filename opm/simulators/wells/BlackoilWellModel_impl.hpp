@@ -893,6 +893,70 @@ namespace Opm {
         last_report_.assemble_time_well += perfTimer.stop();
     }
 
+
+
+    template<typename TypeTag>
+    void
+    BlackoilWellModel<TypeTag>::
+    assembleLocal(const int iterationIdx,
+                  const double dt,
+                  const std::vector<int>& domain_cells)
+    {
+
+        DeferredLogger local_deferredLogger;
+        // TODO: not handling gas lift for now
+        /* if (this->glift_debug) {
+            const std::string msg = fmt::format(
+                    "assemble() : iteration {}" , iterationIdx);
+            gliftDebug(msg, local_deferredLogger);
+        } */
+        last_report_ = SimulatorReportSingle();
+        Dune::Timer perfTimer;
+        perfTimer.start();
+
+        /* if ( ! wellsActive() ) {
+            return;
+        } */
+
+
+        // TODO: this function remains to be optimized, because we do not need to handle all the wells
+        updatePerforationIntensiveQuantities();
+
+        auto exc_type = ExceptionType::NONE;
+        std::string exc_msg;
+        try {
+            if (iterationIdx == 0) {
+                calculateExplicitQuantities(local_deferredLogger);
+                prepareTimeStep(local_deferredLogger);
+            }
+            updateWellControlsLocal(local_deferredLogger, /* check group controls */ false, domain_cells);
+
+            // Set the well primary variables based on the value of well solutions
+            initPrimaryVariablesEvaluationLocal(domain_cells);
+
+            // maybeDoGasLiftOptimize(local_deferredLogger);
+            assembleWellEqLocal(dt, domain_cells, local_deferredLogger);
+        } catch (const std::runtime_error& e) {
+            exc_type = ExceptionType::RUNTIME_ERROR;
+            exc_msg = e.what();
+        } catch (const std::invalid_argument& e) {
+            exc_type = ExceptionType::INVALID_ARGUMENT;
+            exc_msg = e.what();
+        } catch (const std::logic_error& e) {
+            exc_type = ExceptionType::LOGIC_ERROR;
+            exc_msg = e.what();
+        } catch (const std::exception& e) {
+            exc_type = ExceptionType::DEFAULT;
+            exc_msg = e.what();
+        }
+        logAndCheckForExceptionsAndThrow(local_deferredLogger, exc_type, "assemble() failed: " + exc_msg, terminal_output_);
+        last_report_.converged = true;
+        last_report_.assemble_time_well += perfTimer.stop();
+    }
+
+
+
+
     template<typename TypeTag>
     void
     BlackoilWellModel<TypeTag>::
@@ -1069,6 +1133,17 @@ namespace Opm {
             well->assembleWellEq(ebosSimulator_, dt, this->wellState(), this->groupState(), deferred_logger);
         }
     }
+    template<typename TypeTag>
+    void
+    BlackoilWellModel<TypeTag>::
+    assembleWellEqLocal(const double dt, const std::vector<int>& domain_cells, DeferredLogger& deferred_logger)
+    {
+        for (auto& well : well_container_) {
+            if (wellIsInDomain(*well, domain_cells)) {
+                well->assembleWellEq(ebosSimulator_, dt, this->wellState(), this->groupState(), deferred_logger);
+            }
+        }
+    }
 
     template<typename TypeTag>
     void
@@ -1176,6 +1251,7 @@ namespace Opm {
         std::string exc_msg;
         try {
             if (localWellsActive()) {
+                // TODO: for solveLocal, here might only need to update the
                 for (auto& well : well_container_) {
                     well->recoverWellSolutionAndUpdateWellState(x, this->wellState(), local_deferredLogger);
                 }
@@ -1206,6 +1282,18 @@ namespace Opm {
     {
         for (auto& well : well_container_) {
             well->initPrimaryVariablesEvaluation();
+        }
+    }
+
+    template<typename TypeTag>
+    void
+    BlackoilWellModel<TypeTag>::
+    initPrimaryVariablesEvaluationLocal(const std::vector<int>& domain_cells) const
+    {
+        for (auto& well : well_container_) {
+            if (wellIsInDomain(*well, domain_cells)) {
+                well->initPrimaryVariablesEvaluation();
+            }
         }
     }
 
@@ -1376,6 +1464,55 @@ namespace Opm {
             well->updateWellControl(ebosSimulator_, mode, this->wellState(), this->groupState(), deferred_logger);
         }
         updateAndCommunicateGroupData(episodeIdx, iterationIdx);
+    }
+
+
+    template<typename TypeTag>
+    void
+    BlackoilWellModel<TypeTag>::
+    updateWellControlsLocal(DeferredLogger& deferred_logger, const bool checkGroupControls, const std::vector<int>& domain_cells)
+    {
+        // Even if there are no wells active locally, we cannot
+        // return as the DeferredLogger uses global communication.
+        // For no well active globally we simply return.
+        if( !wellsActive() ) return ;
+
+/*        updateAndCommunicateGroupData();
+
+        updateNetworkPressures(); */
+
+        std::set<std::string> switched_wells;
+        std::set<std::string> switched_groups;
+
+/*        if (checkGroupControls) {
+            // Check group individual constraints.
+            updateGroupIndividualControls(deferred_logger, switched_groups);
+
+            // Check group's constraints from higher levels.
+            updateGroupHigherControls(deferred_logger, switched_groups);
+
+            updateAndCommunicateGroupData();
+
+            // Check wells' group constraints and communicate.
+            for (const auto& well : well_container_) {
+                const auto mode = WellInterface<TypeTag>::IndividualOrGroup::Group;
+                const bool changed = well->updateWellControl(ebosSimulator_, mode, this->wellState(), this->groupState(), deferred_logger);
+                if (changed) {
+                    switched_wells.insert(well->name());
+                }
+            }
+            updateAndCommunicateGroupData();
+        } */
+
+        // Check individual well constraints and communicate.
+        for (const auto& well : well_container_) {
+            if (switched_wells.count(well->name()) || !wellIsInDomain(*well, domain_cells)) {
+                continue;
+            }
+            const auto mode = WellInterface<TypeTag>::IndividualOrGroup::Individual;
+            well->updateWellControl(ebosSimulator_, mode, this->wellState(), this->groupState(), deferred_logger);
+        }
+       //  updateAndCommunicateGroupData();
     }
 
 
