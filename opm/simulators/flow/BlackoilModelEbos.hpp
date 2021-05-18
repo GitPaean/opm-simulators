@@ -252,8 +252,16 @@ namespace Opm {
                 domains_.push_back(Domain{index, partitions[index], Dune::SubGridView<Grid>(ebosSimulator_.vanguard().grid(), partitions[index])});
             }
 
-            // This container will store the local system matrices.
+            // Set up container for the local system matrices.
             domain_matrices_.resize(num_domains);
+
+            // Set up container for the local linear solvers.
+            for (int index = 0; index < num_domains; ++index) {
+                // TODO: The ISTLSolverEbos constructor will make
+                // parallel structures appropriate for the full grid
+                // only. This must be addressed before going parallel.
+                domain_linsolvers_.emplace_back(ebosSimulator_, false);
+            }
 
             assert(int(domains_.size()) == num_domains);
         }
@@ -860,10 +868,7 @@ namespace Opm {
             global_x = 0.0;
             x = 0.0;
 
-            // TODO: Inefficient to recreate all the time, and
-            // the constructor will make parallel structures appropriate
-            // for the full grid only.
-            ISTLSolverEbos<TypeTag> linsolver(ebosSimulator_, false);
+            auto& linsolver = domain_linsolvers_[domain.index];
 
             Dune::Timer perfTimer;
             perfTimer.start();
@@ -1674,8 +1679,8 @@ namespace Opm {
         std::vector<StepReport> convergence_reports_;
 
         std::vector<Domain> domains_;
-        std::vector<Dune::SubGridView<Grid>> domain_views_;
         std::vector<std::unique_ptr<Mat>> domain_matrices_;
+        std::vector<ISTLSolverType> domain_linsolvers_;
 
 
     public:
