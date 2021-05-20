@@ -20,13 +20,13 @@
 #ifndef OPM_ASPINPARTITION_HEADER_INCLUDED
 #define OPM_ASPINPARTITION_HEADER_INCLUDED
 
-
+#include <utility>
 #include <vector>
 
 namespace Opm
 {
 
-std::vector<std::vector<int>> partitionCells(const int num_cells);
+std::pair<std::vector<int>, int> partitionCells(const int num_cells);
 
 } // namespace Opm
 

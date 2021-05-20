@@ -19,6 +19,8 @@
 
 #include <opm/simulators/flow/aspinPartition.hpp>
 
+#include <fmt/format.h>
+
 #include <algorithm>
 #include <cassert>
 #include <fstream>
@@ -34,56 +36,47 @@ namespace
 {
 
     // Read from file, containing one number per cell, from [0, ... , num_domains - 1].
-    std::vector<std::vector<int>> partitionCellsFromFile([[maybe_unused]] const int num_cells)
+    std::pair<std::vector<int>, int> partitionCellsFromFile([[maybe_unused]] const int num_cells)
     {
         // TODO: refactor to make more flexible.
         // Read file into single vector.
         const std::string filename = "partition.txt";
         std::ifstream is(filename);
         const std::vector<int> cellpart{std::istream_iterator<int>(is), std::istream_iterator<int>()};
-        assert(cellpart.size() == size_t(num_cells));
+        if (cellpart.size() != size_t(num_cells)) {
+            auto msg = fmt::format("Partition file contains {} entries, but there are {} cells.",
+                                   cellpart.size(), num_cells);
+            throw std::runtime_error(msg);
+        }
 
         // Create and return the output domain vector.
         const int num_domains = (*std::max_element(cellpart.begin(), cellpart.end())) + 1;
-        std::vector<std::vector<int>> part(num_domains);
-        for (size_t cell = 0; cell < cellpart.size(); ++cell) {
-            part[cellpart[cell]].push_back(cell);
-        }
-        return part;
+        return { cellpart, num_domains };
     }
 
 
     // Trivially simple partitioner
-    std::vector<std::vector<int>> partitionCellsSimple(const int num_cells, const int num_domains)
+    std::pair<std::vector<int>, int> partitionCellsSimple(const int num_cells, const int num_domains)
     {
-        // Local lambda to return cell indices of a domain.
-        auto createCells = [num_cells, num_domains](int dom_index) {
-            std::vector<int> cells;
-            const int dom_sz = num_cells / num_domains;
-            const int start = dom_index * dom_sz;
-            if (dom_index < num_domains - 1) {
-                // Not the last domain
-                cells.resize(dom_sz);
-            } else {
-                // The last domain
-                cells.resize(num_cells - start);
-            }
-            std::iota(cells.begin(), cells.end(), start);
-            return cells;
-        };
-
         // Build the partitions.
-        std::vector<std::vector<int>> part(num_domains);
-        for (int i = 0; i < num_domains; ++i) {
-            part[i] = createCells(i);
+        std::vector<int> bounds(num_domains + 1);
+        bounds[0] = 0;
+        const int dom_sz = num_cells / num_domains;
+        for (int i = 1; i < num_domains; ++i) {
+            bounds[i] = dom_sz * i;
         }
-        return part;
+        bounds[num_domains] = num_cells;
+        std::vector<int> part(num_cells);
+        for (int i = 0; i < num_domains; ++i) {
+            std::fill(part.begin() + bounds[i], part.begin() + bounds[i + 1], i);
+        }
+        return { part, num_domains };
     }
 
 } // anonymous namespace
 
 
-std::vector<std::vector<int>>
+std::pair<std::vector<int>, int>
 partitionCells(const int num_cells)
 {
     // const std::string method = "simple";

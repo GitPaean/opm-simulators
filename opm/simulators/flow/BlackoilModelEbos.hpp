@@ -191,6 +191,9 @@ namespace Opm {
             int index;
             std::vector<int> cells;
             Dune::SubGridView<Grid> view;
+            Domain(const int i, std::vector<int>&& c, Dune::SubGridView<Grid>&& v)
+                : index(i), cells(std::move(c)), view(std::move(v))
+            {}
         };
 
         typedef ISTLSolverEbos<TypeTag> ISTLSolverType;
@@ -244,12 +247,42 @@ namespace Opm {
         {
             // Create partitions.
             const int num_cells = detail::countLocalInteriorCells(grid_);
-            auto partitions = partitionCells(num_cells);
+            auto [partition_vector, num_partitions] = partitionCells(num_cells);
+
+            // Scan through partitioning to get correct size for each.
+            std::vector<int> sizes(num_partitions, 0);
+            for (int p : partition_vector) {
+                ++sizes[p];
+            }
+
+            // Set up correctly sized vectors of entity seeds and of indices for each partition.
+            using EntitySeed = typename Grid::template Codim<0>::EntitySeed;
+            std::vector<std::vector<EntitySeed>> seeds(num_partitions);
+            std::vector<std::vector<int>> partitions(num_partitions);
+            for (int part = 0; part < num_partitions; ++part) {
+                seeds[part].resize(sizes[part]);
+                partitions[part].resize(sizes[part]);
+            }
+
+            // Iterate through grid once, setting the seeds of all partitions.
+            std::vector<int> count(num_partitions, 0);
+            const auto beg = grid_.template leafbegin<0>();
+            const auto end = grid_.template leafend<0>();
+            int cell = 0;
+            for (auto it = beg; it != end; ++it, ++cell) {
+                const int p = partition_vector[cell];
+                seeds[p][count[p]] = it->seed();
+                partitions[p][count[p]] = cell;
+                ++count[p];
+            }
+            assert(cell == num_cells);
+            assert(count == sizes);
 
             // Create the domains.
             const int num_domains = partitions.size();
             for (int index = 0; index < num_domains; ++index) {
-                domains_.push_back(Domain{index, partitions[index], Dune::SubGridView<Grid>(ebosSimulator_.vanguard().grid(), partitions[index])});
+                Dune::SubGridView<Grid> view(ebosSimulator_.vanguard().grid(), std::move(seeds[index]));
+                domains_.emplace_back(index, std::move(partitions[index]), std::move(view));
             }
 
             // Set up container for the local system matrices.
