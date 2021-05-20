@@ -148,6 +148,7 @@ list (APPEND TEST_SOURCE_FILES
   tests/test_keyword_validator.cpp
   tests/test_GroupState.cpp
   tests/test_ALQState.cpp
+  tests/test_aspinPartition.cpp
   )
 
 if(MPI_FOUND)
@@ -208,6 +209,7 @@ list (APPEND TEST_DATA_FILES
   tests/include/summary.inc
   tests/include/test1_20x30x10.grdecl
   tests/include/well_vfp.ecl
+  tests/partition.txt
   )
 
 
