@@ -1168,6 +1168,9 @@ namespace Opm {
                  elemIt != elemEndIt;
                  ++elemIt)
             {
+                if (elemIt->partitionType() != Dune::InteriorEntity) {
+                    continue;
+                }
                 const auto& elem = *elemIt;
                 elemCtx.updatePrimaryStencil(elem);
                 elemCtx.updatePrimaryIntensiveQuantities(/*timeIdx=*/0);
