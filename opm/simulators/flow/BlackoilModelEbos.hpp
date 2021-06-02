@@ -191,8 +191,9 @@ namespace Opm {
             int index;
             std::vector<int> cells;
             Dune::SubGridView<Grid> view;
-            Domain(const int i, std::vector<int>&& c, Dune::SubGridView<Grid>&& v)
-                : index(i), cells(std::move(c)), view(std::move(v))
+            std::vector<bool> interior;
+            Domain(const int i, std::vector<int>&& c, std::vector<bool>&& in, Dune::SubGridView<Grid>&& v)
+                : index(i), cells(std::move(c)), interior(std::move(in)), view(std::move(v))
             {}
         };
 
@@ -281,8 +282,12 @@ namespace Opm {
             // Create the domains.
             const int num_domains = partitions.size();
             for (int index = 0; index < num_domains; ++index) {
+                std::vector<bool> interior(num_cells, false);
+                for (int ix : partitions[index]) {
+                    interior[ix] = true;
+                }
                 Dune::SubGridView<Grid> view(ebosSimulator_.vanguard().grid(), std::move(seeds[index]));
-                domains_.emplace_back(index, std::move(partitions[index]), std::move(view));
+                domains_.emplace_back(index, std::move(partitions[index]), std::move(interior), std::move(view));
             }
 
             // Set up container for the local system matrices.
@@ -787,7 +792,7 @@ namespace Opm {
             // Need to set residual and jacobian to zero in the domain.
             ebosSimulator_.model().linearizer().resetSystem(domain.view);
             // Call the domain-dependent linearization.
-            ebosSimulator_.model().linearizer().linearizeDomain(domain.view);
+            ebosSimulator_.model().linearizer().linearizeDomain(domain.view, domain.interior);
             // ebosSimulator_.problem().endIteration();
 
             return wellModel().lastReport();
