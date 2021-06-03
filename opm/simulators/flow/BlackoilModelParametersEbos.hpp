@@ -154,7 +154,19 @@ struct AlternativeWellRateInit {
     using type = UndefinedProperty;
 };
 template<class TypeTag, class MyTypeTag>
-struct EnableAspin {
+struct NonlinearSolver {
+    using type = UndefinedProperty;
+};
+template<class TypeTag, class MyTypeTag>
+struct OuterAspinTolerance {
+    using type = UndefinedProperty;
+};
+template<class TypeTag, class MyTypeTag>
+struct MaxLocalSolveIterations {
+    using type = UndefinedProperty;
+};
+template<class TypeTag, class MyTypeTag>
+struct LocalToleranceScaling {
     using type = UndefinedProperty;
 };
 
@@ -289,11 +301,25 @@ struct RelaxedPressureTolInnerIterMsw<TypeTag, TTag::FlowModelParameters> {
     using type = GetPropType<TypeTag, Scalar>;
     static constexpr type value = 0.5e5;
 };
-
 template<class TypeTag>
-struct EnableAspin<TypeTag, TTag::FlowModelParameters> {
-    static constexpr bool value = false;
+struct NonlinearSolver<TypeTag, TTag::FlowModelParameters> {
+    static constexpr auto value = "newton";
 };
+template<class TypeTag>
+struct OuterAspinTolerance<TypeTag, TTag::FlowModelParameters> {
+    using type = GetPropType<TypeTag, Scalar>;
+    static constexpr type value = 1e-3;
+};
+template<class TypeTag>
+struct MaxLocalSolveIterations<TypeTag, TTag::FlowModelParameters> {
+    static constexpr int value = 20;
+};
+template<class TypeTag>
+struct LocalToleranceScaling<TypeTag, TTag::FlowModelParameters> {
+    using type = GetPropType<TypeTag, Scalar>;
+    static constexpr type value = 0.01;
+};
+
 
 // if openMP is available, determine the number threads per process automatically.
 #if _OPENMP
@@ -396,8 +422,14 @@ namespace Opm
         // Whether to add influences of wells between cells to the matrix and preconditioner matrix
         bool matrix_add_well_contributions_;
 
-        // Use ASPIN approach instead of Newton
-        bool enable_aspin_;
+        // Choose nonlinear solver type: newton, aspin, nldd.
+        std::string nonlinear_solver_;
+
+        double outer_aspin_tolerance_;
+
+        int max_local_solve_iterations_;
+
+        double local_tolerance_scaling_;
 
         /// Construct from user parameters or defaults.
         BlackoilModelParametersEbos()
@@ -429,7 +461,10 @@ namespace Opm
             update_equations_scaling_ = EWOMS_GET_PARAM(TypeTag, bool, UpdateEquationsScaling);
             use_update_stabilization_ = EWOMS_GET_PARAM(TypeTag, bool, UseUpdateStabilization);
             matrix_add_well_contributions_ = EWOMS_GET_PARAM(TypeTag, bool, MatrixAddWellContributions);
-            enable_aspin_ = EWOMS_GET_PARAM(TypeTag, bool, EnableAspin);
+            nonlinear_solver_ = EWOMS_GET_PARAM(TypeTag, std::string, NonlinearSolver);
+            outer_aspin_tolerance_ = EWOMS_GET_PARAM(TypeTag, double, OuterAspinTolerance);
+            max_local_solve_iterations_ = EWOMS_GET_PARAM(TypeTag, int, MaxLocalSolveIterations);
+            local_tolerance_scaling_ = EWOMS_GET_PARAM(TypeTag, double, LocalToleranceScaling);
             deck_file_name_ = EWOMS_GET_PARAM(TypeTag, std::string, EclDeckFileName);
         }
 
@@ -465,7 +500,11 @@ namespace Opm
             EWOMS_REGISTER_PARAM(TypeTag, bool, UseUpdateStabilization, "Try to detect and correct oscillations or stagnation during the Newton method");
             EWOMS_REGISTER_PARAM(TypeTag, bool, MatrixAddWellContributions, "Explicitly specify the influences of wells between cells in the Jacobian and preconditioner matrices");
             EWOMS_REGISTER_PARAM(TypeTag, bool, EnableWellOperabilityCheck, "Enable the well operability checking");
-            EWOMS_REGISTER_PARAM(TypeTag, bool, EnableAspin, "Enable the well operability checking");
+            EWOMS_REGISTER_PARAM(TypeTag, std::string, NonlinearSolver, "Choose nonlinear solver. Valid choices are newton, aspin or nldd.");
+            EWOMS_REGISTER_PARAM(TypeTag, Scalar, OuterAspinTolerance, "Tolerance for ASPIN residual.");
+            EWOMS_REGISTER_PARAM(TypeTag, int, MaxLocalSolveIterations, "Max iterations for local solves with ASPIN or NLDD.");
+            EWOMS_REGISTER_PARAM(TypeTag, Scalar, LocalToleranceScaling, "Set lower than 1.0 to use stricter convergence tolerance for local solves.");
+
         }
     };
 } // namespace Opm

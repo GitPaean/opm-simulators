@@ -190,8 +190,8 @@ namespace Opm {
         {
             int index;
             std::vector<int> cells;
-            Dune::SubGridView<Grid> view;
             std::vector<bool> interior;
+            Dune::SubGridView<Grid> view;
             Domain(const int i, std::vector<int>&& c, std::vector<bool>&& in, Dune::SubGridView<Grid>&& v)
                 : index(i), cells(std::move(c)), interior(std::move(in)), view(std::move(v))
             {}
@@ -229,7 +229,7 @@ namespace Opm {
             global_nc_ = detail::countGlobalCells(grid_);
             convergence_reports_.reserve(300); // Often insufficient, but avoids frequent moves.
             // TODO: remember to fix!
-            if (param_.enable_aspin_) {
+            if (param_.nonlinear_solver_ == "aspin" || param_.nonlinear_solver_ == "nldd") {
                 setupAspinDomains();
             }
         }
@@ -357,7 +357,7 @@ namespace Opm {
                                                  const SimulatorTimerInterface& timer,
                                                  NonlinearSolverType& nonlinear_solver)
         {
-            if (param_.enable_aspin_) {
+            if (param_.nonlinear_solver_ == "aspin" || param_.nonlinear_solver_ == "nldd") {
                 return nonlinearIterationAspin(iteration, timer, nonlinear_solver);
             } else {
                 return nonlinearIterationNewton(iteration, timer, nonlinear_solver);
@@ -549,6 +549,12 @@ namespace Opm {
             report.update_time += perfTimer.stop();
             residual_norms_history_.push_back(residual_norms);
 
+            if (report.converged) {
+                return report;
+            }
+
+            // -----------   If not converged, do an ASPIN or NLDD iteration   -----------
+
             // Take a copy of the FI residual.
             auto fully_implicit_residual = ebosSimulator().model().linearizer().residual();
             // ... and the Jacobian.
@@ -557,104 +563,128 @@ namespace Opm {
             auto initial_solution = ebosSimulator().model().solution(0);
             auto initial_wellstate = wellModel().wellState();
 
+            perfTimer.reset();
+            perfTimer.start();
+            report.total_newton_iterations = 1;
 
-            // -----------   If not converged, do an ASPIN iteration   -----------
-            if (!report.converged) {
-
-                perfTimer.reset();
-                perfTimer.start();
-                report.total_newton_iterations = 1;
-
-                // -----------   Solve each ASPIN domain separately   -----------
-                for (const auto& domain : domains_) {
-                    SimulatorReportSingle local_report = solveLocal(domain, timer);
-                    // This should have updated the global matrix to be
-                    // dR_i/du_j evaluated at new local solutions for
-                    // i == j, at old solution for i != j.
-                    if (!local_report.converged) {
-                        // TODO: more proper treatment, including in parallel.
-                        OpmLog::debug("Convergence failure in ASPIN domain containing cell " + std::to_string(domain.cells[0]));
-                    }
+            // -----------   Solve each domain separately   -----------
+            std::vector<SimulatorReportSingle> domain_reports(domains_.size());
+            for (const auto& domain : domains_) {
+                SimulatorReportSingle local_report = solveLocal(domain, timer);
+                // This should have updated the global matrix to be
+                // dR_i/du_j evaluated at new local solutions for
+                // i == j, at old solution for i != j.
+                if (!local_report.converged) {
+                    // TODO: more proper treatment, including in parallel.
+                    OpmLog::debug("Convergence failure in ASPIN domain containing cell " + std::to_string(domain.cells[0]));
                 }
+                domain_reports[domain.index] = local_report;
+            }
 
+            if (param_.nonlinear_solver_ == "nldd") {
                 // Finish with a Newton step.
                 ebosSimulator_.model().invalidateAndUpdateIntensiveQuantities(/*timeIdx=*/0);
                 return nonlinearIterationNewton(iteration, timer, nonlinear_solver);
-
-                // -----------   Compute ASPIN residual, check convergence   -----------
-                auto locally_solved = ebosSimulator().model().solution(0);
-                const int nc = UgGridHelpers::numCells(grid_);
-                BVector aspin_residual(nc);
-                for (int c = 0; c < nc; ++c) {
-                    aspin_residual[c] = initial_solution[c] - locally_solved[c];
-                }
-
-                // -----------   Solve global linear system   -----------
-                // The matrix is kept as is for now.
-                // TODO: test with proper ASPIN (in what we have now, columns are updated outside the diagonal
-                // domain-domain interaction blocks in a Gauss-Seidel-like manner), and other variations.
-                // Compute rhs.
-                // ...
-                BVector rhs(nc);
-                BVector x(nc);
-
-                // -----------   Update solution   -----------
-
-                // Compute the nonlinear update.
-
-                // apply the Schur compliment of the well model to the reservoir linearized
-                // equations
-                // wellModel().linearize(ebosSimulator().model().linearizer().jacobian(),
-                //                       ebosSimulator().model().linearizer().residual());
-
-                // Solve the linear system.
-                linear_solve_setup_time_ = 0.0;
-                try {
-                    solveJacobianSystem(x);
-                    report.linear_solve_setup_time += linear_solve_setup_time_;
-                    report.linear_solve_time += perfTimer.stop();
-                    report.total_linear_iterations += linearIterationsLastSolve();
-                }
-                catch (...) {
-                    report.linear_solve_setup_time += linear_solve_setup_time_;
-                    report.linear_solve_time += perfTimer.stop();
-                    report.total_linear_iterations += linearIterationsLastSolve();
-
-                    failureReport_ += report;
-                    throw; // re-throw up
-                }
-
-                perfTimer.reset();
-                perfTimer.start();
-
-                // handling well state update before oscillation treatment is a decision based
-                // on observation to avoid some big performance degeneration under some circumstances.
-                // there is no theorectical explanation which way is better for sure.
-                wellModel().postSolve(x);
-
-                if (param_.use_update_stabilization_) {
-                    // Stabilize the nonlinear update.
-                    bool isOscillate = false;
-                    bool isStagnate = false;
-                    nonlinear_solver.detectOscillations(residual_norms_history_, iteration, isOscillate, isStagnate);
-                    if (isOscillate) {
-                        current_relaxation_ -= nonlinear_solver.relaxIncrement();
-                        current_relaxation_ = std::max(current_relaxation_, nonlinear_solver.relaxMax());
-                        if (terminalOutputEnabled()) {
-                            std::string msg = "    Oscillating behavior detected: Relaxation set to "
-                                    + std::to_string(current_relaxation_);
-                            OpmLog::info(msg);
-                        }
-                    }
-                    nonlinear_solver.stabilizeNonlinearUpdate(x, dx_old_, current_relaxation_);
-                }
-
-                // Apply the update, with considering model-dependent limitations and
-                // chopping of the update.
-                updateSolution(x);
-
-                report.update_time += perfTimer.stop();
             }
+
+            // -----------   Compute ASPIN residual, check convergence   -----------
+            auto locally_solved = ebosSimulator().model().solution(0);
+            const int nc = UgGridHelpers::numCells(grid_);
+            BVector aspin_residual(nc);
+            const int num_vars = aspin_residual[0].size();
+            std::vector<double> max_sol(num_vars, 0.0);
+            std::vector<double> max_diff(num_vars, 0.0);
+            for (int c = 0; c < nc; ++c) {
+                aspin_residual[c] = initial_solution[c] - locally_solved[c];
+                for (int var = 0; var < num_vars; ++var) {
+                    max_sol[var] = std::max(max_sol[var], std::fabs(locally_solved[c][var]));
+                    max_diff[var] = std::max(max_diff[var], std::fabs(aspin_residual[c][var]));
+                }
+            }
+            double max_scaled_diff = 0.0;
+            for (int var = 0; var < num_vars; ++var) {
+                max_scaled_diff = std::max(max_scaled_diff, max_diff[var]/max_sol[var]);
+            }
+            OpmLog::debug("  Scaled ASPIN residual: " + std::to_string(max_scaled_diff));
+            if (max_scaled_diff < param_.outer_aspin_tolerance_) {
+                report.converged = true;
+                return report;
+            }
+
+            // -----------   Solve global linear system   -----------
+            // The matrix is kept as is for now.
+            // TODO: test with proper ASPIN (in what we have now, columns are updated outside the diagonal
+            // domain-domain interaction blocks in a Gauss-Seidel-like manner), and other variations.
+            // Compute rhs.
+            // ...
+            auto& ebosResid = ebosSimulator_.model().linearizer().residual();
+            for (const auto& domain : domains_) {
+                auto aspin_res_local = Details::extractVector(aspin_residual, domain.cells);
+                BVector aspin_res_mod(aspin_res_local.size());
+                aspin_res_mod = 0;
+                if (domain_reports[domain.index].total_newton_iterations > 0) {
+                    (*domain_matrices_[domain.index]).mv(aspin_res_local, aspin_res_mod);
+                }
+                Details::setGlobal(aspin_res_mod, domain.cells, ebosResid);
+            }
+            BVector x(nc);
+
+            // -----------   Update solution   -----------
+
+            // Compute the nonlinear update.
+
+            // apply the Schur compliment of the well model to the reservoir linearized
+            // equations
+            // wellModel().linearize(ebosSimulator().model().linearizer().jacobian(),
+            //                       ebosSimulator().model().linearizer().residual());
+
+            // Solve the linear system.
+            linear_solve_setup_time_ = 0.0;
+            try {
+                solveJacobianSystem(x);
+                report.linear_solve_setup_time += linear_solve_setup_time_;
+                report.linear_solve_time += perfTimer.stop();
+                report.total_linear_iterations += linearIterationsLastSolve();
+            }
+            catch (...) {
+                report.linear_solve_setup_time += linear_solve_setup_time_;
+                report.linear_solve_time += perfTimer.stop();
+                report.total_linear_iterations += linearIterationsLastSolve();
+
+                failureReport_ += report;
+                throw; // re-throw up
+            }
+
+            perfTimer.reset();
+            perfTimer.start();
+
+            // handling well state update before oscillation treatment is a decision based
+            // on observation to avoid some big performance degeneration under some circumstances.
+            // there is no theorectical explanation which way is better for sure.
+            wellModel().postSolve(x);
+
+            if (param_.use_update_stabilization_) {
+                // Stabilize the nonlinear update.
+                bool isOscillate = false;
+                bool isStagnate = false;
+                nonlinear_solver.detectOscillations(residual_norms_history_, iteration, isOscillate, isStagnate);
+                if (isOscillate) {
+                    current_relaxation_ -= nonlinear_solver.relaxIncrement();
+                    current_relaxation_ = std::max(current_relaxation_, nonlinear_solver.relaxMax());
+                    if (terminalOutputEnabled()) {
+                        std::string msg = "    Oscillating behavior detected: Relaxation set to "
+                            + std::to_string(current_relaxation_);
+                        OpmLog::info(msg);
+                    }
+                }
+                nonlinear_solver.stabilizeNonlinearUpdate(x, dx_old_, current_relaxation_);
+            }
+
+            // Apply the update, with considering model-dependent limitations and
+            // chopping of the update.
+            updateSolution(x);
+
+            report.update_time += perfTimer.stop();
 
             return report;
         }
@@ -683,7 +713,7 @@ namespace Opm {
             }
 
             // Local Newton loop.
-            const int max_iter = EWOMS_GET_PARAM(TypeTag, int, FlowNewtonMaxIterations);;
+            const int max_iter = param_.max_local_solve_iterations_;
             int iter = 0;
             bool converged = false;
             do {
@@ -1356,7 +1386,7 @@ namespace Opm {
             const bool use_relaxed = cnvErrorPvFraction < param_.relaxed_max_pv_fraction_ && iteration >= param_.max_strict_iter_;
             // Tighter bound for local convergence should increase the
             // likelyhood of: local convergence => global convergence
-            const double local_cnv_tolerance_factor = 0.01;
+            const double local_cnv_tolerance_factor = param_.local_tolerance_scaling_;
             const double tol_cnv = local_cnv_tolerance_factor * (use_relaxed ? param_.tolerance_cnv_relaxed_ :  param_.tolerance_cnv_);
 
             // Finish computation
