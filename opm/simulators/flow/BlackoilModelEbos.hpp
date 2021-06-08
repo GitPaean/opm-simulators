@@ -681,7 +681,9 @@ namespace Opm {
             }
 
             // Apply the update, with considering model-dependent limitations and
-            // chopping of the update.
+            // chopping of the update. This update must be based on the initial solution,
+            // not the solution after the local solve.
+            ebosSimulator().model().solution(0) = initial_solution;
             updateSolution(x);
 
             report.update_time += perfTimer.stop();
@@ -755,6 +757,7 @@ namespace Opm {
             ebosSimulator_.problem().endIteration();
 
             report.converged = convreport.converged();
+            report.total_newton_iterations = iter;
             // TODO: set more info, timing etc.
             return report;
         }
