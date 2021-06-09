@@ -560,8 +560,10 @@ namespace Opm {
             // ... and the Jacobian.
             auto fully_implicit_jacobian = ebosSimulator().model().linearizer().jacobian().istlMatrix();
             // ... and the solution state that generated it.
-            auto initial_solution = ebosSimulator().model().solution(0);
+            auto& solution = ebosSimulator().model().solution(0);
+            auto initial_solution = solution;
             auto initial_wellstate = wellModel().wellState();
+            auto locally_solved = initial_solution;
 
             perfTimer.reset();
             perfTimer.start();
@@ -570,7 +572,11 @@ namespace Opm {
             // -----------   Solve each domain separately   -----------
             std::vector<SimulatorReportSingle> domain_reports(domains_.size());
             for (const auto& domain : domains_) {
+                auto initial_local_solution = Details::extractVector(ebosSimulator().model().solution(0), domain.cells);
                 SimulatorReportSingle local_report = solveLocal(domain, timer);
+                auto local_solution = Details::extractVector(ebosSimulator().model().solution(0), domain.cells);
+                Details::setGlobal(local_solution, domain.cells, locally_solved);
+                Details::setGlobal(initial_local_solution, domain.cells, ebosSimulator().model().solution(0));
                 // This should have updated the global matrix to be
                 // dR_i/du_j evaluated at new local solutions for
                 // i == j, at old solution for i != j.
@@ -582,13 +588,13 @@ namespace Opm {
             }
 
             if (param_.nonlinear_solver_ == "nldd") {
+                solution = locally_solved;
                 // Finish with a Newton step.
                 ebosSimulator_.model().invalidateAndUpdateIntensiveQuantities(/*timeIdx=*/0);
                 return nonlinearIterationNewton(iteration, timer, nonlinear_solver);
             }
 
             // -----------   Compute ASPIN residual, check convergence   -----------
-            auto locally_solved = ebosSimulator().model().solution(0);
             const int nc = UgGridHelpers::numCells(grid_);
             BVector aspin_residual(nc);
             const int num_vars = aspin_residual[0].size();
@@ -661,7 +667,7 @@ namespace Opm {
             // handling well state update before oscillation treatment is a decision based
             // on observation to avoid some big performance degeneration under some circumstances.
             // there is no theorectical explanation which way is better for sure.
-            wellModel().postSolve(x);
+            //wellModel().postSolve(x);
 
             if (param_.use_update_stabilization_) {
                 // Stabilize the nonlinear update.
