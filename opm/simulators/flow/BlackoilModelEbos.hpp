@@ -586,6 +586,20 @@ namespace Opm {
                 }
                 domain_reports[domain.index] = local_report;
             }
+            // Extra debug output.
+            {
+                std::ostringstream os;
+                const auto& wrs = wellModel().wellState().wellRates();
+                os << "   ** Well rates:";
+                for (const auto& wr : wrs) {
+                    os << " | ";
+                    for (const double r : wr) {
+                        os << ' ' << r;
+                    }
+                }
+                OpmLog::debug(os.str());
+            }
+
 
             if (param_.nonlinear_solver_ == "nldd") {
                 solution = locally_solved;
@@ -693,6 +707,22 @@ namespace Opm {
             updateSolution(x);
 
             report.update_time += perfTimer.stop();
+
+
+            // Extra debug output.
+            {
+                std::ostringstream os;
+                const auto& wrs = wellModel().wellState().wellRates();
+                os << "   ** Well rates:";
+                for (const auto& wr : wrs) {
+                    os << " | ";
+                    for (const double r : wr) {
+                        os << ' ' << r;
+                    }
+                }
+                OpmLog::debug(os.str());
+            }
+
 
             return report;
         }
