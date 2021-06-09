@@ -286,6 +286,10 @@ namespace Opm
                                     DeferredLogger& deferred_logger) const;
 
 
+        std::vector<double> getPrimaryVars() const override
+        {
+            return primary_variables_;
+        }
     protected:
         // protected functions from the Base class
         using Base::getAllowCrossFlow;

@@ -296,6 +296,8 @@ namespace Opm {
             void updateWellControlsLocal(DeferredLogger& deferred_logger, const bool checkGroupControls,
                                          const std::vector<int>& domain_cells);
 
+            void logPrimaryVars() const;
+
         protected:
             Simulator& ebosSimulator_;
 
