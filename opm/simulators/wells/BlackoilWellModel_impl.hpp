@@ -175,7 +175,7 @@ namespace Opm {
         bool wellIsInDomain(const WellInterface<TypeTag>& well, const std::vector<int>& domain_cells)
         {
             const int first_well_cell = well.cells()[0];
-            return std::lower_bound(domain_cells.begin(), domain_cells.end(), first_well_cell) != domain_cells.end();
+            return std::binary_search(domain_cells.begin(), domain_cells.end(), first_well_cell);
         }
     }
 
