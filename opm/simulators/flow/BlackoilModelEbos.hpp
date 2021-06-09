@@ -504,6 +504,8 @@ namespace Opm {
             failureReport_ = SimulatorReportSingle();
             Dune::Timer perfTimer;
 
+            wellModel().logPrimaryVars();
+
             perfTimer.start();
             if (iteration == 0) {
                 // For each iteration we store in a vector the norms of the residual of
@@ -527,6 +529,7 @@ namespace Opm {
                 // todo (?): make the report an attribute of the class
                 throw; // continue throwing the stick
             }
+            wellModel().logPrimaryVars();
 
             // -----------   Check if converged   -----------
             std::vector<double> residual_norms;
@@ -586,6 +589,7 @@ namespace Opm {
                 }
                 domain_reports[domain.index] = local_report;
             }
+            wellModel().logPrimaryVars();
             // Extra debug output.
             {
                 std::ostringstream os;
@@ -607,6 +611,58 @@ namespace Opm {
                 ebosSimulator_.model().invalidateAndUpdateIntensiveQuantities(/*timeIdx=*/0);
                 return nonlinearIterationNewton(iteration, timer, nonlinear_solver);
             }
+
+            // HACK to check FI convergence
+            // Take a copy of the FI residual.
+            auto res1 = ebosSimulator().model().linearizer().residual();
+            // ... and the Jacobian.
+            auto jac1 = ebosSimulator().model().linearizer().jacobian().istlMatrix();
+            // ... and the solution state that generated it.
+            auto sol1 = solution;
+            auto ws1 = wellModel().wellState();
+
+            // -----------   Assemble   -----------
+            try {
+                report += assembleReservoir(timer, iteration);
+                report.assemble_time += perfTimer.stop();
+            }
+            catch (...) {
+                report.assemble_time += perfTimer.stop();
+                failureReport_ += report;
+                // todo (?): make the report an attribute of the class
+                throw; // continue throwing the stick
+            }
+            wellModel().logPrimaryVars();
+
+            // -----------   Check if converged   -----------
+            perfTimer.reset();
+            perfTimer.start();
+            // the step is not considered converged until at least minIter iterations is done
+            {
+                auto convrep = getConvergence(timer, iteration, residual_norms);
+                report.converged = convrep.converged()  && iteration > nonlinear_solver.minIter();;
+                ConvergenceReport::Severity severity = convrep.severityOfWorstFailure();
+                convergence_reports_.back().report.push_back(std::move(convrep));
+
+                // Throw if any NaN or too large residual found.
+                if (severity == ConvergenceReport::Severity::NotANumber) {
+                    OPM_THROW(NumericalIssue, "NaN residual found!");
+                } else if (severity == ConvergenceReport::Severity::TooLarge) {
+                    OPM_THROW(NumericalIssue, "Too large residual found!");
+                }
+            }
+            report.update_time += perfTimer.stop();
+            residual_norms_history_.push_back(residual_norms);
+
+            if (report.converged) {
+                return report;
+            }
+            // HACK reinstate everything
+            ebosSimulator().model().linearizer().residual() = res1;
+            ebosSimulator().model().linearizer().jacobian().istlMatrix() = jac1;
+            solution = sol1;
+            wellModel().wellState() = ws1;
+
 
             // -----------   Compute ASPIN residual, check convergence   -----------
             const int nc = UgGridHelpers::numCells(grid_);
@@ -681,7 +737,10 @@ namespace Opm {
             // handling well state update before oscillation treatment is a decision based
             // on observation to avoid some big performance degeneration under some circumstances.
             // there is no theorectical explanation which way is better for sure.
-            //wellModel().postSolve(x);
+            // wellModel().wellState() = initial_wellstate;
+            // ebosSimulator_.model().newtonMethod().setIterationIndex(iteration);
+            // wellModel().beginIteration();
+            // wellModel().postSolve(x);
 
             if (param_.use_update_stabilization_) {
                 // Stabilize the nonlinear update.
@@ -708,6 +767,7 @@ namespace Opm {
 
             report.update_time += perfTimer.stop();
 
+            wellModel().logPrimaryVars();
 
             // Extra debug output.
             {
