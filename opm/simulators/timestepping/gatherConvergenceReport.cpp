@@ -38,9 +38,11 @@ namespace
         int type = static_cast<int>(f.type());
         int severity = static_cast<int>(f.severity());
         int phase = f.phase();
+        int cell_number = f.cellNumber();
         MPI_Pack(&type, 1, MPI_INT, buf.data(), buf.size(), &offset, MPI_COMM_WORLD);
         MPI_Pack(&severity, 1, MPI_INT, buf.data(), buf.size(), &offset, MPI_COMM_WORLD);
         MPI_Pack(&phase, 1, MPI_INT, buf.data(), buf.size(), &offset, MPI_COMM_WORLD);
+        MPI_Pack(&cell_number, 1, MPI_INT, buf.data(), buf.size(), &offset, MPI_COMM_WORLD);
     }
 
     void packWellFailure(const ConvergenceReport::WellFailure& f,
@@ -90,7 +92,7 @@ namespace
         for (const auto& f : local_report.wellFailures()) {
             wellnames_length += (f.wellName().size() + 1);
         }
-        return (2 + 3*num_rf + 4*num_wf) * int_pack_size + wellnames_length;
+        return (2 + 4*num_rf + 4*num_wf) * int_pack_size + wellnames_length;
     }
 
     ConvergenceReport::ReservoirFailure unpackReservoirFailure(const std::vector<char>& recv_buffer, int& offset)
@@ -98,13 +100,16 @@ namespace
         int type = -1;
         int severity = -1;
         int phase = -1;
+        int cell_number = -1;
         auto* data = const_cast<char*>(recv_buffer.data());
         MPI_Unpack(data, recv_buffer.size(), &offset, &type, 1, MPI_INT, MPI_COMM_WORLD);
         MPI_Unpack(data, recv_buffer.size(), &offset, &severity, 1, MPI_INT, MPI_COMM_WORLD);
         MPI_Unpack(data, recv_buffer.size(), &offset, &phase, 1, MPI_INT, MPI_COMM_WORLD);
+        MPI_Unpack(data, recv_buffer.size(), &offset, &cell_number, 1, MPI_INT, MPI_COMM_WORLD);
         return ConvergenceReport::ReservoirFailure(static_cast<ConvergenceReport::ReservoirFailure::Type>(type),
                                                    static_cast<ConvergenceReport::Severity>(severity),
-                                                   phase);
+                                                   phase,
+                                                   cell_number);
     }
 
     ConvergenceReport::WellFailure unpackWellFailure(const std::vector<char>& recv_buffer, int& offset)

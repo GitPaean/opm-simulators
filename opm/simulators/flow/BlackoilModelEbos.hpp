@@ -1285,7 +1285,8 @@ namespace Opm {
         double localDomainConvergenceData(const Domain& domain,
                                           std::vector<Scalar>& R_sum,
                                           std::vector<Scalar>& maxCoeff,
-                                          std::vector<Scalar>& B_avg)
+                                          std::vector<Scalar>& B_avg,
+                                          std::vector<int>& maxCoeffCell)
         {
             double pvSumLocal = 0.0;
             const auto& ebosModel = ebosSimulator_.model();
@@ -1328,7 +1329,11 @@ namespace Opm {
                     const auto R2 = ebosResid[cell_idx][compIdx];
 
                     R_sum[ compIdx ] += R2;
-                    maxCoeff[ compIdx ] = std::max( maxCoeff[ compIdx ], std::abs( R2 ) / pvValue );
+                    const double Rval = std::abs( R2 ) / pvValue;
+                    if (Rval > maxCoeff[ compIdx ]) {
+                        maxCoeff[ compIdx ] = Rval;
+                        maxCoeffCell[ compIdx ] = cell_idx;
+                    }
                 }
 
                 if constexpr (has_solvent_) {
@@ -1468,7 +1473,8 @@ namespace Opm {
             const int numComp = numEq;
             Vector R_sum(numComp, 0.0 );
             Vector maxCoeff(numComp, std::numeric_limits< Scalar >::lowest() );
-            const double pvSum = localDomainConvergenceData(domain, R_sum, maxCoeff, B_avg);
+            std::vector<int> maxCoeffCell(numComp, -1);
+            const double pvSum = localDomainConvergenceData(domain, R_sum, maxCoeff, B_avg, maxCoeffCell);
 
             // compute global sum and max of quantities
             // const double pvSum = convergenceReduction(grid_.comm(), pvSumLocal,
@@ -1542,24 +1548,25 @@ namespace Opm {
                 CR::ReservoirFailure::Type types[2] = { CR::ReservoirFailure::Type::MassBalance,
                                                         CR::ReservoirFailure::Type::Cnv };
                 double tol[2] = { tol_mb, tol_cnv };
+                int cell[2] = { -1, maxCoeffCell[compIdx] }; // No cell associated with MB failures.
                 for (int ii : {0, 1}) {
                     if (std::isnan(res[ii])) {
-                        report.setReservoirFailed({types[ii], CR::Severity::NotANumber, compIdx});
+                        report.setReservoirFailed({types[ii], CR::Severity::NotANumber, compIdx, cell[ii]});
                         if ( terminal_output_ ) {
                             OpmLog::debug("NaN residual for " + compNames[compIdx] + " equation.");
                         }
                     } else if (res[ii] > maxResidualAllowed()) {
-                        report.setReservoirFailed({types[ii], CR::Severity::TooLarge, compIdx});
+                        report.setReservoirFailed({types[ii], CR::Severity::TooLarge, compIdx, cell[ii]});
                         if ( terminal_output_ ) {
                             OpmLog::debug("Too large residual for " + compNames[compIdx] + " equation.");
                         }
                     } else if (res[ii] < 0.0) {
-                        report.setReservoirFailed({types[ii], CR::Severity::Normal, compIdx});
+                        report.setReservoirFailed({types[ii], CR::Severity::Normal, compIdx, cell[ii]});
                         if ( terminal_output_ ) {
                             OpmLog::debug("Negative residual for " + compNames[compIdx] + " equation.");
                         }
                     } else if (res[ii] > tol[ii]) {
-                        report.setReservoirFailed({types[ii], CR::Severity::Normal, compIdx});
+                        report.setReservoirFailed({types[ii], CR::Severity::Normal, compIdx, cell[ii]});
                     }
                 }
             }
@@ -1686,22 +1693,22 @@ namespace Opm {
                 double tol[2] = { tol_mb, tol_cnv };
                 for (int ii : {0, 1}) {
                     if (std::isnan(res[ii])) {
-                        report.setReservoirFailed({types[ii], CR::Severity::NotANumber, compIdx});
+                        report.setReservoirFailed({types[ii], CR::Severity::NotANumber, compIdx, -1});
                         if ( terminal_output_ ) {
                             OpmLog::debug("NaN residual for " + compNames[compIdx] + " equation.");
                         }
                     } else if (res[ii] > maxResidualAllowed()) {
-                        report.setReservoirFailed({types[ii], CR::Severity::TooLarge, compIdx});
+                        report.setReservoirFailed({types[ii], CR::Severity::TooLarge, compIdx, -1});
                         if ( terminal_output_ ) {
                             OpmLog::debug("Too large residual for " + compNames[compIdx] + " equation.");
                         }
                     } else if (res[ii] < 0.0) {
-                        report.setReservoirFailed({types[ii], CR::Severity::Normal, compIdx});
+                        report.setReservoirFailed({types[ii], CR::Severity::Normal, compIdx, -1});
                         if ( terminal_output_ ) {
                             OpmLog::debug("Negative residual for " + compNames[compIdx] + " equation.");
                         }
                     } else if (res[ii] > tol[ii]) {
-                        report.setReservoirFailed({types[ii], CR::Severity::Normal, compIdx});
+                        report.setReservoirFailed({types[ii], CR::Severity::Normal, compIdx, -1});
                     }
                 }
             }
