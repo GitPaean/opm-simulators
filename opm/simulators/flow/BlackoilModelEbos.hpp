@@ -1387,7 +1387,7 @@ namespace Opm {
             const int bSize = B_avg.size();
             for ( int i = 0; i<bSize; ++i )
             {
-                B_avg[ i ] /= Scalar( global_nc_ ); // TODO this must be wrong?!?
+                B_avg[ i ] /= Scalar(domain.cells.size());
             }
 
             return pvSumLocal;
