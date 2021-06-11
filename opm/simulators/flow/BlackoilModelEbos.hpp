@@ -298,7 +298,13 @@ namespace Opm {
                 // TODO: The ISTLSolverEbos constructor will make
                 // parallel structures appropriate for the full grid
                 // only. This must be addressed before going parallel.
-                domain_linsolvers_.emplace_back(ebosSimulator_, false);
+                FlowLinearSolverParameters param;
+                param.template init<TypeTag>();
+                // Override solver type with umfpack if small domain.
+                if (domains_[index].cells.size() < 1000) {
+                    param.linsolver_ = "umfpack.json";
+                }
+                domain_linsolvers_.emplace_back(ebosSimulator_, param, false);
             }
 
             assert(int(domains_.size()) == num_domains);
