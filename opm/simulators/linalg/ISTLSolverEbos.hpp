@@ -113,23 +113,38 @@ namespace Opm
         }
 
         /// Construct a system solver.
-        /// \param[in] parallelInformation In the case of a parallel run
-        ///                                with dune-istl the information about the parallelization.
         explicit ISTLSolverEbos(const Simulator& simulator, const bool print_json_info = true)
             : simulator_(simulator),
               iterations_( 0 ),
               converged_(false),
               matrix_()
         {
-            const bool on_io_rank = (simulator.gridView().comm().rank() == 0);
+            parameters_.template init<TypeTag>();
+            initialize(print_json_info);
+        }
+
+        /// Construct a system solver passing explicit parameters instead of reading from properties.
+        explicit ISTLSolverEbos(const Simulator& simulator, const FlowLinearSolverParameters& parameters, const bool print_json_info = true)
+            : simulator_(simulator),
+              iterations_( 0 ),
+              converged_(false),
+              matrix_(),
+              parameters_(parameters)
+        {
+            initialize(print_json_info);
+        }
+
+        /// Initialize everything. This function exists to support the
+        /// two different constructors without repeating code.
+        void initialize(const bool print_json_info)
+        {
+            const bool on_io_rank = (simulator_.gridView().comm().rank() == 0);
 #if HAVE_MPI
             comm_.reset( new CommunicationType( simulator_.vanguard().grid().comm() ) );
 #endif
-            parameters_.template init<TypeTag>();
             prm_ = setupPropertyTree(parameters_,
                                      EWOMS_PARAM_IS_SET(TypeTag, int, LinearSolverMaxIter),
                                      EWOMS_PARAM_IS_SET(TypeTag, int, CprMaxEllIter));
-
 #if HAVE_CUDA || HAVE_OPENCL || HAVE_FPGA
             {
                 std::string accelerator_mode = EWOMS_GET_PARAM(TypeTag, std::string, AcceleratorMode);
