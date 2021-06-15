@@ -324,7 +324,7 @@ protected:
             // of threshold pressure is a quite big hack that only makes sense for ECL
             // datasets. (and even there, its physical justification is quite
             // questionable IMO.)
-            if (std::abs(Toolbox::value(pressureDifference_[phaseIdx])) > thpres) {
+            if (std::abs(Toolbox::value(pressureDifference_[phaseIdx])) >= thpres) {
                 if (pressureDifference_[phaseIdx] < 0.0)
                     pressureDifference_[phaseIdx] += thpres;
                 else
