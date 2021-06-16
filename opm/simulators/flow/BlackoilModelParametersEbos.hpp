@@ -166,10 +166,13 @@ struct MaxLocalSolveIterations {
     using type = UndefinedProperty;
 };
 template<class TypeTag, class MyTypeTag>
-struct LocalToleranceScaling {
+struct LocalToleranceScalingMb {
     using type = UndefinedProperty;
 };
-
+template<class TypeTag, class MyTypeTag>
+struct LocalToleranceScalingCnv {
+    using type = UndefinedProperty;
+};
 template<class TypeTag>
 struct DbhpMaxRel<TypeTag, TTag::FlowModelParameters> {
     using type = GetPropType<TypeTag, Scalar>;
@@ -315,7 +318,12 @@ struct MaxLocalSolveIterations<TypeTag, TTag::FlowModelParameters> {
     static constexpr int value = 20;
 };
 template<class TypeTag>
-struct LocalToleranceScaling<TypeTag, TTag::FlowModelParameters> {
+struct LocalToleranceScalingMb<TypeTag, TTag::FlowModelParameters> {
+    using type = GetPropType<TypeTag, Scalar>;
+    static constexpr type value = 1.0;
+};
+template<class TypeTag>
+struct LocalToleranceScalingCnv<TypeTag, TTag::FlowModelParameters> {
     using type = GetPropType<TypeTag, Scalar>;
     static constexpr type value = 0.01;
 };
@@ -429,7 +437,8 @@ namespace Opm
 
         int max_local_solve_iterations_;
 
-        double local_tolerance_scaling_;
+        double local_tolerance_scaling_mb_;
+        double local_tolerance_scaling_cnv_;
 
         /// Construct from user parameters or defaults.
         BlackoilModelParametersEbos()
@@ -464,7 +473,8 @@ namespace Opm
             nonlinear_solver_ = EWOMS_GET_PARAM(TypeTag, std::string, NonlinearSolver);
             outer_aspin_tolerance_ = EWOMS_GET_PARAM(TypeTag, double, OuterAspinTolerance);
             max_local_solve_iterations_ = EWOMS_GET_PARAM(TypeTag, int, MaxLocalSolveIterations);
-            local_tolerance_scaling_ = EWOMS_GET_PARAM(TypeTag, double, LocalToleranceScaling);
+            local_tolerance_scaling_mb_ = EWOMS_GET_PARAM(TypeTag, double, LocalToleranceScalingMb);
+            local_tolerance_scaling_cnv_ = EWOMS_GET_PARAM(TypeTag, double, LocalToleranceScalingCnv);
             deck_file_name_ = EWOMS_GET_PARAM(TypeTag, std::string, EclDeckFileName);
         }
 
@@ -503,7 +513,8 @@ namespace Opm
             EWOMS_REGISTER_PARAM(TypeTag, std::string, NonlinearSolver, "Choose nonlinear solver. Valid choices are newton, aspin or nldd.");
             EWOMS_REGISTER_PARAM(TypeTag, Scalar, OuterAspinTolerance, "Tolerance for ASPIN residual.");
             EWOMS_REGISTER_PARAM(TypeTag, int, MaxLocalSolveIterations, "Max iterations for local solves with ASPIN or NLDD.");
-            EWOMS_REGISTER_PARAM(TypeTag, Scalar, LocalToleranceScaling, "Set lower than 1.0 to use stricter convergence tolerance for local solves.");
+            EWOMS_REGISTER_PARAM(TypeTag, Scalar, LocalToleranceScalingMb, "Set lower than 1.0 to use stricter convergence tolerance for local solves.");
+            EWOMS_REGISTER_PARAM(TypeTag, Scalar, LocalToleranceScalingCnv, "Set lower than 1.0 to use stricter convergence tolerance for local solves.");
 
         }
     };

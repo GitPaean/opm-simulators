@@ -1489,7 +1489,7 @@ namespace Opm {
             auto cnvErrorPvFraction = computeCnvErrorPvLocal(domain, B_avg, dt);
             cnvErrorPvFraction /= pvSum;
 
-            const double tol_mb  = param_.tolerance_mb_;
+            const double tol_mb  = param_.local_tolerance_scaling_mb_ * param_.tolerance_mb_;
             // Default value of relaxed_max_pv_fraction_ is 1 and
             // max_strict_iter_ is 8. Hence only iteration chooses
             // whether to use relaxed or not.
@@ -1497,8 +1497,8 @@ namespace Opm {
             const bool use_relaxed = cnvErrorPvFraction < param_.relaxed_max_pv_fraction_ && iteration >= param_.max_strict_iter_;
             // Tighter bound for local convergence should increase the
             // likelyhood of: local convergence => global convergence
-            const double local_cnv_tolerance_factor = param_.local_tolerance_scaling_;
-            const double tol_cnv = local_cnv_tolerance_factor * (use_relaxed ? param_.tolerance_cnv_relaxed_ :  param_.tolerance_cnv_);
+            const double tol_cnv = param_.local_tolerance_scaling_cnv_
+                * (use_relaxed ? param_.tolerance_cnv_relaxed_ :  param_.tolerance_cnv_);
 
             // Finish computation
             std::vector<Scalar> CNV(numComp);
