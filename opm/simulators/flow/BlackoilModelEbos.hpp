@@ -301,7 +301,7 @@ namespace Opm {
                 FlowLinearSolverParameters param;
                 param.template init<TypeTag>();
                 // Override solver type with umfpack if small domain.
-                if (domains_[index].cells.size() < 1000) {
+                if (domains_[index].cells.size() < 100) {
                     param.linsolver_ = "umfpack.json";
                 }
                 domain_linsolvers_.emplace_back(ebosSimulator_, param, false);
