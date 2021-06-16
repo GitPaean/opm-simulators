@@ -158,6 +158,10 @@ struct NonlinearSolver {
     using type = UndefinedProperty;
 };
 template<class TypeTag, class MyTypeTag>
+struct LocalSolveApproach {
+    using type = UndefinedProperty;
+};
+template<class TypeTag, class MyTypeTag>
 struct OuterAspinTolerance {
     using type = UndefinedProperty;
 };
@@ -309,6 +313,10 @@ struct NonlinearSolver<TypeTag, TTag::FlowModelParameters> {
     static constexpr auto value = "newton";
 };
 template<class TypeTag>
+struct LocalSolveApproach<TypeTag, TTag::FlowModelParameters> {
+    static constexpr auto value = "jacobi";
+};
+template<class TypeTag>
 struct OuterAspinTolerance<TypeTag, TTag::FlowModelParameters> {
     using type = GetPropType<TypeTag, Scalar>;
     static constexpr type value = 1e-3;
@@ -432,6 +440,7 @@ namespace Opm
 
         // Choose nonlinear solver type: newton, aspin, nldd.
         std::string nonlinear_solver_;
+        std::string local_solve_approach_;
 
         double outer_aspin_tolerance_;
 
@@ -471,6 +480,7 @@ namespace Opm
             use_update_stabilization_ = EWOMS_GET_PARAM(TypeTag, bool, UseUpdateStabilization);
             matrix_add_well_contributions_ = EWOMS_GET_PARAM(TypeTag, bool, MatrixAddWellContributions);
             nonlinear_solver_ = EWOMS_GET_PARAM(TypeTag, std::string, NonlinearSolver);
+            local_solve_approach_ = EWOMS_GET_PARAM(TypeTag, std::string, LocalSolveApproach);
             outer_aspin_tolerance_ = EWOMS_GET_PARAM(TypeTag, double, OuterAspinTolerance);
             max_local_solve_iterations_ = EWOMS_GET_PARAM(TypeTag, int, MaxLocalSolveIterations);
             local_tolerance_scaling_mb_ = EWOMS_GET_PARAM(TypeTag, double, LocalToleranceScalingMb);
@@ -511,6 +521,7 @@ namespace Opm
             EWOMS_REGISTER_PARAM(TypeTag, bool, MatrixAddWellContributions, "Explicitly specify the influences of wells between cells in the Jacobian and preconditioner matrices");
             EWOMS_REGISTER_PARAM(TypeTag, bool, EnableWellOperabilityCheck, "Enable the well operability checking");
             EWOMS_REGISTER_PARAM(TypeTag, std::string, NonlinearSolver, "Choose nonlinear solver. Valid choices are newton, aspin or nldd.");
+            EWOMS_REGISTER_PARAM(TypeTag, std::string, LocalSolveApproach, "Choose local solve approach. Valid choices are jacobi and gauss-seidel");
             EWOMS_REGISTER_PARAM(TypeTag, Scalar, OuterAspinTolerance, "Tolerance for ASPIN residual.");
             EWOMS_REGISTER_PARAM(TypeTag, int, MaxLocalSolveIterations, "Max iterations for local solves with ASPIN or NLDD.");
             EWOMS_REGISTER_PARAM(TypeTag, Scalar, LocalToleranceScalingMb, "Set lower than 1.0 to use stricter convergence tolerance for local solves.");

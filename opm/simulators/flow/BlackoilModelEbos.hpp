@@ -581,11 +581,17 @@ namespace Opm {
             // -----------   Solve each domain separately   -----------
             std::vector<SimulatorReportSingle> domain_reports(domains_.size());
             for (const auto& domain : domains_) {
-                auto initial_local_solution = Details::extractVector(ebosSimulator().model().solution(0), domain.cells);
-                SimulatorReportSingle local_report = solveLocal(domain, timer);
-                auto local_solution = Details::extractVector(ebosSimulator().model().solution(0), domain.cells);
-                Details::setGlobal(local_solution, domain.cells, locally_solved);
-                Details::setGlobal(initial_local_solution, domain.cells, ebosSimulator().model().solution(0));
+                SimulatorReportSingle local_report;
+                if (param_.local_solve_approach_ == "jacobi") {
+                    auto initial_local_solution = Details::extractVector(ebosSimulator().model().solution(0), domain.cells);
+                    SimulatorReportSingle local_report = solveLocal(domain, timer);
+                    auto local_solution = Details::extractVector(ebosSimulator().model().solution(0), domain.cells);
+                    Details::setGlobal(local_solution, domain.cells, locally_solved);
+                    Details::setGlobal(initial_local_solution, domain.cells, ebosSimulator().model().solution(0));
+                } else {
+                    assert(param_.local_solve_approach_ == "gauss-seidel");
+                    local_report = solveLocal(domain, timer);
+                }
                 // This should have updated the global matrix to be
                 // dR_i/du_j evaluated at new local solutions for
                 // i == j, at old solution for i != j.
@@ -612,7 +618,9 @@ namespace Opm {
 
 
             if (param_.nonlinear_solver_ == "nldd") {
-                solution = locally_solved;
+                if (param_.local_solve_approach_ == "jacobi") {
+                    solution = locally_solved;
+                }
                 // Finish with a Newton step.
                 ebosSimulator_.model().invalidateAndUpdateIntensiveQuantities(/*timeIdx=*/0);
                 return nonlinearIterationNewton(iteration, timer, nonlinear_solver);
