@@ -288,7 +288,7 @@ namespace Opm
 
         std::vector<double> getPrimaryVars() const override
         {
-            return primary_variables_;
+            return this->primary_variables_;
         }
     protected:
         // protected functions from the Base class

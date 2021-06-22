@@ -1341,7 +1341,9 @@ namespace Opm {
         if (checkGroupConvergence) {
             const int reportStepIdx = ebosSimulator_.episodeIndex();
             const Group& fieldGroup = schedule().getGroup("FIELD", reportStepIdx);
-            bool violated = checkGroupConstraints(fieldGroup, global_deferredLogger);
+            bool violated = checkGroupConstraints(fieldGroup,
+                                                  ebosSimulator_.episodeIndex(),
+                                                  global_deferredLogger);
             report.setGroupConverged(!violated);
         }
         return report;
