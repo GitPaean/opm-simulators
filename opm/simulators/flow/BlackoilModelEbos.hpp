@@ -584,7 +584,7 @@ namespace Opm {
                 SimulatorReportSingle local_report;
                 if (param_.local_solve_approach_ == "jacobi") {
                     auto initial_local_solution = Details::extractVector(ebosSimulator().model().solution(0), domain.cells);
-                    SimulatorReportSingle local_report = solveLocal(domain, timer);
+                    local_report = solveLocal(domain, timer);
                     auto local_solution = Details::extractVector(ebosSimulator().model().solution(0), domain.cells);
                     Details::setGlobal(local_solution, domain.cells, locally_solved);
                     Details::setGlobal(initial_local_solution, domain.cells, ebosSimulator().model().solution(0));
@@ -626,6 +626,7 @@ namespace Opm {
                 return nonlinearIterationNewton(iteration, timer, nonlinear_solver);
             }
 
+            /*
             // HACK to check FI convergence
             // Take a copy of the FI residual.
             auto res1 = ebosSimulator().model().linearizer().residual();
@@ -676,7 +677,7 @@ namespace Opm {
             ebosSimulator().model().linearizer().jacobian().istlMatrix() = jac1;
             solution = sol1;
             wellModel().wellState() = ws1;
-
+            */
 
             // -----------   Compute ASPIN residual, check convergence   -----------
             const int nc = UgGridHelpers::numCells(grid_);
