@@ -23,10 +23,15 @@
 #include <utility>
 #include <vector>
 
+namespace Dune {
+    class CpGrid;
+}
 namespace Opm
 {
-
-std::pair<std::vector<int>, int> partitionCells(const int num_cells);
+class Well;
+std::pair<std::vector<int>, int> partitionCells(const int num_cells,
+                                                const Dune::CpGrid& grid,
+                                                const std::vector<Well>& wells);
 
 } // namespace Opm
 

@@ -18,6 +18,9 @@
 */
 
 #include <opm/simulators/flow/aspinPartition.hpp>
+#include <opm/parser/eclipse/EclipseState/Schedule/Well/Well.hpp>
+#include <opm/grid/CpGrid.hpp>
+
 
 #include <fmt/format.h>
 
@@ -73,18 +76,76 @@ namespace
         return { part, num_domains };
     }
 
+    std::pair<std::vector<int>, int> partitionWithZoltan(const int num_cells, const int num_domains,
+                                                         const Dune::CpGrid& grid, const std::vector<Well>& wells) {
+        return std::pair<std::vector<int>, int>{};
+
+
+        // not handling transmissibilites for now, assuming homogenous transmissibilities
+        // TODO: with this way, looking for the needed partition information, which process the grid cell is allocated at.
+        // /// @return A tuple consisting of a vector that contains for each local cell of the original grid the
+        /////         the number of the process that owns it after repartitioning,
+        /////         a set of names of wells that should be defunct in a parallel
+        /////         simulation, vector containing information for each exported cell (global id
+        /////         of cell, process id to send to, attribute there), and a vector containing
+        /////         information for each imported cell (global index, process id that sends, attribute here, local index
+        /////         here)
+
+        /* std::tuple<std::vector<int>, std::vector<std::pair<std::string,bool>>,
+                std::vector<std::tuple<int,int,char> >,
+                std::vector<std::tuple<int,int,char,int> >  >
+        zoltanSerialGraphPartitionGridOnRoot(const CpGrid& grid,
+                                             const std::vector<OpmWellType> * wells,
+                                             const double* transmissibilities,
+                                             const CollectiveCommunication<MPI_Comm>& cc,
+                                             EdgeWeightMethod edgeWeightsMethod, int root,
+                                             const double zoltanImbalanceTol,
+                                             bool allowDistributedWells); */
+        // Basically, we need the following three element for here,
+        // CpGrid, Wells, and transmissibilities
+        /* for CpGrid,
+         * for wells, schedule.getWellsatEnd(), it needs all the wells
+         *
+         * for transmissibilities
+         * faceTrans.resize(numFaces, 0.0);
+            ElementMapper elemMapper(gridv, Dune::mcmgElementLayout()); */
+            // auto elemIt = gridView.template begin</*codim=*/0>();
+        // const auto& elemEndIt = gridView.template end</*codim=*/0>();
+        /* for (; elemIt != elemEndIt; ++ elemIt) {
+            const auto& elem = *elemIt;
+            auto isIt = gridView.ibegin(elem);
+            const auto& isEndIt = gridView.iend(elem);
+            for (; isIt != isEndIt; ++ isIt) {
+                const auto& is = *isIt;
+                if (!is.neighbor())
+                    continue;
+
+                unsigned I = elemMapper.index(is.inside());
+                unsigned J = elemMapper.index(is.outside());
+
+                // FIXME (?): this is not portable!
+                unsigned faceIdx = is.id();
+
+                faceTrans[faceIdx] = this->getTransmissibility(I,J);
+         *
+         *
+         */
+    }
+
 } // anonymous namespace
 
 
 std::pair<std::vector<int>, int>
-partitionCells(const int num_cells)
+partitionCells(const int num_cells, const Dune::CpGrid& grid, const std::vector<Well>& wells)
 {
     // const std::string method = "simple";
-    const std::string method = "file";
+    const std::string method = "zoltan";
     if (method == "simple") {
         return partitionCellsSimple(num_cells, 25);
     } else if (method == "file") {
         return partitionCellsFromFile(num_cells);
+    } else if (method == "zoltan") {
+        return partitionWithZoltan(num_cells, 25, grid, wells);
     } else {
         return {};
     }

@@ -248,7 +248,10 @@ namespace Opm {
         {
             // Create partitions.
             const int num_cells = detail::countLocalInteriorCells(grid_);
-            auto [partition_vector, num_partitions] = partitionCells(num_cells);
+            const Dune::CpGrid& grid = this->ebosSimulator_.vanguard().grid();
+            const std::vector<Opm::Well> wells = this->ebosSimulator_.vanguard().schedule().getWellsatEnd();
+            // not handling transmissibilites for now, assuming homogenous transmissibilities
+            auto [partition_vector, num_partitions] = partitionCells(num_cells, grid, wells);
 
             // Scan through partitioning to get correct size for each.
             std::vector<int> sizes(num_partitions, 0);
