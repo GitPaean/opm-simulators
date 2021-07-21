@@ -16,11 +16,17 @@
   You should have received a copy of the GNU General Public License
   along with OPM.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include "config.h"
 
 #include <opm/simulators/flow/aspinPartition.hpp>
 #include <opm/parser/eclipse/EclipseState/Schedule/Well/Well.hpp>
 #include <opm/grid/CpGrid.hpp>
+#include <opm/grid/common/ZoltanPartition.hpp>
+#include <opm/grid/common/ZoltanGraphFunctions.hpp>
 
+// TODO: cleaning the header files from the opm-grid
+#include <opm/grid/CpGrid.hpp>
+#include <opm/grid/common/ZoltanGraphFunctions.hpp>
 
 #include <fmt/format.h>
 
@@ -78,7 +84,23 @@ namespace
 
     std::pair<std::vector<int>, int> partitionWithZoltan(const int num_cells, const int num_domains,
                                                          const Dune::CpGrid& grid, const std::vector<Well>& wells) {
-        return std::pair<std::vector<int>, int>{};
+//        return std::pair<std::vector<int>, int>{};
+        auto cc = Dune::MPIHelper::getCollectiveCommunication();
+        struct Zoltan_Struct *zz;
+        zz = Zoltan_Create(MPI_COMM_WORLD);
+        Dune::cpgrid::setCpGridZoltanGraphFunctions(zz, grid);
+
+
+        // using 0 uniformEdgeWgt for now
+        std::vector<int> computedCellPart;
+        std::vector<std::pair<std::string,bool>> wells_on_proc;
+        std::vector<std::tuple<int,int,char>> exportList;
+        std::vector<std::tuple<int,int,char,int>> importList;
+        std::tie(computedCellPart, wells_on_proc, exportList, importList) =
+                Dune::cpgrid::zoltanSerialGraphPartitionGridOnRoot(grid, &wells, nullptr, cc, Dune::uniformEdgeWgt, 0, 1.1, false);
+
+        // return std::pair<std::vector<int>, int>{};
+        return std::make_pair(computedCellPart, 2);
 
 
         // not handling transmissibilites for now, assuming homogenous transmissibilities
