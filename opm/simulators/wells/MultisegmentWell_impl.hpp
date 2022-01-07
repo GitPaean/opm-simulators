@@ -451,6 +451,7 @@ namespace Opm
     computeWellPotentialWithTHP(const Simulator& ebos_simulator,
                                 DeferredLogger& deferred_logger) const
     {
+        deferred_logger.debug(" calculating well potentials for well " + this->name());
         std::vector<double> potentials(this->number_of_phases_, 0.0);
         const auto& summary_state = ebos_simulator.vanguard().summaryState();
 
@@ -473,6 +474,7 @@ namespace Opm
             }
         } else {
             auto bhp_at_thp_limit = computeBhpAtThpLimitProd(ebos_simulator, summary_state, deferred_logger);
+            deferred_logger.debug(" obtained bhp with thp limit for well " + this->name() + " is " + std::to_string( *bhp_at_thp_limit));
             if (bhp_at_thp_limit) {
                 const auto& controls = well.productionControls(summary_state);
                 const double bhp = std::max(*bhp_at_thp_limit, controls.bhp_limit);
@@ -1296,6 +1298,7 @@ namespace Opm
     checkOperabilityUnderTHPLimit(const Simulator& ebos_simulator, const WellState& /*well_state*/, DeferredLogger& deferred_logger)
     {
         const auto& summaryState = ebos_simulator.vanguard().summaryState();
+        deferred_logger.debug(" checking operatiblity with THP limit for well " + this->name());
         const auto obtain_bhp = this->isProducer() ? computeBhpAtThpLimitProd(ebos_simulator, summaryState, deferred_logger)
         : computeBhpAtThpLimitInj(ebos_simulator, summaryState, deferred_logger);
 
@@ -1765,6 +1768,11 @@ namespace Opm
 
        if(bhpAtLimit)
            return bhpAtLimit;
+
+       deferred_logger.debug(" did not find the bhpAtLimit with the non-interative well solution for well " + this->name() +
+                             " trying the iterative one now ");
+
+
 
        auto fratesIter = [this, &ebos_simulator, &deferred_logger](const double bhp) {
            // Solver the well iterations to see if we are

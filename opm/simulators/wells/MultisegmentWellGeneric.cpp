@@ -578,6 +578,7 @@ computeBhpAtThpLimitProd(const std::function<std::vector<double>(const double)>&
                     eq_high = eq(high);
                     abs_high = std::fabs(eq_high);
                 }
+               deferred_logger.debug("bracket_attempts " + std::to_string(bracket_attempts) + "low " + std::to_string(low) + " eq(low) " + std::to_string(eq_low) + " high " + std::to_string(high) + " eq_high " + std::to_string(eq_high));
                 ++bracket_attempts;
             }
             if (eq_low * eq_high > 0.0) {
@@ -592,7 +593,43 @@ computeBhpAtThpLimitProd(const std::function<std::vector<double>(const double)>&
                     // Return failure.
                     deferred_logger.warning("FAILED_ROBUST_BHP_THP_SOLVE_BRACKETING_FAILURE",
                                             "Robust bhp(thp) solve failed due to bracketing failure for well " + baseif_.name());
-                    return std::nullopt;
+
+
+                    deferred_logger.debug("outputting the situation to check why the bracketing failed between  bhp_max "
+                                          + std::to_string(bhp_max) + " add the bhp limit " + std::to_string(controls.bhp_limit));
+                    const int sample_number = 100;
+                    const double dp = (bhp_max - controls.bhp_limit) / sample_number;
+                    for (int i = 0; i < sample_number + 1; ++i) {
+                        const double bhp = controls.bhp_limit + dp * i;
+                        deferred_logger.debug(" bhp " + std::to_string(bhp) + " eq_bhp " + std::to_string(eq(bhp)));
+                    }
+
+                    deferred_logger.debug(" trying the brute force way for last attempt ");
+
+                    double temp_low = controls.bhp_limit;
+                    double temp_eq_low = eq(temp_low);
+                    double temp_eq_high;
+                    double temp_high;
+                    for (int i = 0; i < sample_number + 1; ++i) {
+                        temp_high = controls.bhp_limit + dp * i;
+                        temp_eq_high = eq(temp_high);
+                        // TODO: <=?
+                        if (temp_eq_high * temp_eq_low < 0.) {
+                            break;
+                        }
+                        temp_low = temp_high;
+                        temp_eq_low = temp_eq_high;
+                    }
+                    if (temp_eq_low * temp_eq_high > 0) {
+                        return std::nullopt;
+                    } else {
+                        high = temp_high;
+                        low = temp_low;
+                        eq_high = temp_eq_high;
+                        eq_low = temp_eq_low;
+                        deferred_logger.debug(" brute force found low " + std::to_string(low) + " with eq_low " + std::to_string(eq_low) +
+                                              " high " + std::to_string(high) + " with eq_high " + std::to_string(eq_high));
+                    }
                 }
             }
         }
