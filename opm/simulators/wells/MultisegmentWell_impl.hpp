@@ -1648,7 +1648,19 @@ namespace Opm
                     }
                 }
             }
+
+            // for shut valves the inlet rate = contribution from the performations
+            // i.e. the segment rate is not included in the equation.
+            bool include = true;
+            if(this->segmentSet()[seg].segmentType() == Segment::SegmentType::VALVE) {
+                const Valve& valve = this->segmentSet()[seg].valve();
+                if (valve.status() == Opm::ICDStatus::SHUT) {
+                    include = false;
+                }
+            }
+
             // considering the contributions due to flowing out from the segment
+            if (include)
             {
                 for (int comp_idx = 0; comp_idx < this->num_components_; ++comp_idx) {
                     const EvalWell segment_rate = this->getSegmentRateUpwinding(seg, comp_idx) * this->well_efficiency_factor_;
@@ -1671,6 +1683,15 @@ namespace Opm
             // considering the contributions from the inlet segments
             {
                 for (const int inlet : this->segment_inlets_[seg]) {
+
+                    // don't include contribution from shut valves.
+                    if(this->segmentSet()[inlet].segmentType() == Segment::SegmentType::VALVE) {
+                        const Valve& valve = this->segmentSet()[inlet].valve();
+                        if (valve.status() == Opm::ICDStatus::SHUT) {
+                            continue;
+                        }
+                    }
+
                     for (int comp_idx = 0; comp_idx < this->num_components_; ++comp_idx) {
                         const EvalWell inlet_rate = this->getSegmentRateUpwinding(inlet, comp_idx) * this->well_efficiency_factor_;
 
