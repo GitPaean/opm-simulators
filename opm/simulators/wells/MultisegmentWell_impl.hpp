@@ -1656,14 +1656,20 @@ namespace Opm
                 const Valve& valve = this->segmentSet()[seg].valve();
                 if (valve.status() == Opm::ICDStatus::SHUT) {
                     include = false;
+                    std::cout << " seg " << seg;
+                    for (unsigned i = 0; i < this->num_components_; ++i) {
+                        std::cout << " i " << Opm::getValue(this->getSegmentRateUpwinding(seg, i) * this->well_efficiency_factor_);
+                    }
+                    std::cout << " " << std::endl;
                 }
             }
 
             // considering the contributions due to flowing out from the segment
-            if (include)
-            {
                 for (int comp_idx = 0; comp_idx < this->num_components_; ++comp_idx) {
-                    const EvalWell segment_rate = this->getSegmentRateUpwinding(seg, comp_idx) * this->well_efficiency_factor_;
+                    EvalWell segment_rate = this->getSegmentRateUpwinding(seg, comp_idx) * this->well_efficiency_factor_;
+                    if (!include) {
+                        segment_rate = 0.;
+                    }
 
                     const int seg_upwind = this->upwinding_segments_[seg];
                     // segment_rate contains the derivatives with respect to GTotal in seg,
@@ -1678,22 +1684,25 @@ namespace Opm
                     }
                     // pressure derivative should be zero
                 }
-            }
 
             // considering the contributions from the inlet segments
             {
                 for (const int inlet : this->segment_inlets_[seg]) {
 
                     // don't include contribution from shut valves.
+                    bool shut_valve = false;
                     if(this->segmentSet()[inlet].segmentType() == Segment::SegmentType::VALVE) {
                         const Valve& valve = this->segmentSet()[inlet].valve();
                         if (valve.status() == Opm::ICDStatus::SHUT) {
-                            continue;
+                            shut_valve = true;
                         }
                     }
 
                     for (int comp_idx = 0; comp_idx < this->num_components_; ++comp_idx) {
-                        const EvalWell inlet_rate = this->getSegmentRateUpwinding(inlet, comp_idx) * this->well_efficiency_factor_;
+                        EvalWell inlet_rate = this->getSegmentRateUpwinding(inlet, comp_idx) * this->well_efficiency_factor_;
+                        if (shut_valve) {
+                            inlet_rate = 0.;
+                        }
 
                         const int inlet_upwind = this->upwinding_segments_[inlet];
                         // inlet_rate contains the derivatives with respect to GTotal in inlet,
@@ -1767,6 +1776,8 @@ namespace Opm
                 }
             }
 
+
+
             // the fourth dequation, the pressure drop equation
             if (seg == 0) { // top segment, pressure equation is the control equation
                 const auto& summaryState = ebosSimulator.vanguard().summaryState();
@@ -1783,7 +1794,25 @@ namespace Opm
                 const UnitSystem& unit_system = ebosSimulator.vanguard().eclState().getDeckUnitSystem();
                 this->assemblePressureEq(seg, unit_system, well_state, deferred_logger);
             }
+
+            if (!include) {
+                std::cout << " for this shut value, check the residual and matrix D " << std::endl;
+                std::cout << " residual ";
+                for (int i = 0; i < 4; ++i) {
+                    std::cout << " " << this->resWell_[seg][i];
+                }
+                std::cout << std::endl;
+                std::cout << " matrix ";
+                for (int i = 0; i < 4; ++i) {
+                    for (int j = 0; j < 4; ++j) {
+                        std::cout << " " << this->duneD_[seg][seg][i][j];
+                    }
+                    std::cout << std::endl;
+                }
+            }
         }
+
+
     }
 
 

@@ -417,6 +417,13 @@ updatePrimaryVariablesNewton(const BVectorWell& dwells,
         {
             primary_variables_[seg][GTotal] = old_primary_variables[seg][GTotal] - relaxation_factor * dwells[seg][GTotal];
 
+            if(this->segmentSet()[seg].segmentType() == Segment::SegmentType::VALVE) {
+                const Valve& valve = this->segmentSet()[seg].valve();
+                if (valve.status() == Opm::ICDStatus::SHUT) {
+                    primary_variables_[seg][GTotal] = 0.;
+                }
+            }
+
             // make sure that no injector produce and no producer inject
             if (seg == 0) {
                 if (baseif_.isInjector()) {
@@ -493,6 +500,7 @@ updatePrimaryVariables(const WellState& well_state) const
                 }
 
             } else if (baseif_.isProducer()) { // producers
+                std::cout << " segment " << seg << " has zero rate " << std::endl;
                 if (has_wfrac_variable) {
                     primary_variables_[seg][WFrac] = 1.0 / baseif_.numPhases();
                 }
@@ -1568,9 +1576,17 @@ assembleICDPressureEq(const int seg,
         case Segment::SegmentType::AICD :
             icd_pressure_drop = pressureDropAutoICD(seg, unit_system);
             break;
-        case Segment::SegmentType::VALVE :
+        case Segment::SegmentType::VALVE : {
+            if (this->segmentSet()[seg].valve().status() == Opm::ICDStatus::SHUT) {
+                std::cout << " segment " << seg << " pressure drop checking " << std::endl;
+            }
             icd_pressure_drop = pressureDropValve(seg);
+            if (this->segmentSet()[seg].valve().status() == Opm::ICDStatus::SHUT) {
+                std::cout << " segment " << seg << " pressure drop " << std::endl;
+                icd_pressure_drop.print();
+            }
             break;
+        }
         default: {
             OPM_DEFLOG_THROW(std::runtime_error, "Segment " + std::to_string(this->segmentSet()[seg].segmentNumber())
                              + " for well " + baseif_.name() + " is not of ICD type", deferred_logger);
