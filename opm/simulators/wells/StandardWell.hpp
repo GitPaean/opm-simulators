@@ -346,6 +346,8 @@ namespace Opm
                              std::vector<EvalWell>& mob,
                              DeferredLogger& deferred_logger) const;
 
+        double getInjMult(const int perf, DeferredLogger& deferred_logger) const;
+
         // get the mobility for specific perforation
         void getMobilityScalar(const Simulator& ebosSimulator,
                                const int perf,
