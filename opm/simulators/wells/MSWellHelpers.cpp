@@ -99,10 +99,9 @@ namespace mswellhelpers
 
     /// Applies umfpack and checks for singularity
 template <typename MatrixType, typename VectorType>
-VectorType
-applyUMFPack(const MatrixType& D,
-             std::shared_ptr<Dune::UMFPack<MatrixType>>& linsolver,
-             VectorType x)
+    VectorType
+applyUMFPack(const MatrixType& D, std::shared_ptr<Dune::UMFPack<MatrixType>>& linsolver, VectorType x,
+             const std::string& well_name)
 {
 #if HAVE_UMFPACK
     if (!linsolver)
@@ -125,7 +124,7 @@ applyUMFPack(const MatrixType& D,
     for (size_t i_block = 0; i_block < y.size(); ++i_block) {
         for (size_t i_elem = 0; i_elem < y[i_block].size(); ++i_elem) {
             if (std::isinf(y[i_block][i_elem]) || std::isnan(y[i_block][i_elem]) ) {
-                const std::string msg{"nan or inf value found after UMFPack solve due to singular matrix"};
+                const std::string msg = "nan or inf value found after UMFPack solve due to singular matrix of well " + well_name;
                 OpmLog::debug(msg);
                 OPM_THROW_NOLOG(NumericalIssue, msg);
             }
@@ -141,7 +140,8 @@ applyUMFPack(const MatrixType& D,
 
 template <typename MatrixType, typename VectorType>
 Dune::Matrix<typename MatrixType::block_type>
-invertWithUMFPack(const MatrixType& D, std::shared_ptr<Dune::UMFPack<MatrixType> >& linsolver)
+invertWithUMFPack(const MatrixType& D, std::shared_ptr<Dune::UMFPack<MatrixType> >& linsolver,
+                  const std::string& well_name)
 {
 #if HAVE_UMFPACK
     const int sz = D.M();
@@ -156,7 +156,7 @@ invertWithUMFPack(const MatrixType& D, std::shared_ptr<Dune::UMFPack<MatrixType>
     for (int ii = 0; ii < sz; ++ii) {
         for (int jj = 0; jj < bsz; ++jj) {
             e[ii][jj] = 1.0;
-            auto col = applyUMFPack(D, linsolver, e);
+            auto col = applyUMFPack(D, linsolver, e, well_name);
             for (int cc = 0; cc < sz; ++cc) {
                 for (int dd = 0; dd < bsz; ++dd) {
                     inv[cc][ii][dd][jj] = col[cc][dd];
@@ -330,10 +330,10 @@ using Mat = Dune::BCRSMatrix<Dune::FieldMatrix<double,Dim,Dim>>;
 #define INSTANCE_UMF(Dim) \
     template Vec<Dim> applyUMFPack<Mat<Dim>,Vec<Dim>>(const Mat<Dim>&, \
                                                       std::shared_ptr<Dune::UMFPack<Mat<Dim>>>&, \
-                                                      Vec<Dim>); \
+                                                      Vec<Dim>, const std::string&); \
     template Dune::Matrix<typename Mat<Dim>::block_type> \
     invertWithUMFPack<Mat<Dim>,Vec<Dim>>(const Mat<Dim>& D, \
-                                         std::shared_ptr<Dune::UMFPack<Mat<Dim>>>&);
+                                         std::shared_ptr<Dune::UMFPack<Mat<Dim>>>&, const std::string&);
 
 INSTANCE_UMF(2)
 INSTANCE_UMF(3)

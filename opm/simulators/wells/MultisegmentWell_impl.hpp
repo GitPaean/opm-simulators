@@ -207,7 +207,7 @@ namespace Opm
         this->duneB_.mv(x, Bx);
 
         // invDBx = duneD^-1 * Bx_
-        const BVectorWell invDBx = mswellhelpers::applyUMFPack(this->duneD_, this->duneDSolver_, Bx);
+        const BVectorWell invDBx = mswellhelpers::applyUMFPack(this->duneD_, this->duneDSolver_, Bx, this->name() + " apply (x, ax) ");
 
         // Ax = Ax - duneC_^T * invDBx
         this->duneC_.mmtv(invDBx,Ax);
@@ -225,7 +225,8 @@ namespace Opm
         if (!this->isOperableAndSolvable() && !this->wellIsStopped()) return;
 
         // invDrw_ = duneD^-1 * resWell_
-        const BVectorWell invDrw = mswellhelpers::applyUMFPack(this->duneD_, this->duneDSolver_, this->resWell_);
+        const BVectorWell invDrw = mswellhelpers::applyUMFPack(this->duneD_, this->duneDSolver_, this->resWell_,
+                                                               this->name() + " apply (r)");
         // r = r - duneC_^T * invDrw
         this->duneC_.mmtv(invDrw, r);
     }
@@ -525,7 +526,8 @@ namespace Opm
 
         // We assemble the well equations, then we check the convergence,
         // which is why we do not put the assembleWellEq here.
-        const BVectorWell dx_well = mswellhelpers::applyUMFPack(this->duneD_, this->duneDSolver_, this->resWell_);
+        const BVectorWell dx_well = mswellhelpers::applyUMFPack(this->duneD_, this->duneDSolver_, this->resWell_,
+                                                                this->name() + " solveEqAndUpdateWellState ");
 
         updateWellState(dx_well, well_state, deferred_logger);
     }
@@ -726,7 +728,8 @@ namespace Opm
     MultisegmentWell<TypeTag>::
     addWellContributions(SparseMatrixAdapter& jacobian) const
     {
-        const auto invDuneD = mswellhelpers::invertWithUMFPack<DiagMatWell, BVectorWell>(this->duneD_, this->duneDSolver_);
+        const auto invDuneD = mswellhelpers::invertWithUMFPack<DiagMatWell, BVectorWell>(this->duneD_,
+                                                                                         this->duneDSolver_, this->name() + " addWellContribution ");
 
         // We need to change matrix A as follows
         // A -= C^T D^-1 B
@@ -1484,7 +1487,8 @@ namespace Opm
 
             assembleWellEqWithoutIteration(ebosSimulator, dt, inj_controls, prod_controls, well_state, group_state, deferred_logger);
 
-            const BVectorWell dx_well = mswellhelpers::applyUMFPack(this->duneD_, this->duneDSolver_, this->resWell_);
+            const BVectorWell dx_well = mswellhelpers::applyUMFPack(this->duneD_, this->duneDSolver_, this->resWell_,
+                                                                    this->name() + " iterateWellEqWithControl ");
 
             if (it > this->param_.strict_inner_iter_wells_) {
                 relax_convergence = true;
