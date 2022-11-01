@@ -1498,7 +1498,12 @@ namespace Opm
                     std::cout << " " << val * 86400.;
                 }
                 std::cout << " bhp " << ws.bhp / 1.e5 << " thp " << ws.thp / 1.e5;
-                std::cout << " control " << Well::ProducerCMode2String(ws.production_cmode) << std::endl;
+                if (this->isInjector()) {
+                    std::cout << " inj control " << Well::InjectorCMode2String(ws.injection_cmode);
+                }
+                if (this->isProducer()) {
+                    std::cout << " prod control " << Well::ProducerCMode2String(ws.production_cmode);
+                }
                 std::cout << std::endl;
                 std::cout << " segment rates and pressures " << std::endl;
                 const auto& segment_state = ws.segments;
