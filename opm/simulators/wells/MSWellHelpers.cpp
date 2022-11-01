@@ -41,6 +41,7 @@
 #endif // HAVE_UMFPACK
 
 #include <cmath>
+#include <dune/istl/matrixmarket.hh>
 
 namespace {
 
@@ -124,6 +125,8 @@ applyUMFPack(const MatrixType& D, std::shared_ptr<Dune::UMFPack<MatrixType>>& li
     for (size_t i_block = 0; i_block < y.size(); ++i_block) {
         for (size_t i_elem = 0; i_elem < y[i_block].size(); ++i_elem) {
             if (std::isinf(y[i_block][i_elem]) || std::isnan(y[i_block][i_elem]) ) {
+                const std::string file_name = "debug_output/solution_" + well_name;
+                Dune::storeMatrixMarket(y, file_name);
                 const std::string msg = "nan or inf value found after UMFPack solve due to singular matrix of well " + well_name;
                 OpmLog::debug(msg);
                 OPM_THROW_NOLOG(NumericalIssue, msg);
