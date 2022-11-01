@@ -408,6 +408,10 @@ namespace Opm
         MultisegmentWell<TypeTag> well_copy(*this);
         well_copy.debug_cost_counter_ = 0;
 
+        if (this->name() == "PR12_G19") {
+            std::cout << " well PR12_G19 in computeWellRatesWithBhpIterations " << std::endl;
+        }
+
         // store a copy of the well state, we don't want to update the real well state
         WellState well_state_copy = ebosSimulator.problem().wellModel().wellState();
         const auto& group_state = ebosSimulator.problem().wellModel().groupState();
@@ -1485,6 +1489,52 @@ namespace Opm
         for (; it < max_iter_number; ++it, ++debug_cost_counter_) {
 
             assembleWellEqWithoutIteration(ebosSimulator, dt, inj_controls, prod_controls, well_state, group_state, deferred_logger);
+            if (this->name() == "PR12_G19") {
+                std::cout << " outputting the well state for well PR12_G19 " << std::endl;
+                const auto& ws = well_state.well(this->index_of_well_);
+                std::cout << " well rates are ";
+                for (const auto val: ws.surface_rates) {
+                    std::cout << " " << val * 86400.;
+                }
+                std::cout << " bhp " << ws.bhp / 1.e5 << " thp " << ws.thp / 1.e5;
+                std::cout << " control " << Well::ProducerCMode2String(ws.production_cmode) << std::endl;
+                std::cout << std::endl;
+                std::cout << " segment rates and pressures " << std::endl;
+                const auto& segment_state = ws.segments;
+                const int nseg = this->numberOfSegments();
+                for (int seg = 0; seg < nseg; ++seg) {
+                    std::cout << " seg " << seg << " rates ";
+                    for (size_t p = 0; p < this->number_of_phases_; ++p) {
+                        std::cout << " " << segment_state.rates[this->number_of_phases_ * seg + p] * 86400.;
+                    }
+                    std::cout << " pressure " << segment_state.pressure[seg] / 1.e5
+                    << " pressure_drop_friction " << segment_state.pressure_drop_friction[seg] / 1.e5 << " pressure_drop_hydrostatic " << segment_state.pressure_drop_hydrostatic[seg]/1.e5
+                    << " pressure_drop_accel " << segment_state.pressure_drop_accel[seg] / 1.e5 << std::endl;
+                }
+                std::cout << " outputting the primary variables for well PR12_G19 " << std::endl;
+                for (int seg = 0; seg < nseg; ++seg) {
+                    std::cout << " seg " << seg ;
+                    for (int pr = 0; pr < this->numWellEq; ++pr) {
+                        std::cout << " " << this->primary_variables_[seg][pr];
+                    }
+                    std::cout << std::endl;
+                }
+                std::cout << " outputting the primary variables EVALUATION for well PR12_G19 " << std::endl;
+                for (int seg = 0; seg < nseg; ++seg) {
+                    std::cout << " seg " << seg ;
+                    for (int pr = 0; pr < this->numWellEq; ++pr) {
+                        std::cout << " " << Opm::getValue(this->primary_variables_evaluation_[seg][pr]);
+                    }
+                    std::cout << std::endl;
+                }
+
+                const int number = rand() % 100;
+                const std::string matrix_filename = "debug_output/duneD_PR12_G19_" + std::to_string(number);
+                const std::string rhs_filename = "debug_output/resWell_PR12_G19_" + std::to_string(number);
+                std::cout << " outputting the Matrix duneD_ and rhs_ for well PR12_G19 to file " << matrix_filename << " and " << rhs_filename << " respectively " << std::endl;
+                Dune::storeMatrixMarket(this->duneD_, matrix_filename);
+                Dune::storeMatrixMarket(this->resWell_, rhs_filename);
+            }
 
             const BVectorWell dx_well = mswellhelpers::applyUMFPack(this->duneD_, this->duneDSolver_, this->resWell_,
                                                                     this->name() + " iterateWellEqWithControl ");
