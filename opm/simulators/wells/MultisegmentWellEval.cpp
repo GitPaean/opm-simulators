@@ -353,6 +353,18 @@ updatePrimaryVariablesNewton(const BVectorWell& dwells,
             }
         }
     }
+
+    if (baseif_.name() == "PR12_G19") {
+        std::cout << " outputting the primary variables at the end of updatePrimaryVariablesNewton with relaxation_factor "
+            << relaxation_factor << " dFLimit " << dFLimit << " max_pressure_change " << max_pressure_change << std::endl;
+        for (int seg = 0; seg < this->numberOfSegments(); ++seg) {
+            std::cout << " seg " << seg ;
+            for (int pr = 0; pr < this->numWellEq; ++pr) {
+                std::cout << " " << this->primary_variables_[seg][pr];
+            }
+        std::cout << std::endl;
+        }
+    }
 }
 
 template<typename FluidSystem, typename Indices, typename Scalar>

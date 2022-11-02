@@ -1465,6 +1465,9 @@ namespace Opm
                              const GroupState& group_state,
                              DeferredLogger& deferred_logger)
     {
+        if (this->name() == "PR12_G19") {
+            std::cout<< " well PR12_G19 enters iterateWellEqWithControl " << std::endl;
+        }
         if (!this->isOperableAndSolvable() && !this->wellIsStopped()) return true;
 
         const int max_iter_number = this->param_.max_inner_iter_ms_wells_;
@@ -1489,8 +1492,9 @@ namespace Opm
         for (; it < max_iter_number; ++it, ++debug_cost_counter_) {
 
             assembleWellEqWithoutIteration(ebosSimulator, dt, inj_controls, prod_controls, well_state, group_state, deferred_logger);
+            const int number = rand() % 100;
             if (this->name() == "PR12_G19") {
-                std::cout << " outputting the well state for well PR12_G19 " << std::endl;
+                std::cout << " outputting the well state for well PR12_G19 at iteration " << it << std::endl;
                 const auto& ws = well_state.well(this->index_of_well_);
                 std::cout << " well rates are ";
                 for (const auto val: ws.surface_rates) {
@@ -1533,7 +1537,6 @@ namespace Opm
                     std::cout << std::endl;
                 }
 
-                const int number = rand() % 100;
                 const std::string matrix_filename = "debug_output/duneD_PR12_G19_" + std::to_string(number);
                 const std::string rhs_filename = "debug_output/resWell_PR12_G19_" + std::to_string(number);
                 std::cout << " outputting the Matrix duneD_ and rhs_ for well PR12_G19 to file " << matrix_filename << " and " << rhs_filename << " respectively " << std::endl;
@@ -1543,6 +1546,11 @@ namespace Opm
 
             const BVectorWell dx_well = mswellhelpers::applyUMFPack(this->duneD_, this->duneDSolver_, this->resWell_,
                                                                     this->name() + " iterateWellEqWithControl ");
+            if (this->name() == "PR12_G19") {
+                const std::string dx_filename = "debug_output/dx_PR12_G19_" + std::to_string(number);
+                std::cout << " outputting the dx_well for well PR12_G19 to file " << dx_filename << std::endl;
+                Dune::storeMatrixMarket(dx_well, dx_filename);
+            }
 
             if (it > this->param_.strict_inner_iter_wells_) {
                 relax_convergence = true;
