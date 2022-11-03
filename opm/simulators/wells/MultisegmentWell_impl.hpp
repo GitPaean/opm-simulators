@@ -259,6 +259,9 @@ namespace Opm
                           std::vector<double>& well_potentials,
                           DeferredLogger& deferred_logger)
     {
+        if (this->name() == "PR12_G19") {
+            std::cout << " well " << this->name() << " at computeWellPotentials " << std::endl;
+        }
         const int np = this->number_of_phases_;
         well_potentials.resize(np, 0.0);
 
@@ -343,6 +346,9 @@ namespace Opm
                                std::vector<double>& well_flux,
                                DeferredLogger& deferred_logger) const
     {
+        if (this->name() == "PR12_G19") {
+            std::cout << " well " << this->name() << " in function computeWellRatesAtBhpLimit " << std::endl;
+        }
         if (this->well_ecl_.isInjector()) {
             const auto controls = this->well_ecl_.injectionControls(ebosSimulator.vanguard().summaryState());
             computeWellRatesWithBhpIterations(ebosSimulator, controls.bhp_limit, well_flux, deferred_logger);
@@ -414,6 +420,34 @@ namespace Opm
 
         // store a copy of the well state, we don't want to update the real well state
         WellState well_state_copy = ebosSimulator.problem().wellModel().wellState();
+        if (this->name() == "PR12_G19") {
+            std::cout << " output the well state for well " << this->name() << std::endl;
+            const auto& ws = well_state_copy.well(this->index_of_well_);
+            std::cout << " well rates are ";
+            for (const auto val: ws.surface_rates) {
+                std::cout << " " << val * 86400.;
+            }
+            std::cout << " bhp " << ws.bhp / 1.e5 << " thp " << ws.thp / 1.e5;
+            if (this->isInjector()) {
+                std::cout << " inj control " << Well::InjectorCMode2String(ws.injection_cmode);
+            }
+            if (this->isProducer()) {
+                std::cout << " prod control " << Well::ProducerCMode2String(ws.production_cmode);
+            }
+            std::cout << std::endl;
+            std::cout << " segment rates and pressures " << std::endl;
+            const auto& segment_state = ws.segments;
+            const int nseg = this->numberOfSegments();
+            for (int seg = 0; seg < nseg; ++seg) {
+                std::cout << " seg " << seg << " rates ";
+                for (size_t p = 0; p < this->number_of_phases_; ++p) {
+                    std::cout << " " << segment_state.rates[this->number_of_phases_ * seg + p] * 86400.;
+                }
+                std::cout << " pressure " << segment_state.pressure[seg] / 1.e5
+                          << " pressure_drop_friction " << segment_state.pressure_drop_friction[seg] / 1.e5 << " pressure_drop_hydrostatic " << segment_state.pressure_drop_hydrostatic[seg]/1.e5
+                          << " pressure_drop_accel " << segment_state.pressure_drop_accel[seg] / 1.e5 << std::endl;
+            }
+        }
         const auto& group_state = ebosSimulator.problem().wellModel().groupState();
         auto& ws = well_state_copy.well(this->index_of_well_);
 
@@ -436,6 +470,33 @@ namespace Opm
         }
         ws.bhp = bhp;
         well_copy.scaleSegmentPressuresWithBhp(well_state_copy);
+        if (this->name() == "PR12_G19") {
+            std::cout << " output the well state for well " << this->name() << " after scaleSegmentPressuresWithBhp " << std::endl;
+            std::cout << " well rates are ";
+            for (const auto val: ws.surface_rates) {
+                std::cout << " " << val * 86400.;
+            }
+            std::cout << " bhp " << ws.bhp / 1.e5 << " thp " << ws.thp / 1.e5;
+            if (this->isInjector()) {
+                std::cout << " inj control " << Well::InjectorCMode2String(ws.injection_cmode);
+            }
+            if (this->isProducer()) {
+                std::cout << " prod control " << Well::ProducerCMode2String(ws.production_cmode);
+            }
+            std::cout << std::endl;
+            std::cout << " segment rates and pressures " << std::endl;
+            const auto& segment_state = ws.segments;
+            const int nseg = this->numberOfSegments();
+            for (int seg = 0; seg < nseg; ++seg) {
+                std::cout << " seg " << seg << " rates ";
+                for (size_t p = 0; p < this->number_of_phases_; ++p) {
+                    std::cout << " " << segment_state.rates[this->number_of_phases_ * seg + p] * 86400.;
+                }
+                std::cout << " pressure " << segment_state.pressure[seg] / 1.e5
+                          << " pressure_drop_friction " << segment_state.pressure_drop_friction[seg] / 1.e5 << " pressure_drop_hydrostatic " << segment_state.pressure_drop_hydrostatic[seg]/1.e5
+                          << " pressure_drop_accel " << segment_state.pressure_drop_accel[seg] / 1.e5 << std::endl;
+            }
+        }
 
         // initialized the well rates with the potentials i.e. the well rates based on bhp
         const int np = this->number_of_phases_;
@@ -449,9 +510,91 @@ namespace Opm
                 ws.surface_rates[phase] = sign * ws.well_potentials[phase];
             }
         }
+        if (this->name() == "PR12_G19") {
+            std::cout << " output the well state for well " << this->name() << " BEFORE scaleSegmentRatesWithWellRates " << std::endl;
+            std::cout << " well rates are ";
+            for (const auto val: ws.surface_rates) {
+                std::cout << " " << val * 86400.;
+            }
+            std::cout << " bhp " << ws.bhp / 1.e5 << " thp " << ws.thp / 1.e5;
+            if (this->isInjector()) {
+                std::cout << " inj control " << Well::InjectorCMode2String(ws.injection_cmode);
+            }
+            if (this->isProducer()) {
+                std::cout << " prod control " << Well::ProducerCMode2String(ws.production_cmode);
+            }
+            std::cout << std::endl;
+            std::cout << " segment rates and pressures " << std::endl;
+            const auto& segment_state = ws.segments;
+            const int nseg = this->numberOfSegments();
+            for (int seg = 0; seg < nseg; ++seg) {
+                std::cout << " seg " << seg << " rates ";
+                for (size_t p = 0; p < this->number_of_phases_; ++p) {
+                    std::cout << " " << segment_state.rates[this->number_of_phases_ * seg + p] * 86400.;
+                }
+                std::cout << " pressure " << segment_state.pressure[seg] / 1.e5
+                          << " pressure_drop_friction " << segment_state.pressure_drop_friction[seg] / 1.e5 << " pressure_drop_hydrostatic " << segment_state.pressure_drop_hydrostatic[seg]/1.e5
+                          << " pressure_drop_accel " << segment_state.pressure_drop_accel[seg] / 1.e5 << std::endl;
+            }
+        }
         well_copy.scaleSegmentRatesWithWellRates(well_state_copy);
 
+        if (this->name() == "PR12_G19") {
+            std::cout << " output the well state for well " << this->name() << " AFTER scaleSegmentRatesWithWellRates " << std::endl;
+            std::cout << " well rates are ";
+            for (const auto val: ws.surface_rates) {
+                std::cout << " " << val * 86400.;
+            }
+            std::cout << " bhp " << ws.bhp / 1.e5 << " thp " << ws.thp / 1.e5;
+            if (this->isInjector()) {
+                std::cout << " inj control " << Well::InjectorCMode2String(ws.injection_cmode);
+            }
+            if (this->isProducer()) {
+                std::cout << " prod control " << Well::ProducerCMode2String(ws.production_cmode);
+            }
+            std::cout << std::endl;
+            std::cout << " segment rates and pressures " << std::endl;
+            const auto& segment_state = ws.segments;
+            const int nseg = this->numberOfSegments();
+            for (int seg = 0; seg < nseg; ++seg) {
+                std::cout << " seg " << seg << " rates ";
+                for (size_t p = 0; p < this->number_of_phases_; ++p) {
+                    std::cout << " " << segment_state.rates[this->number_of_phases_ * seg + p] * 86400.;
+                }
+                std::cout << " pressure " << segment_state.pressure[seg] / 1.e5
+                          << " pressure_drop_friction " << segment_state.pressure_drop_friction[seg] / 1.e5 << " pressure_drop_hydrostatic " << segment_state.pressure_drop_hydrostatic[seg]/1.e5
+                          << " pressure_drop_accel " << segment_state.pressure_drop_accel[seg] / 1.e5 << std::endl;
+            }
+        }
+
         well_copy.calculateExplicitQuantities(ebosSimulator, well_state_copy, deferred_logger);
+        if (this->name() == "PR12_G19") {
+            std::cout << " output the well state for well " << this->name() << " AFTER calculateExplicitQuantities " << std::endl;
+            std::cout << " well rates are ";
+            for (const auto val: ws.surface_rates) {
+                std::cout << " " << val * 86400.;
+            }
+            std::cout << " bhp " << ws.bhp / 1.e5 << " thp " << ws.thp / 1.e5;
+            if (this->isInjector()) {
+                std::cout << " inj control " << Well::InjectorCMode2String(ws.injection_cmode);
+            }
+            if (this->isProducer()) {
+                std::cout << " prod control " << Well::ProducerCMode2String(ws.production_cmode);
+            }
+            std::cout << std::endl;
+            std::cout << " segment rates and pressures " << std::endl;
+            const auto& segment_state = ws.segments;
+            const int nseg = this->numberOfSegments();
+            for (int seg = 0; seg < nseg; ++seg) {
+                std::cout << " seg " << seg << " rates ";
+                for (size_t p = 0; p < this->number_of_phases_; ++p) {
+                    std::cout << " " << segment_state.rates[this->number_of_phases_ * seg + p] * 86400.;
+                }
+                std::cout << " pressure " << segment_state.pressure[seg] / 1.e5
+                          << " pressure_drop_friction " << segment_state.pressure_drop_friction[seg] / 1.e5 << " pressure_drop_hydrostatic " << segment_state.pressure_drop_hydrostatic[seg]/1.e5
+                          << " pressure_drop_accel " << segment_state.pressure_drop_accel[seg] / 1.e5 << std::endl;
+            }
+        }
         const double dt = ebosSimulator.timeStepSize();
         // iterate to get a solution at the given bhp.
         well_copy.iterateWellEqWithControl(ebosSimulator, dt, inj_controls, prod_controls, well_state_copy, group_state,
@@ -1490,6 +1633,51 @@ namespace Opm
         int stagnate_count = 0;
         bool relax_convergence = false;
         this->regularize_ = false;
+        if (this->name() == "PR12_G19") {
+            std::cout<< " well PR12_G19 at iterateWellEqWithControl with max_iter_number " << max_iter_number << std::endl;
+                std::cout << " outputting the well state for well PR12_G19 before iteration " << it << std::endl;
+                const auto& ws = well_state.well(this->index_of_well_);
+                std::cout << " well rates are ";
+                for (const auto val: ws.surface_rates) {
+                    std::cout << " " << val * 86400.;
+                }
+                std::cout << " bhp " << ws.bhp / 1.e5 << " thp " << ws.thp / 1.e5;
+                if (this->isInjector()) {
+                    std::cout << " inj control " << Well::InjectorCMode2String(ws.injection_cmode);
+                }
+                if (this->isProducer()) {
+                    std::cout << " prod control " << Well::ProducerCMode2String(ws.production_cmode);
+                }
+                std::cout << std::endl;
+                std::cout << " segment rates and pressures " << std::endl;
+                const auto& segment_state = ws.segments;
+                const int nseg = this->numberOfSegments();
+                for (int seg = 0; seg < nseg; ++seg) {
+                    std::cout << " seg " << seg << " rates ";
+                    for (size_t p = 0; p < this->number_of_phases_; ++p) {
+                        std::cout << " " << segment_state.rates[this->number_of_phases_ * seg + p] * 86400.;
+                    }
+                    std::cout << " pressure " << segment_state.pressure[seg] / 1.e5
+                              << " pressure_drop_friction " << segment_state.pressure_drop_friction[seg] / 1.e5 << " pressure_drop_hydrostatic " << segment_state.pressure_drop_hydrostatic[seg]/1.e5
+                              << " pressure_drop_accel " << segment_state.pressure_drop_accel[seg] / 1.e5 << std::endl;
+                }
+                std::cout << " outputting the primary variables for well PR12_G19 " << std::endl;
+                for (int seg = 0; seg < nseg; ++seg) {
+                    std::cout << " seg " << seg ;
+                    for (int pr = 0; pr < this->numWellEq; ++pr) {
+                        std::cout << " " << this->primary_variables_[seg][pr];
+                    }
+                    std::cout << std::endl;
+                }
+                std::cout << " outputting the primary variables EVALUATION for well PR12_G19 " << std::endl;
+                for (int seg = 0; seg < nseg; ++seg) {
+                    std::cout << " seg " << seg;
+                    for (int pr = 0; pr < this->numWellEq; ++pr) {
+                        std::cout << " " << Opm::getValue(this->primary_variables_evaluation_[seg][pr]);
+                    }
+                    std::cout << std::endl;
+                }
+        }
         for (; it < max_iter_number; ++it, ++debug_cost_counter_) {
 
             assembleWellEqWithoutIteration(ebosSimulator, dt, inj_controls, prod_controls, well_state, group_state, deferred_logger);
@@ -1623,6 +1811,9 @@ namespace Opm
             }
             updateWellState(dx_well, well_state, deferred_logger, relaxation_factor);
             initPrimaryVariablesEvaluation();
+            if (this->name() == "PR12_G19") {
+                std::cout<< " well PR12_G19 iteration " << it << " finished "<< std::endl;
+            }
         }
 
         // TODO: we should decide whether to keep the updated well_state, or recover to use the old well_state
@@ -1648,6 +1839,10 @@ namespace Opm
             }
 #endif
             deferred_logger.debug(sstr.str());
+        }
+
+        if (this->name() == "PR12_G19") {
+            std::cout<< " well PR12_G19 LEAVING iterateWellEqWithControl " << std::endl;
         }
 
         return converged;

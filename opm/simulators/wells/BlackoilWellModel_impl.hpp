@@ -322,6 +322,8 @@ namespace Opm {
 
         // calculate the well potentials
         try {
+            const std::string msg = "updateWellPotentials in beginTimeStep";
+            std::cout << msg << std::endl;
             updateWellPotentials(reportStepIdx,
                                  /*onlyAfterEvent*/true,
                                  ebosSimulator_.vanguard().summaryConfig(),
@@ -506,6 +508,8 @@ namespace Opm {
 
         // calculate the well potentials
         try {
+            const std::string msg = "updateWellPotentials in timeStepSucceeded ";
+            std::cout << msg << std::endl;
             updateWellPotentials(reportStepIdx,
                                  /*onlyAfterEvent*/false,
                                  ebosSimulator_.vanguard().summaryConfig(),
@@ -1633,6 +1637,9 @@ namespace Opm {
         const int np = numPhases();
         std::vector<double> potentials;
         const auto& well= well_container_[widx];
+        if (well->name() == "PR12_G19") {
+            std::cout << " well " << well->name() << " will computeWellPotentials from BlackoilWellModel<TypeTag>::computePotentials " << std::endl;
+        }
         try {
             well->computeWellPotentials(ebosSimulator_, well_state_copy, potentials, deferred_logger);
         }

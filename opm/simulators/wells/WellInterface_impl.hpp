@@ -349,6 +349,9 @@ namespace Opm
 
             std::vector<double> potentials;
             try {
+                if (this->name() == "PR12_G19") {
+                    std::cout << " well " << this->name() << " will computeWellPotentials in wellTesting " << std::endl;
+                }
                 computeWellPotentials(simulator, well_state_copy, potentials, deferred_logger);
             } catch (const std::exception& e) {
                 const std::string msg = std::string("well ") + this->name() + std::string(": computeWellPotentials() failed during testing for re-opening: ") + e.what();
@@ -533,6 +536,9 @@ namespace Opm
             auto well_state_copy = well_state;
             std::vector<double> potentials;
             try {
+                if (this->name() == "PR12_G19") {
+                    std::cout << " well " << this->name() << " will computeWellPotentials because of >operability_status_.has_negative_potentials " << std::endl;
+                }
                 computeWellPotentials(ebosSimulator, well_state_copy, potentials, deferred_logger);
             } catch (const std::exception& e) {
                 const std::string msg = std::string("well ") + this->name() + std::string(": computeWellPotentials() failed during attempt to recompute potentials for well : ") + e.what();
