@@ -1113,6 +1113,9 @@ updateWellPotentials(const int reportStepIdx,
         const bool compute_potential = needPotentialsForOutput || needPotentialsForGuideRates;
         if (compute_potential)
         {
+            if (well->name() == "PR12_G19") {
+                std::cout << " well " << well->name() << " will computePotentials from BlackoilWellModelGeneric::updateWellPotentials " << std::endl;
+            }
             this->computePotentials(widx, well_state_copy, exc_msg, exc_type, deferred_logger);
         }
         ++widx;
