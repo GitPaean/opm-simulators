@@ -355,8 +355,24 @@ updatePrimaryVariablesNewton(const BVectorWell& dwells,
     }
 
     if (baseif_.name() == "PR12_G19") {
-        std::cout << " outputting the primary variables at the end of updatePrimaryVariablesNewton with relaxation_factor "
+        std::cout << " outputting the original primary variables at the end of updatePrimaryVariablesNewton with relaxation_factor "
             << relaxation_factor << " dFLimit " << dFLimit << " max_pressure_change " << max_pressure_change << std::endl;
+        for (int seg = 0; seg < this->numberOfSegments(); ++seg) {
+            std::cout << " seg " << seg;
+            for (int pr = 0; pr < this->numWellEq; ++pr) {
+                std::cout << " " << old_primary_variables[seg][pr];
+            }
+            std::cout << std::endl;
+        }
+        std::cout << " outputting dwells " << std::endl;
+        for (int seg = 0; seg < this->numberOfSegments(); ++seg) {
+            std::cout << " seg " << seg;
+            for (int pr = 0; pr < this->numWellEq; ++pr) {
+                std::cout << " " << dwells[seg][pr];
+            }
+            std::cout << std::endl;
+        }
+        std::cout << " outputting the new primary variables " << std::endl;
         for (int seg = 0; seg < this->numberOfSegments(); ++seg) {
             std::cout << " seg " << seg ;
             for (int pr = 0; pr < this->numWellEq; ++pr) {
@@ -460,8 +476,20 @@ recoverSolutionWell(const BVector& x, BVectorWell& xw) const
     BVectorWell resWell = resWell_;
     // resWell = resWell - B * x
     duneB_.mmv(x, resWell);
-    // xw = D^-1 * resWell
+    // xw = D^-1 * resWel
     xw = mswellhelpers::applyUMFPack(duneD_, duneDSolver_, resWell, baseif_.name() + " recoverSolutionWell");
+    if (baseif_.name() == "PR12_G19") {
+        std::cout << " well " << baseif_.name() << " recoverSolutionWell " << std::endl;
+        const int number = rand() % 100;
+        const std::string matrix_filename = "debug_output/duneD_PR12_G19_rev_" + std::to_string(number);
+        const std::string rhs_filename = "debug_output/resWell_PR12_G19_rev_" + std::to_string(number);
+        std::cout << " at recoverSolutionWell outputting the Matrix duneD_ and resWell for well PR12_G19 to file " << matrix_filename
+                  << " and " << rhs_filename << " respectively " << std::endl;
+        Dune::storeMatrixMarket(this->duneD_, matrix_filename);
+        Dune::storeMatrixMarket(resWell, rhs_filename);
+        const std::string xw_filename = "debug_output/xw_PR12_G19_rev_" + std::to_string(number);
+        Dune::storeMatrixMarket(xw, xw_filename);
+    }
 }
 
 template<typename FluidSystem, typename Indices, typename Scalar>

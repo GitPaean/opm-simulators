@@ -244,6 +244,9 @@ namespace Opm
 
         BVectorWell xw(1);
         this->recoverSolutionWell(x, xw);
+        if (this->name() == "PR12_G19") {
+            std::cout << " well " << this->name() << " entering updateWellState through recoverWellSolutionAndUpdateWellState " << std::endl;
+        }
         updateWellState(xw, well_state, deferred_logger);
     }
 
@@ -2030,6 +2033,15 @@ namespace Opm
                 const UnitSystem& unit_system = ebosSimulator.vanguard().eclState().getDeckUnitSystem();
                 this->assemblePressureEq(seg, unit_system, well_state, deferred_logger);
             }
+        }
+        if (this->name() == "PR12_G19") {
+            const int number = rand() % 100;
+            const std::string matrix_filename = "debug_output/duneD_PR12_G19_ass_" + std::to_string(number);
+            const std::string rhs_filename = "debug_output/resWell_PR12_G19_ass_" + std::to_string(number);
+            std::cout << " at then end of assembleWellEqWithoutIteration outputting the Matrix duneD_ and rhs_ for well PR12_G19 to file " << matrix_filename
+                      << " and " << rhs_filename << " respectively " << std::endl;
+            Dune::storeMatrixMarket(this->duneD_, matrix_filename);
+            Dune::storeMatrixMarket(this->resWell_, rhs_filename);
         }
     }
 

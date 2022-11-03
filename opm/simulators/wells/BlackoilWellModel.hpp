@@ -161,7 +161,9 @@ namespace Opm {
 
             void postSolve(GlobalEqVector& deltaX) override
             {
+                std::cout << " entering postSolve " << std::endl;
                 recoverWellSolutionAndUpdateWellState(deltaX);
+                std::cout << " LEAVING postSolve " << std::endl;
             }
 
             /////////////

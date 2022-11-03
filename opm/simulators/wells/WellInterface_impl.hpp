@@ -523,8 +523,14 @@ namespace Opm
         // only use inner well iterations for the first newton iterations.
         const int iteration_idx = ebosSimulator.model().newtonMethod().numIterations();
         if (iteration_idx < param_.max_niter_inner_well_iter_ || this->well_ecl_.isMultiSegment()) {
+            if (this->name() == "PR12_G19") {
+                std::cout << " well " << this->name() << " entering iterateWellEquations through WellInterface::assembleWellEq " << std::endl;
+            }
             this->operability_status_.solvable = true;
             bool converged = this->iterateWellEquations(ebosSimulator, dt, well_state, group_state, deferred_logger);
+            if (this->name() == "PR12_G19") {
+                std::cout << " well " << this->name() << " LEAVING iterateWellEquations through WellInterface::assembleWellEq " << std::endl;
+            }
 
             // unsolvable wells are treated as not operable and will not be solved for in this iteration.
             if (!converged) {
@@ -574,7 +580,13 @@ namespace Opm
         const auto& summary_state = ebosSimulator.vanguard().summaryState();
         const auto inj_controls = this->well_ecl_.isInjector() ? this->well_ecl_.injectionControls(summary_state) : Well::InjectionControls(0);
         const auto prod_controls = this->well_ecl_.isProducer() ? this->well_ecl_.productionControls(summary_state) : Well::ProductionControls(0);
+        if (this->name() == "PR12_G19") {
+            std::cout << " well " << this->name() << " entering assembleWellEqWithoutIteration through WellInterface::assembleWellEq " << std::endl;
+        }
         assembleWellEqWithoutIteration(ebosSimulator, dt, inj_controls, prod_controls, well_state, group_state, deferred_logger);
+        if (this->name() == "PR12_G19") {
+            std::cout << " well " << this->name() << " Leaving assembleWellEqWithoutIteration through WellInterface::assembleWellEq " << std::endl;
+        }
     }
 
     template<typename TypeTag>
