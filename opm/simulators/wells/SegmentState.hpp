@@ -40,6 +40,8 @@ public:
     const std::vector<int>& segment_number() const;
     std::size_t size() const;
 
+    std::string output() const;
+
     std::vector<double> rates;
     std::vector<double> pressure;
     std::vector<double> pressure_drop_friction;

@@ -329,6 +329,7 @@ namespace Opm {
                 report.converged = convrep.converged()  && iteration > nonlinear_solver.minIter();;
                 ConvergenceReport::Severity severity = convrep.severityOfWorstFailure();
                 convergence_reports_.back().report.push_back(std::move(convrep));
+                std::cout << "converged after assemble () " << report.converged << " at iteration " << iteration << std::endl;
 
                 // Throw if any NaN or too large residual found.
                 if (severity == ConvergenceReport::Severity::NotANumber) {
@@ -424,6 +425,7 @@ namespace Opm {
             SimulatorReportSingle report;
             Dune::Timer perfTimer;
             perfTimer.start();
+            std::cout << " ebosSimulator_.problem().endTimeStep(); " << std::endl;
             ebosSimulator_.problem().endTimeStep();
             report.pre_post_time += perfTimer.stop();
             return report;

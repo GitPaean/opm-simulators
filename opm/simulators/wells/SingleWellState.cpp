@@ -271,6 +271,26 @@ void SingleWellState::update_targets(const Well& ecl_well, const SummaryState& s
         this->update_injector_targets(ecl_well, st);
 }
 
+std::string SingleWellState::screenOutput() const {
+    std::stringstream ss;
+    ss << " output the well state for well " << this->name << std::endl;
+    ss << " well rates are ";
+    for (const auto val: this->surface_rates) {
+        ss << " " << val * 86400.;
+    }
+    ss << " bhp " << this->bhp / 1.e5 << " thp " << this->thp / 1.e5;
+    if (this->producer) {
+        ss << " prod control " << Well::ProducerCMode2String(this->production_cmode);
+    } else {
+        ss << " inj control " << Well::InjectorCMode2String(this->injection_cmode);
+    }
+    ss << std::endl;
+    if (!segments.empty()) {
+        ss << segments.output();
+    }
+    return ss.str();
+}
+
 }
 
 

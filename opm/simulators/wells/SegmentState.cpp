@@ -27,6 +27,7 @@
 
 #include <opm/input/eclipse/Schedule/Well/WellConnections.hpp>
 #include <opm/input/eclipse/Schedule/MSW/WellSegments.hpp>
+#include <sstream>
 
 namespace Opm
 {
@@ -78,6 +79,23 @@ void SegmentState::scale_pressure(const double bhp) {
 
 const std::vector<int>& SegmentState::segment_number() const {
     return this->m_segment_number;
+}
+
+std::string SegmentState::output() const {
+    std::stringstream ss;
+    const size_t number_phases = this->rates.size() / this->pressure.size();
+    const size_t nseg = this->size();
+    ss << " outputting the segment information, there are " << nseg << " segments, and " << number_phases << " phases, rates and pressures are :" << std::endl;
+    for (size_t seg = 0; seg < nseg; ++seg) {
+        ss  << " seg " << seg << " rates ";
+        for (size_t p = 0; p < number_phases; ++p) {
+            ss << " " << this->rates[number_phases * seg + p] * 86400.;
+        }
+        ss << " pressure " << this->pressure[seg] / 1.e5
+           << " pressure_drop_friction " << this->pressure_drop_friction[seg] / 1.e5 << " pressure_drop_hydrostatic " << this->pressure_drop_hydrostatic[seg]/1.e5
+           << " pressure_drop_accel " << this->pressure_drop_accel[seg] / 1.e5 << std::endl;
+    }
+    return ss.str();
 }
 
 }

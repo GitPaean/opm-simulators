@@ -586,6 +586,8 @@ namespace Opm
         assembleWellEqWithoutIteration(ebosSimulator, dt, inj_controls, prod_controls, well_state, group_state, deferred_logger);
         if (this->name() == "PR12_G19") {
             std::cout << " well " << this->name() << " Leaving assembleWellEqWithoutIteration through WellInterface::assembleWellEq " << std::endl;
+            std::cout << " outputting the well state here " << std::endl;
+            std::cout << well_state.well(this->index_of_well_).screenOutput() << std::endl;
         }
     }
 

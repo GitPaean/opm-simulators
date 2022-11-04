@@ -85,6 +85,8 @@ public:
     void stop();
     void open();
 
+    std::string screenOutput() const;
+
     // The sum_xxx_rates() functions sum over all connection rates of pertinent
     // types. In the case of distributed wells this involves an MPI
     // communication.
