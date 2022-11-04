@@ -462,6 +462,12 @@ namespace Opm {
         // time step is finished and we are not any more at the beginning of an report step
         report_step_starts_ = false;
         const int reportStepIdx = ebosSimulator_.episodeIndex();
+        for (const auto& well : well_container_) {
+            if (well->name() == "PR12_G19") {
+                std::cout << " outputting the well state for well " << well->name() << " at the beginning of timeStepSucceeded " << std::endl;
+                std::cout << this->wellState().well(well->indexOfWell()).screenOutput() << std::endl;
+            }
+        }
 
         DeferredLogger local_deferredLogger;
         for (const auto& well : well_container_) {
@@ -472,6 +478,12 @@ namespace Opm {
         // report well switching
         for (const auto& well : well_container_) {
             well->reportWellSwitching(this->wellState().well(well->indexOfWell()), local_deferredLogger);
+        }
+        for (const auto& well : well_container_) {
+            if (well->name() == "PR12_G19") {
+                std::cout << " outputting the well state for well " << well->name() << " after reportWellSwitching " << std::endl;
+                std::cout << this->wellState().well(well->indexOfWell()).screenOutput() << std::endl;
+            }
         }
         // report group switching
         if (terminal_output_) {
@@ -506,6 +518,12 @@ namespace Opm {
         // update the rate converter with current averages pressures etc in
         rateConverter_->template defineState<ElementContext>(ebosSimulator_);
 
+        for (const auto& well : well_container_) {
+            if (well->name() == "PR12_G19") {
+                std::cout << " outputting the well state for well " << well->name() << " after defineState before updateWellPotentials " << std::endl;
+                std::cout << this->wellState().well(well->indexOfWell()).screenOutput() << std::endl;
+            }
+        }
         // calculate the well potentials
         try {
             const std::string msg = "updateWellPotentials in timeStepSucceeded ";
