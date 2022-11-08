@@ -225,6 +225,7 @@ class WellState;
             }
 
             // Do model-specific post-step actions.
+            std::cout << " converged ? " << converged << " afterStep " << std::endl;
             report += model_->afterStep(timer);
             report.converged = true;
             return report;

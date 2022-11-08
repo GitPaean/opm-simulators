@@ -207,7 +207,7 @@ namespace Opm
         this->duneB_.mv(x, Bx);
 
         // invDBx = duneD^-1 * Bx_
-        const BVectorWell invDBx = mswellhelpers::applyUMFPack(this->duneD_, this->duneDSolver_, Bx);
+        const BVectorWell invDBx = mswellhelpers::applyUMFPack(this->duneD_, this->duneDSolver_, Bx, this->name() + " apply (x, ax) ");
 
         // Ax = Ax - duneC_^T * invDBx
         this->duneC_.mmtv(invDBx,Ax);
@@ -225,7 +225,8 @@ namespace Opm
         if (!this->isOperableAndSolvable() && !this->wellIsStopped()) return;
 
         // invDrw_ = duneD^-1 * resWell_
-        const BVectorWell invDrw = mswellhelpers::applyUMFPack(this->duneD_, this->duneDSolver_, this->resWell_);
+        const BVectorWell invDrw = mswellhelpers::applyUMFPack(this->duneD_, this->duneDSolver_, this->resWell_,
+                                                               this->name() + " apply (r)");
         // r = r - duneC_^T * invDrw
         this->duneC_.mmtv(invDrw, r);
     }
@@ -243,6 +244,9 @@ namespace Opm
 
         BVectorWell xw(1);
         this->recoverSolutionWell(x, xw);
+        if (this->name() == "PR12_G19") {
+            std::cout << " well " << this->name() << " entering updateWellState through recoverWellSolutionAndUpdateWellState " << std::endl;
+        }
         updateWellState(xw, well_state, deferred_logger);
     }
 
@@ -258,6 +262,10 @@ namespace Opm
                           std::vector<double>& well_potentials,
                           DeferredLogger& deferred_logger)
     {
+        if (this->name() == "PR12_G19") {
+            std::cout << " outputting well state for well " << this->name() << " at computeWellPotentials " << std::endl;
+            std::cout << well_state.well(this->indexOfWell()).screenOutput() << std::endl;
+        }
         const int np = this->number_of_phases_;
         well_potentials.resize(np, 0.0);
 
@@ -342,6 +350,9 @@ namespace Opm
                                std::vector<double>& well_flux,
                                DeferredLogger& deferred_logger) const
     {
+        if (this->name() == "PR12_G19") {
+            std::cout << " well " << this->name() << " in function computeWellRatesAtBhpLimit " << std::endl;
+        }
         if (this->well_ecl_.isInjector()) {
             const auto controls = this->well_ecl_.injectionControls(ebosSimulator.vanguard().summaryState());
             computeWellRatesWithBhpIterations(ebosSimulator, controls.bhp_limit, well_flux, deferred_logger);
@@ -407,8 +418,19 @@ namespace Opm
         MultisegmentWell<TypeTag> well_copy(*this);
         well_copy.debug_cost_counter_ = 0;
 
+        if (this->name() == "PR12_G19") {
+            std::cout << " well PR12_G19 in computeWellRatesWithBhpIterations " << std::endl;
+            std::cout << " outputting the well state before making a copy " << std::endl;
+            std::cout << ebosSimulator.problem().wellModel().wellState().well(this->indexOfWell()).screenOutput() << std::endl;
+        }
+
         // store a copy of the well state, we don't want to update the real well state
         WellState well_state_copy = ebosSimulator.problem().wellModel().wellState();
+        if (this->name() == "PR12_G19") {
+            std::cout << " output the well state for well " << this->name() << std::endl;
+            const auto& ws = well_state_copy.well(this->index_of_well_);
+            std::cout << ws.screenOutput();
+        }
         const auto& group_state = ebosSimulator.problem().wellModel().groupState();
         auto& ws = well_state_copy.well(this->index_of_well_);
 
@@ -431,6 +453,11 @@ namespace Opm
         }
         ws.bhp = bhp;
         well_copy.scaleSegmentPressuresWithBhp(well_state_copy);
+        /* if (this->name() == "PR12_G19") {
+            std::cout << " output the well state for well " << this->name() << " after scaleSegmentPressuresWithBhp "
+                      << std::endl;
+            std::cout << ws.screenOutput() << std::endl;
+        } */
 
         // initialized the well rates with the potentials i.e. the well rates based on bhp
         const int np = this->number_of_phases_;
@@ -444,9 +471,25 @@ namespace Opm
                 ws.surface_rates[phase] = sign * ws.well_potentials[phase];
             }
         }
+        /* if (this->name() == "PR12_G19") {
+            std::cout << " output the well state for well " << this->name() << " BEFORE scaleSegmentRatesWithWellRates "
+                      << std::endl;
+            std::cout << ws.screenOutput() << std::endl;
+        } */
         well_copy.scaleSegmentRatesWithWellRates(well_state_copy);
 
+        /* if (this->name() == "PR12_G19") {
+            std::cout << " output the well state for well " << this->name() << " AFTER scaleSegmentRatesWithWellRates "
+                      << std::endl;
+            std::cout << ws.screenOutput() << std::endl;
+        } */
+
         well_copy.calculateExplicitQuantities(ebosSimulator, well_state_copy, deferred_logger);
+        /* if (this->name() == "PR12_G19") {
+            std::cout << " output the well state for well " << this->name() << " AFTER calculateExplicitQuantities "
+                      << std::endl;
+            std::cout << ws.screenOutput() << std::endl;
+        } */
         const double dt = ebosSimulator.timeStepSize();
         // iterate to get a solution at the given bhp.
         well_copy.iterateWellEqWithControl(ebosSimulator, dt, inj_controls, prod_controls, well_state_copy, group_state,
@@ -525,7 +568,8 @@ namespace Opm
 
         // We assemble the well equations, then we check the convergence,
         // which is why we do not put the assembleWellEq here.
-        const BVectorWell dx_well = mswellhelpers::applyUMFPack(this->duneD_, this->duneDSolver_, this->resWell_);
+        const BVectorWell dx_well = mswellhelpers::applyUMFPack(this->duneD_, this->duneDSolver_, this->resWell_,
+                                                                this->name() + " solveEqAndUpdateWellState ");
 
         updateWellState(dx_well, well_state, deferred_logger);
     }
@@ -726,7 +770,8 @@ namespace Opm
     MultisegmentWell<TypeTag>::
     addWellContributions(SparseMatrixAdapter& jacobian) const
     {
-        const auto invDuneD = mswellhelpers::invertWithUMFPack<DiagMatWell, BVectorWell>(this->duneD_, this->duneDSolver_);
+        const auto invDuneD = mswellhelpers::invertWithUMFPack<DiagMatWell, BVectorWell>(this->duneD_,
+                                                                                         this->duneDSolver_, this->name() + " addWellContribution ");
 
         // We need to change matrix A as follows
         // A -= C^T D^-1 B
@@ -1458,6 +1503,9 @@ namespace Opm
                              const GroupState& group_state,
                              DeferredLogger& deferred_logger)
     {
+        if (this->name() == "PR12_G19") {
+            std::cout<< " well PR12_G19 enters iterateWellEqWithControl " << std::endl;
+        }
         if (!this->isOperableAndSolvable() && !this->wellIsStopped()) return true;
 
         const int max_iter_number = this->param_.max_inner_iter_ms_wells_;
@@ -1479,11 +1527,67 @@ namespace Opm
         int stagnate_count = 0;
         bool relax_convergence = false;
         this->regularize_ = false;
+        if (this->name() == "PR12_G19") {
+            std::cout<< " well PR12_G19 at iterateWellEqWithControl with max_iter_number " << max_iter_number << std::endl;
+            std::cout << " outputting the well state for well PR12_G19 before iteration " << it << std::endl;
+            const auto& ws = well_state.well(this->index_of_well_);
+            std::cout << ws.screenOutput() << std::endl;
+                /* std::cout << " outputting the primary variables for well PR12_G19 " << std::endl;
+                for (int seg = 0; seg < nseg; ++seg) {
+                    std::cout << " seg " << seg ;
+                    for (int pr = 0; pr < this->numWellEq; ++pr) {
+                        std::cout << " " << this->primary_variables_[seg][pr];
+                    }
+                    std::cout << std::endl;
+                }
+                std::cout << " outputting the primary variables EVALUATION for well PR12_G19 " << std::endl;
+                for (int seg = 0; seg < nseg; ++seg) {
+                    std::cout << " seg " << seg;
+                    for (int pr = 0; pr < this->numWellEq; ++pr) {
+                        std::cout << " " << Opm::getValue(this->primary_variables_evaluation_[seg][pr]);
+                    }
+                    std::cout << std::endl;
+                } */
+        }
         for (; it < max_iter_number; ++it, ++debug_cost_counter_) {
 
             assembleWellEqWithoutIteration(ebosSimulator, dt, inj_controls, prod_controls, well_state, group_state, deferred_logger);
+            const int number = rand() % 100;
+            if (this->name() == "PR12_G19") {
+                std::cout << " outputting the well state for well PR12_G19 at iteration " << it << std::endl;
+                const auto& ws = well_state.well(this->index_of_well_);
+                std::cout << ws.screenOutput() << std::endl;
+                /* std::cout << " outputting the primary variables for well PR12_G19 " << std::endl;
+                for (int seg = 0; seg < nseg; ++seg) {
+                    std::cout << " seg " << seg ;
+                    for (int pr = 0; pr < this->numWellEq; ++pr) {
+                        std::cout << " " << this->primary_variables_[seg][pr];
+                    }
+                    std::cout << std::endl;
+                }
+                std::cout << " outputting the primary variables EVALUATION for well PR12_G19 " << std::endl;
+                for (int seg = 0; seg < nseg; ++seg) {
+                    std::cout << " seg " << seg ;
+                    for (int pr = 0; pr < this->numWellEq; ++pr) {
+                        std::cout << " " << Opm::getValue(this->primary_variables_evaluation_[seg][pr]);
+                    }
+                    std::cout << std::endl;
+                } */
 
-            const BVectorWell dx_well = mswellhelpers::applyUMFPack(this->duneD_, this->duneDSolver_, this->resWell_);
+                const std::string matrix_filename = "debug_output/duneD_PR12_G19_" + std::to_string(number);
+                const std::string rhs_filename = "debug_output/resWell_PR12_G19_" + std::to_string(number);
+                std::cout << " outputting the Matrix duneD_ and rhs_ for well PR12_G19 to file " << matrix_filename << " and " << rhs_filename << " respectively " << std::endl;
+                Dune::storeMatrixMarket(this->duneD_, matrix_filename);
+                Dune::storeMatrixMarket(this->resWell_, rhs_filename);
+            }
+
+            const BVectorWell dx_well = mswellhelpers::applyUMFPack(this->duneD_, this->duneDSolver_, this->resWell_,
+                                                                    this->name() + " iterateWellEqWithControl ");
+            if (this->name() == "PR12_G19") {
+                const std::string dx_filename = "debug_output/dx_PR12_G19_" + std::to_string(number);
+                std::cout << " outputting the dx_well for well PR12_G19 to file " << dx_filename << std::endl;
+                Dune::storeMatrixMarket(dx_well, dx_filename);
+            }
 
             if (it > this->param_.strict_inner_iter_wells_) {
                 relax_convergence = true;
@@ -1555,6 +1659,9 @@ namespace Opm
             }
             updateWellState(dx_well, well_state, deferred_logger, relaxation_factor);
             initPrimaryVariablesEvaluation();
+            if (this->name() == "PR12_G19") {
+                std::cout<< " well PR12_G19 iteration " << it << " finished "<< std::endl;
+            }
         }
 
         // TODO: we should decide whether to keep the updated well_state, or recover to use the old well_state
@@ -1580,6 +1687,12 @@ namespace Opm
             }
 #endif
             deferred_logger.debug(sstr.str());
+        }
+
+        if (this->name() == "PR12_G19") {
+            std::cout<< " well PR12_G19 LEAVING iterateWellEqWithControl " << std::endl;
+            std::cout << " outputting the well staate when leaving iterateWellEqWithControl " << std::endl;
+            std::cout << well_state.well(this->index_of_well_).screenOutput() << std::endl;
         }
 
         return converged;
@@ -1767,6 +1880,15 @@ namespace Opm
                 const UnitSystem& unit_system = ebosSimulator.vanguard().eclState().getDeckUnitSystem();
                 this->assemblePressureEq(seg, unit_system, well_state, deferred_logger);
             }
+        }
+        if (this->name() == "PR12_G19") {
+            const int number = rand() % 100;
+            const std::string matrix_filename = "debug_output/duneD_PR12_G19_ass_" + std::to_string(number);
+            const std::string rhs_filename = "debug_output/resWell_PR12_G19_ass_" + std::to_string(number);
+            std::cout << " at then end of assembleWellEqWithoutIteration outputting the Matrix duneD_ and rhs_ for well PR12_G19 to file " << matrix_filename
+                      << " and " << rhs_filename << " respectively " << std::endl;
+            Dune::storeMatrixMarket(this->duneD_, matrix_filename);
+            Dune::storeMatrixMarket(this->resWell_, rhs_filename);
         }
     }
 
