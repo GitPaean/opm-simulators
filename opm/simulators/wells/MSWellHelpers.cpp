@@ -61,34 +61,67 @@ ValueType haalandFormular(const ValueType& re,
 // water in oil emulsion viscosity
 // TODO: maybe it should be two different ValueTypes. When we calculate the viscosity for transitional zone
 template <typename ValueType>
-ValueType WIOEmulsionViscosity(const ValueType& oil_viscosity,
-                               const ValueType& water_liquid_fraction,
-                               const double max_visco_ratio)
+    ValueType WIOEmulsionViscosity(const ValueType& oil_viscosity, const ValueType& water_liquid_fraction,
+                                   const double max_visco_ratio, const bool output=false)
 {
     const ValueType temp_value = 1. / (1. - (0.8415 / 0.7480 * water_liquid_fraction) );
     const ValueType viscosity_ratio = pow(temp_value, 2.5);
-
-    if (viscosity_ratio <= max_visco_ratio) {
-        return oil_viscosity * viscosity_ratio;
-    } else {
-        return oil_viscosity * max_visco_ratio;
+    if (output) {
+        std::cout << " WIOEmulsionViscosity temp_value ";
+        temp_value.print();
+        std::cout << std::endl;
+        std::cout << " viscosity_ratio ";
+        viscosity_ratio.print();
+        std::cout << std::endl;
+        std::cout << " oil_viscosity ";
+        oil_viscosity.print();
+        std::cout << std::endl;
     }
+
+    ValueType result;
+    if (viscosity_ratio <= max_visco_ratio) {
+        result = oil_viscosity * viscosity_ratio;
+    } else {
+        result = oil_viscosity * max_visco_ratio;
+    }
+    if (output) {
+        std::cout << "WIOEmulsionViscosity result ";
+        result.print();
+        std::cout << std::endl;
+    }
+    return result;
 }
 
 // oil in water emulsion viscosity
 template <typename ValueType>
-ValueType OIWEmulsionViscosity(const ValueType& water_viscosity,
-                               const ValueType& water_liquid_fraction,
-                               const double max_visco_ratio)
+    ValueType OIWEmulsionViscosity(const ValueType& water_viscosity, const ValueType& water_liquid_fraction,
+                                   const double max_visco_ratio, const bool output=false)
 {
     const ValueType temp_value = 1. / (1. - (0.6019 / 0.6410) * (1. - water_liquid_fraction) );
     const ValueType viscosity_ratio = pow(temp_value, 2.5);
-
-    if (viscosity_ratio <= max_visco_ratio) {
-        return water_viscosity * viscosity_ratio;
-    } else {
-        return water_viscosity * max_visco_ratio;
+    if (output) {
+        std::cout << " OIWEmulsionViscosity temp_value ";
+        temp_value.print();
+        std::cout << std::endl;
+        std::cout << " viscosity_ratio ";
+        viscosity_ratio.print();
+        std::cout << std::endl;
+        std::cout << " water_viscosity ";
+        water_viscosity.print();
+        std::cout << std::endl;
     }
+    ValueType result;
+    if (viscosity_ratio <= max_visco_ratio) {
+        result = water_viscosity * viscosity_ratio;
+    } else {
+        result = water_viscosity * max_visco_ratio;
+    }
+    if (output) {
+        std::cout << "OIWEmulsionViscosity result ";
+        result.print();
+        std::cout << std::endl;
+    }
+    return result;
 }
 
 }
@@ -295,11 +328,9 @@ ValueType velocityHead(const double area, const ValueType& mass_rate,
 }
 
 template <typename ValueType>
-ValueType emulsionViscosity(const ValueType& water_fraction,
-                            const ValueType& water_viscosity,
-                            const ValueType& oil_fraction,
-                            const ValueType& oil_viscosity,
-                            const SICD& sicd)
+ValueType
+emulsionViscosity(const ValueType& water_fraction, const ValueType& water_viscosity, const ValueType& oil_fraction,
+                  const ValueType& oil_viscosity, const SICD& sicd, const bool output)
 {
     const double width_transition = sicd.widthTransitionRegion();
 
@@ -319,15 +350,25 @@ ValueType emulsionViscosity(const ValueType& water_fraction,
     }
 
     const ValueType water_liquid_fraction = water_fraction / liquid_fraction;
+    if (output) {
+        std::cout << " liquid_fraction ";
+        liquid_fraction.print();
+        std::cout << std::endl;
+        std::cout << " water_liquid_fracton ";
+        water_liquid_fraction.print();
+        std::cout << std::endl;
+    }
 
     const double max_visco_ratio = sicd.maxViscosityRatio();
     if (water_liquid_fraction <= transition_start_value) {
-        return WIOEmulsionViscosity(oil_viscosity, water_liquid_fraction, max_visco_ratio);
+        return WIOEmulsionViscosity(oil_viscosity, water_liquid_fraction, max_visco_ratio, output);
     } else if (water_liquid_fraction >= transition_end_value) {
-        return OIWEmulsionViscosity(water_viscosity, water_liquid_fraction, max_visco_ratio);
+        return OIWEmulsionViscosity(water_viscosity, water_liquid_fraction, max_visco_ratio, output);
     } else { // in the transition region
-        const ValueType viscosity_start_transition = WIOEmulsionViscosity(oil_viscosity, transition_start_value, max_visco_ratio);
-        const ValueType viscosity_end_transition = OIWEmulsionViscosity(water_viscosity, transition_end_value, max_visco_ratio);
+        const ValueType viscosity_start_transition = WIOEmulsionViscosity(oil_viscosity, transition_start_value,
+                                                                          max_visco_ratio, output);
+        const ValueType viscosity_end_transition = OIWEmulsionViscosity(water_viscosity, transition_end_value,
+                                                                        max_visco_ratio, output);
         const ValueType emulsion_viscosity = (viscosity_start_transition * (transition_end_value - water_liquid_fraction)
                                            + viscosity_end_transition * (water_liquid_fraction - transition_start_value) ) / width_transition;
         return emulsion_viscosity;

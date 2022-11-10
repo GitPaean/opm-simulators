@@ -1541,14 +1541,14 @@ namespace Opm
                     }
                     std::cout << std::endl;
                 }
-                std::cout << " outputting the primary variables EVALUATION for well PR16_G15 " << std::endl;
+                /* std::cout << " outputting the primary variables EVALUATION for well PR16_G15 " << std::endl;
                 for (int seg = 0; seg < nseg; ++seg) {
                     std::cout << " seg " << seg;
                     for (int pr = 0; pr < this->numWellEq; ++pr) {
                         std::cout << " " << Opm::getValue(this->primary_variables_evaluation_[seg][pr]);
                     }
                     std::cout << std::endl;
-                }
+                } */
         }
         for (; it < max_iter_number; ++it, ++debug_cost_counter_) {
 

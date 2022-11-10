@@ -88,11 +88,9 @@ namespace mswellhelpers
 
     // calculating the viscosity of oil-water emulsion at local conditons
     template <typename ValueType>
-    ValueType emulsionViscosity(const ValueType& water_fraction,
-                                const ValueType& water_viscosity,
-                                const ValueType& oil_fraction,
-                                const ValueType& oil_viscosity,
-                                const SICD& sicd);
+    ValueType
+    emulsionViscosity(const ValueType& water_fraction, const ValueType& water_viscosity, const ValueType& oil_fraction,
+                      const ValueType& oil_viscosity, const SICD& sicd, const bool output = false);
 
 } // namespace mswellhelpers
 } // namespace Opm

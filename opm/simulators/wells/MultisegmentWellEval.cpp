@@ -354,7 +354,7 @@ updatePrimaryVariablesNewton(const BVectorWell& dwells,
         }
     }
 
-    if (baseif_.name() == "PR16_G15") {
+    /* if (baseif_.name() == "PR16_G15") {
         std::cout << " outputting the original primary variables at the end of updatePrimaryVariablesNewton with relaxation_factor "
             << relaxation_factor << " dFLimit " << dFLimit << " max_pressure_change " << max_pressure_change << std::endl;
         for (int seg = 0; seg < this->numberOfSegments(); ++seg) {
@@ -380,7 +380,7 @@ updatePrimaryVariablesNewton(const BVectorWell& dwells,
             }
         std::cout << std::endl;
         }
-    }
+    } */
 }
 
 template<typename FluidSystem, typename Indices, typename Scalar>
@@ -872,6 +872,10 @@ typename MultisegmentWellEval<FluidSystem,Indices,Scalar>::EvalWell
 MultisegmentWellEval<FluidSystem,Indices,Scalar>::
 pressureDropSpiralICD(const int seg) const
 {
+    const bool output_for_well = (baseif_.name() == "PR16_G15");
+    if (output_for_well) {
+        std::cout << " well " << baseif_.name() << " in pressureDropSpiralICD " << std::endl;
+    }
     const SICD& sicd = this->segmentSet()[seg].spiralICD();
 
     const int seg_upwind = upwinding_segments_[seg];
@@ -915,9 +919,23 @@ pressureDropSpiralICD(const int seg) const
         gas_viscosity.clearDerivatives();
         density.clearDerivatives();
     }
+    if (output_for_well) {
+        std::cout << " water_fraction ";
+        water_fraction.print();
+        std::cout << std::endl;
+        std::cout << " oil_fraction ";
+        oil_fraction.print();
+        std::cout << std::endl;
+    }
 
     const EvalWell liquid_emulsion_viscosity = mswellhelpers::emulsionViscosity(water_fraction, water_viscosity,
-                                                                                oil_fraction, oil_viscosity, sicd);
+                                                                                oil_fraction, oil_viscosity, sicd,
+                                                                                output_for_well);
+    if (output_for_well) {
+        std::cout << "liquid_emulsion_viscosity ";
+        liquid_emulsion_viscosity.print();
+        std::cout << std::endl;
+    }
     const EvalWell mixture_viscosity = (water_fraction + oil_fraction) * liquid_emulsion_viscosity + gas_fraction * gas_viscosity;
 
     const EvalWell reservoir_rate = segment_mass_rates_[seg] / density;
@@ -939,7 +957,13 @@ pressureDropSpiralICD(const int seg) const
 
     const double sign = reservoir_rate_icd <= 0. ? 1.0 : -1.0;
 
-    return sign * temp_value1 * temp_value2 * strength * reservoir_rate_icd * reservoir_rate_icd;
+    const EvalWell result =  sign * temp_value1 * temp_value2 * strength * reservoir_rate_icd * reservoir_rate_icd;
+    if (output_for_well) {
+        std::cout << " result for well " << baseif_.name() << " at the end of pressureDropSpiralICD is " << std::endl;
+        result.print();
+        std::cout << std::endl;
+    }
+    return result;
 }
 
 template<typename FluidSystem, typename Indices, typename Scalar>
