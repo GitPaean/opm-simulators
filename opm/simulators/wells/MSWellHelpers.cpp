@@ -105,9 +105,22 @@ applyUMFPack(const MatrixType& D, std::shared_ptr<Dune::UMFPack<MatrixType>>& li
              const std::string& well_name)
 {
 #if HAVE_UMFPACK
+    std::cout << " applyUMFPack with well " << well_name << std::endl;
+    const int number = rand()%100000;
     if (!linsolver)
     {
         linsolver = std::make_shared<Dune::UMFPack<MatrixType>>(D, 0);
+
+        const double* UMF_Decomposition_Info = linsolver->getDecompositionInfo();
+        if ( (1./abs(UMF_Decomposition_Info[UMFPACK_RCOND]) > 1.e50) || (abs(UMF_Decomposition_Info[UMFPACK_RCOND]) > 1.e50)
+             || !std::isfinite(UMF_Decomposition_Info[UMFPACK_RCOND])) {
+            const std::string matrix_filename = "debug_output/duneD_" + std::to_string(number);
+            const std::string rhs_filename = "debug_output/resWell_" + std::to_string(number);
+            std::cout << "condition number is " << UMF_Decomposition_Info[UMFPACK_RCOND] << std::endl;
+            std::cout << " outputting the D and rhs for well " << well_name << " to " << matrix_filename << " and " << rhs_filename << " respectively " << std::endl;
+            Dune::storeMatrixMarket(D, matrix_filename);
+            Dune::storeMatrixMarket(x, rhs_filename);
+        }
     }
 
     // The copy of x seems mandatory for calling UMFPack!
@@ -125,7 +138,7 @@ applyUMFPack(const MatrixType& D, std::shared_ptr<Dune::UMFPack<MatrixType>>& li
     for (size_t i_block = 0; i_block < y.size(); ++i_block) {
         for (size_t i_elem = 0; i_elem < y[i_block].size(); ++i_elem) {
             if (std::isinf(y[i_block][i_elem]) || std::isnan(y[i_block][i_elem]) ) {
-                const std::string file_name = "debug_output/solution_" + well_name;
+                const std::string file_name = "debug_output/solution_" + std::to_string(nubmer)+"_"+well_name;
                 Dune::storeMatrixMarket(y, file_name);
                 const std::string msg = "nan or inf value found after UMFPack solve due to singular matrix of well " + well_name;
                 OpmLog::debug(msg);
@@ -133,6 +146,7 @@ applyUMFPack(const MatrixType& D, std::shared_ptr<Dune::UMFPack<MatrixType>>& li
             }
         }
     }
+    std::cout << " leaving applyUMFPack with well " << well_name << std::endl;
     return y;
 #else
     // this is not thread safe
@@ -230,6 +244,12 @@ ValueType frictionPressureLoss(const double l, const double diameter,
 {
     // Reynolds number
     const ValueType re = abs( diameter * w / (area * mu));
+
+    /* if ( abs(w) <= 1.e-30 ) {
+        // make sure it is because the mass rate is zero
+        // assert(w == 0.);
+        return 0.0;
+    } */
 
     constexpr double re_value1 = 2000.;
     constexpr double re_value2 = 4000.;

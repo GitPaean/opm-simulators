@@ -1069,14 +1069,14 @@ updateWellPotentials(const int reportStepIdx,
                      DeferredLogger& deferred_logger)
 {
     for (const auto& well : well_container_generic_) {
-        if (well->name() == "PR12_G19") {
+        if (well->name() == "PR16_G15") {
             std::cout << " outputting the well state for well " << well->name() << " at the beginning of updateWellPotentials " << std::endl;
             std::cout << this->wellState().well(well->indexOfWell()).screenOutput() << std::endl;
         }
     }
     auto well_state_copy = this->wellState();
     for (const auto& well : well_container_generic_) {
-        if (well->name() == "PR12_G19") {
+        if (well->name() == "PR16_G15") {
             std::cout << " outputting the well state for well " << well->name() << " at the beginning of updateWellPotentials with well_state_copy " << std::endl;
             std::cout << well_state_copy.well(well->indexOfWell()).screenOutput() << std::endl;
         }
@@ -1125,7 +1125,7 @@ updateWellPotentials(const int reportStepIdx,
         const bool compute_potential = needPotentialsForOutput || needPotentialsForGuideRates;
         if (compute_potential)
         {
-            if (well->name() == "PR12_G19") {
+            if (well->name() == "PR16_G15") {
                 std::cout << " well " << well->name() << " will computePotentials from BlackoilWellModelGeneric::updateWellPotentials " << std::endl;
             }
             this->computePotentials(widx, well_state_copy, exc_msg, exc_type, deferred_logger);

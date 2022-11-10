@@ -354,7 +354,7 @@ updatePrimaryVariablesNewton(const BVectorWell& dwells,
         }
     }
 
-    if (baseif_.name() == "PR12_G19") {
+    if (baseif_.name() == "PR16_G15") {
         std::cout << " outputting the original primary variables at the end of updatePrimaryVariablesNewton with relaxation_factor "
             << relaxation_factor << " dFLimit " << dFLimit << " max_pressure_change " << max_pressure_change << std::endl;
         for (int seg = 0; seg < this->numberOfSegments(); ++seg) {
@@ -480,18 +480,18 @@ recoverSolutionWell(const BVector& x, BVectorWell& xw) const
     duneB_.mmv(x, resWell);
     // xw = D^-1 * resWel
     xw = mswellhelpers::applyUMFPack(duneD_, duneDSolver_, resWell, baseif_.name() + " recoverSolutionWell");
-    if (baseif_.name() == "PR12_G19") {
+    /* if (baseif_.name() == "PR16_G15") {
         std::cout << " well " << baseif_.name() << " recoverSolutionWell " << std::endl;
-        const int number = rand() % 100;
-        const std::string matrix_filename = "debug_output/duneD_PR12_G19_rev_" + std::to_string(number);
-        const std::string rhs_filename = "debug_output/resWell_PR12_G19_rev_" + std::to_string(number);
-        std::cout << " at recoverSolutionWell outputting the Matrix duneD_ and resWell for well PR12_G19 to file " << matrix_filename
+        const int number = rand() % 10000;
+        const std::string matrix_filename = "debug_output/duneD_PR16_G15_rev_" + std::to_string(number);
+        const std::string rhs_filename = "debug_output/resWell_PR16_G15_rev_" + std::to_string(number);
+        std::cout << " at recoverSolutionWell outputting the Matrix duneD_ and resWell for well PR16_G15 to file " << matrix_filename
                   << " and " << rhs_filename << " respectively " << std::endl;
         Dune::storeMatrixMarket(this->duneD_, matrix_filename);
         Dune::storeMatrixMarket(resWell, rhs_filename);
-        const std::string xw_filename = "debug_output/xw_PR12_G19_rev_" + std::to_string(number);
+        const std::string xw_filename = "debug_output/xw_PR16_G15_rev_" + std::to_string(number);
         Dune::storeMatrixMarket(xw, xw_filename);
-    }
+    } */
 }
 
 template<typename FluidSystem, typename Indices, typename Scalar>
