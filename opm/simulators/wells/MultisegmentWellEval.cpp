@@ -874,7 +874,7 @@ pressureDropSpiralICD(const int seg) const
 {
     const bool output_for_well = (baseif_.name() == "PR16_G15");
     if (output_for_well) {
-        std::cout << " well " << baseif_.name() << " in pressureDropSpiralICD " << std::endl;
+        std::cout << " well " << baseif_.name() << " seg " << seg <<  " in pressureDropSpiralICD " << std::endl;
     }
     const SICD& sicd = this->segmentSet()[seg].spiralICD();
 
@@ -959,7 +959,7 @@ pressureDropSpiralICD(const int seg) const
 
     const EvalWell result =  sign * temp_value1 * temp_value2 * strength * reservoir_rate_icd * reservoir_rate_icd;
     if (output_for_well) {
-        std::cout << " result for well " << baseif_.name() << " at the end of pressureDropSpiralICD is " << std::endl;
+        std::cout << " result for well " << baseif_.name() << " seg " << seg << " at the end of pressureDropSpiralICD is " << std::endl;
         result.print();
         std::cout << std::endl;
     }

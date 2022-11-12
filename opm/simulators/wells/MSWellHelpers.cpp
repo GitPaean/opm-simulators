@@ -171,7 +171,7 @@ applyUMFPack(const MatrixType& D, std::shared_ptr<Dune::UMFPack<MatrixType>>& li
     for (size_t i_block = 0; i_block < y.size(); ++i_block) {
         for (size_t i_elem = 0; i_elem < y[i_block].size(); ++i_elem) {
             if (std::isinf(y[i_block][i_elem]) || std::isnan(y[i_block][i_elem]) ) {
-                const std::string file_name = "debug_output/solution_" + std::to_string(nubmer)+"_"+well_name;
+                const std::string file_name = "debug_output/solution_" + std::to_string(number)+"_"+well_name;
                 Dune::storeMatrixMarket(y, file_name);
                 const std::string msg = "nan or inf value found after UMFPack solve due to singular matrix of well " + well_name;
                 OpmLog::debug(msg);
@@ -346,6 +346,7 @@ emulsionViscosity(const ValueType& water_fraction, const ValueType& water_viscos
     const ValueType liquid_fraction = water_fraction + oil_fraction;
     // if there is no liquid, we just return zero
     if (liquid_fraction == 0.) {
+    // if (Opm::abs(liquid_fraction) < 1.e-20) {
         return 0.;
     }
 
@@ -412,7 +413,8 @@ INSTANCE_UMF(4)
                                    const __VA_ARGS__&, \
                                    const __VA_ARGS__&, \
                                    const __VA_ARGS__&, \
-                                   const SICD&);
+                                   const SICD&, \
+                                   const bool);
 
 #define INSTANCE_EVAL(Dim) \
     INSTANCE_IMPL(DenseAd::Evaluation<double,Dim>)
