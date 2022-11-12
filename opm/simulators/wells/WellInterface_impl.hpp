@@ -349,7 +349,7 @@ namespace Opm
 
             std::vector<double> potentials;
             try {
-                if (this->name() == "PR16_G15") {
+                if (this->name() == "PR02_G12") {
                     std::cout << " well " << this->name() << " will computeWellPotentials in wellTesting " << std::endl;
                 }
                 computeWellPotentials(simulator, well_state_copy, potentials, deferred_logger);
@@ -523,12 +523,12 @@ namespace Opm
         // only use inner well iterations for the first newton iterations.
         const int iteration_idx = ebosSimulator.model().newtonMethod().numIterations();
         if (iteration_idx < param_.max_niter_inner_well_iter_ || this->well_ecl_.isMultiSegment()) {
-            if (this->name() == "PR16_G15") {
+            if (this->name() == "PR02_G12") {
                 std::cout << " well " << this->name() << " entering iterateWellEquations through WellInterface::assembleWellEq " << std::endl;
             }
             this->operability_status_.solvable = true;
             bool converged = this->iterateWellEquations(ebosSimulator, dt, well_state, group_state, deferred_logger);
-            if (this->name() == "PR16_G15") {
+            if (this->name() == "PR02_G12") {
                 std::cout << " well " << this->name() << " LEAVING iterateWellEquations through WellInterface::assembleWellEq " << std::endl;
             }
 
@@ -542,7 +542,7 @@ namespace Opm
             auto well_state_copy = well_state;
             std::vector<double> potentials;
             try {
-                if (this->name() == "PR16_G15") {
+                if (this->name() == "PR02_G12") {
                     std::cout << " well " << this->name() << " will computeWellPotentials because of >operability_status_.has_negative_potentials " << std::endl;
                 }
                 computeWellPotentials(ebosSimulator, well_state_copy, potentials, deferred_logger);
@@ -580,11 +580,11 @@ namespace Opm
         const auto& summary_state = ebosSimulator.vanguard().summaryState();
         const auto inj_controls = this->well_ecl_.isInjector() ? this->well_ecl_.injectionControls(summary_state) : Well::InjectionControls(0);
         const auto prod_controls = this->well_ecl_.isProducer() ? this->well_ecl_.productionControls(summary_state) : Well::ProductionControls(0);
-        if (this->name() == "PR16_G15") {
+        if (this->name() == "PR02_G12") {
             std::cout << " well " << this->name() << " entering assembleWellEqWithoutIteration through WellInterface::assembleWellEq " << std::endl;
         }
         assembleWellEqWithoutIteration(ebosSimulator, dt, inj_controls, prod_controls, well_state, group_state, deferred_logger);
-        if (this->name() == "PR16_G15") {
+        if (this->name() == "PR02_G12") {
             std::cout << " well " << this->name() << " Leaving assembleWellEqWithoutIteration through WellInterface::assembleWellEq " << std::endl;
             std::cout << " outputting the well state here " << std::endl;
             std::cout << well_state.well(this->index_of_well_).screenOutput() << std::endl;

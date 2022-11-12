@@ -244,7 +244,7 @@ namespace Opm
 
         BVectorWell xw(1);
         this->recoverSolutionWell(x, xw);
-        if (this->name() == "PR16_G15") {
+        if (this->name() == "PR02_G12") {
             std::cout << " well " << this->name() << " entering updateWellState through recoverWellSolutionAndUpdateWellState " << std::endl;
         }
         updateWellState(xw, well_state, deferred_logger);
@@ -262,7 +262,7 @@ namespace Opm
                           std::vector<double>& well_potentials,
                           DeferredLogger& deferred_logger)
     {
-        if (this->name() == "PR16_G15") {
+        if (this->name() == "PR02_G12") {
             std::cout << " outputting well state for well " << this->name() << " at computeWellPotentials " << std::endl;
             std::cout << well_state.well(this->indexOfWell()).screenOutput() << std::endl;
         }
@@ -350,7 +350,7 @@ namespace Opm
                                std::vector<double>& well_flux,
                                DeferredLogger& deferred_logger) const
     {
-        if (this->name() == "PR16_G15") {
+        if (this->name() == "PR02_G12") {
             std::cout << " well " << this->name() << " in function computeWellRatesAtBhpLimit " << std::endl;
         }
         if (this->well_ecl_.isInjector()) {
@@ -418,15 +418,15 @@ namespace Opm
         MultisegmentWell<TypeTag> well_copy(*this);
         well_copy.debug_cost_counter_ = 0;
 
-        if (this->name() == "PR16_G15") {
-            std::cout << " well PR16_G15 in computeWellRatesWithBhpIterations " << std::endl;
+        if (this->name() == "PR02_G12") {
+            std::cout << " well PR02_G12 in computeWellRatesWithBhpIterations " << std::endl;
             std::cout << " outputting the well state before making a copy " << std::endl;
             std::cout << ebosSimulator.problem().wellModel().wellState().well(this->indexOfWell()).screenOutput() << std::endl;
         }
 
         // store a copy of the well state, we don't want to update the real well state
         WellState well_state_copy = ebosSimulator.problem().wellModel().wellState();
-        if (this->name() == "PR16_G15") {
+        if (this->name() == "PR02_G12") {
             std::cout << " output the well state for well " << this->name() << std::endl;
             const auto& ws = well_state_copy.well(this->index_of_well_);
             std::cout << ws.screenOutput();
@@ -453,7 +453,7 @@ namespace Opm
         }
         ws.bhp = bhp;
         well_copy.scaleSegmentPressuresWithBhp(well_state_copy);
-        /* if (this->name() == "PR16_G15") {
+        /* if (this->name() == "PR02_G12") {
             std::cout << " output the well state for well " << this->name() << " after scaleSegmentPressuresWithBhp "
                       << std::endl;
             std::cout << ws.screenOutput() << std::endl;
@@ -471,21 +471,21 @@ namespace Opm
                 ws.surface_rates[phase] = sign * ws.well_potentials[phase];
             }
         }
-        /* if (this->name() == "PR16_G15") {
+        /* if (this->name() == "PR02_G12") {
             std::cout << " output the well state for well " << this->name() << " BEFORE scaleSegmentRatesWithWellRates "
                       << std::endl;
             std::cout << ws.screenOutput() << std::endl;
         } */
         well_copy.scaleSegmentRatesWithWellRates(well_state_copy);
 
-        /* if (this->name() == "PR16_G15") {
+        /* if (this->name() == "PR02_G12") {
             std::cout << " output the well state for well " << this->name() << " AFTER scaleSegmentRatesWithWellRates "
                       << std::endl;
             std::cout << ws.screenOutput() << std::endl;
         } */
 
         well_copy.calculateExplicitQuantities(ebosSimulator, well_state_copy, deferred_logger);
-        /* if (this->name() == "PR16_G15") {
+        /* if (this->name() == "PR02_G12") {
             std::cout << " output the well state for well " << this->name() << " AFTER calculateExplicitQuantities "
                       << std::endl;
             std::cout << ws.screenOutput() << std::endl;
@@ -1503,8 +1503,8 @@ namespace Opm
                              const GroupState& group_state,
                              DeferredLogger& deferred_logger)
     {
-        if (this->name() == "PR16_G15") {
-            std::cout<< " well PR16_G15 enters iterateWellEqWithControl " << std::endl;
+        if (this->name() == "PR02_G12") {
+            std::cout<< " well PR02_G12 enters iterateWellEqWithControl " << std::endl;
         }
         if (!this->isOperableAndSolvable() && !this->wellIsStopped()) return true;
 
@@ -1527,13 +1527,13 @@ namespace Opm
         int stagnate_count = 0;
         bool relax_convergence = false;
         this->regularize_ = false;
-        if (this->name() == "PR16_G15") {
-            std::cout<< " well PR16_G15 at iterateWellEqWithControl with max_iter_number " << max_iter_number << std::endl;
-            std::cout << " outputting the well state for well PR16_G15 before iteration " << it << std::endl;
+        if (this->name() == "PR02_G12") {
+            std::cout<< " well PR02_G12 at iterateWellEqWithControl with max_iter_number " << max_iter_number << std::endl;
+            std::cout << " outputting the well state for well PR02_G12 before iteration " << it << std::endl;
                 const int nseg = this->numberOfSegments();
             const auto& ws = well_state.well(this->index_of_well_);
             std::cout << ws.screenOutput() << std::endl;
-                std::cout << " outputting the primary variables for well PR16_G15 " << std::endl;
+                std::cout << " outputting the primary variables for well PR02_G12 " << std::endl;
                 for (int seg = 0; seg < nseg; ++seg) {
                     std::cout << " seg " << seg ;
                     for (int pr = 0; pr < this->numWellEq; ++pr) {
@@ -1541,7 +1541,7 @@ namespace Opm
                     }
                     std::cout << std::endl;
                 }
-                /* std::cout << " outputting the primary variables EVALUATION for well PR16_G15 " << std::endl;
+                /* std::cout << " outputting the primary variables EVALUATION for well PR02_G12 " << std::endl;
                 for (int seg = 0; seg < nseg; ++seg) {
                     std::cout << " seg " << seg;
                     for (int pr = 0; pr < this->numWellEq; ++pr) {
@@ -1554,12 +1554,12 @@ namespace Opm
 
             assembleWellEqWithoutIteration(ebosSimulator, dt, inj_controls, prod_controls, well_state, group_state, deferred_logger);
             const int number = rand() % 10000;
-            if (this->name() == "PR16_G15") {
+            if (this->name() == "PR02_G12") {
                 const int nseg = this->numberOfSegments();
-                std::cout << " outputting the well state for well PR16_G15 at iteration " << it << std::endl;
+                std::cout << " outputting the well state for well PR02_G12 at iteration " << it << std::endl;
                 const auto& ws = well_state.well(this->index_of_well_);
                 std::cout << ws.screenOutput() << std::endl;
-                std::cout << " outputting the primary variables for well PR16_G15 " << std::endl;
+                std::cout << " outputting the primary variables for well PR02_G12 " << std::endl;
                 for (int seg = 0; seg < nseg; ++seg) {
                     std::cout << " seg " << seg ;
                     for (int pr = 0; pr < this->numWellEq; ++pr) {
@@ -1567,7 +1567,7 @@ namespace Opm
                     }
                     std::cout << std::endl;
                 }
-                std::cout << " outputting the primary variables EVALUATION for well PR16_G15 " << std::endl;
+                std::cout << " outputting the primary variables EVALUATION for well PR02_G12 " << std::endl;
                 for (int seg = 0; seg < nseg; ++seg) {
                     std::cout << " seg " << seg ;
                     for (int pr = 0; pr < this->numWellEq; ++pr) {
@@ -1576,18 +1576,18 @@ namespace Opm
                     std::cout << std::endl;
                 }
 
-                /* const std::string matrix_filename = "debug_output/duneD_PR16_G15_" + std::to_string(number);
-                const std::string rhs_filename = "debug_output/resWell_PR16_G15_" + std::to_string(number);
-                std::cout << " outputting the Matrix duneD_ and rhs_ for well PR16_G15 to file " << matrix_filename << " and " << rhs_filename << " respectively " << std::endl;
+                /* const std::string matrix_filename = "debug_output/duneD_PR02_G12_" + std::to_string(number);
+                const std::string rhs_filename = "debug_output/resWell_PR02_G12_" + std::to_string(number);
+                std::cout << " outputting the Matrix duneD_ and rhs_ for well PR02_G12 to file " << matrix_filename << " and " << rhs_filename << " respectively " << std::endl;
                 Dune::storeMatrixMarket(this->duneD_, matrix_filename);
                 Dune::storeMatrixMarket(this->resWell_, rhs_filename); */
             }
 
             const BVectorWell dx_well = mswellhelpers::applyUMFPack(this->duneD_, this->duneDSolver_, this->resWell_,
                                                                     this->name() + " iterateWellEqWithControl ");
-            /* if (this->name() == "PR16_G15") {
-                const std::string dx_filename = "debug_output/dx_PR16_G15_" + std::to_string(number);
-                std::cout << " outputting the dx_well for well PR16_G15 to file " << dx_filename << std::endl;
+            /* if (this->name() == "PR02_G12") {
+                const std::string dx_filename = "debug_output/dx_PR02_G12_" + std::to_string(number);
+                std::cout << " outputting the dx_well for well PR02_G12 to file " << dx_filename << std::endl;
                 Dune::storeMatrixMarket(dx_well, dx_filename);
             } */
 
@@ -1661,8 +1661,8 @@ namespace Opm
             }
             updateWellState(dx_well, well_state, deferred_logger, relaxation_factor);
             initPrimaryVariablesEvaluation();
-            if (this->name() == "PR16_G15") {
-                std::cout<< " well PR16_G15 iteration " << it << " finished "<< std::endl;
+            if (this->name() == "PR02_G12") {
+                std::cout<< " well PR02_G12 iteration " << it << " finished "<< std::endl;
             }
         }
 
@@ -1691,8 +1691,8 @@ namespace Opm
             deferred_logger.debug(sstr.str());
         }
 
-        if (this->name() == "PR16_G15") {
-            std::cout<< " well PR16_G15 LEAVING iterateWellEqWithControl " << std::endl;
+        if (this->name() == "PR02_G12") {
+            std::cout<< " well PR02_G12 LEAVING iterateWellEqWithControl " << std::endl;
             std::cout << " outputting the well staate when leaving iterateWellEqWithControl " << std::endl;
             std::cout << well_state.well(this->index_of_well_).screenOutput() << std::endl;
         }
@@ -1883,11 +1883,11 @@ namespace Opm
                 this->assemblePressureEq(seg, unit_system, well_state, deferred_logger);
             }
         }
-        /* if (this->name() == "PR16_G15") {
+        /* if (this->name() == "PR02_G12") {
             const int number = rand() % 10000;
-            const std::string matrix_filename = "debug_output/duneD_PR16_G15_ass_" + std::to_string(number);
-            const std::string rhs_filename = "debug_output/resWell_PR16_G15_ass_" + std::to_string(number);
-            std::cout << " at then end of assembleWellEqWithoutIteration outputting the Matrix duneD_ and rhs_ for well PR16_G15 to file " << matrix_filename
+            const std::string matrix_filename = "debug_output/duneD_PR02_G12_ass_" + std::to_string(number);
+            const std::string rhs_filename = "debug_output/resWell_PR02_G12_ass_" + std::to_string(number);
+            std::cout << " at then end of assembleWellEqWithoutIteration outputting the Matrix duneD_ and rhs_ for well PR02_G12 to file " << matrix_filename
                       << " and " << rhs_filename << " respectively " << std::endl;
             Dune::storeMatrixMarket(this->duneD_, matrix_filename);
             Dune::storeMatrixMarket(this->resWell_, rhs_filename);
