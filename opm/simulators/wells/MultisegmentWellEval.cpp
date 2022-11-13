@@ -943,6 +943,29 @@ pressureDropSpiralICD(const int seg) const
     const EvalWell reservoir_rate_icd = reservoir_rate * sicd.scalingFactor();
 
     const double viscosity_cali = sicd.viscosityCalibration();
+    if (output_for_well) {
+        std::cout << " mixture_viscosity ";
+        mixture_viscosity.print();
+        std::cout << std::endl;
+
+        std::cout << " segment_mass_rates ";
+        segment_mass_rates_[seg].print();
+        std::cout << std::endl;
+
+        std::cout << " reservoir_rate ";
+        reservoir_rate.print();
+        std::cout << std::endl;
+
+        std::cout << " density ";
+        density.print();
+        std::cout << std::endl;
+
+        std::cout << " reservoir_rate_icd ";
+        reservoir_rate_icd.print();
+        std::cout << std::endl;
+
+        std::cout << " viscosity_cali " << viscosity_cali << std::endl;
+    }
 
     using MathTool = MathToolbox<EvalWell>;
 
@@ -956,6 +979,16 @@ pressureDropSpiralICD(const int seg) const
     const double strength = sicd.strength();
 
     const double sign = reservoir_rate_icd <= 0. ? 1.0 : -1.0;
+    if (output_for_well) {
+        std::cout << " density_cali " << density_cali << std::endl;
+        std::cout << " temp_value1 ";
+        temp_value1.print();
+        std::cout << std::endl;
+        std::cout << " temp_value2 ";
+        temp_value2.print();
+        std::cout << std::endl;
+        std::cout << " strength " << strength << std::endl;
+    }
 
     const EvalWell result =  sign * temp_value1 * temp_value2 * strength * reservoir_rate_icd * reservoir_rate_icd;
     if (output_for_well) {
