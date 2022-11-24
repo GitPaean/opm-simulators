@@ -2432,6 +2432,7 @@ namespace Opm
                                                                                max_pressure,
                                                                                this->getRho(),
                                                                                alq_value,
+                                                                               this->getTHPConstraint(summary_state),
                                                                                deferred_logger);
         auto v = frates(*bhpAtLimit);
         if (bhpAtLimit && std::all_of(v.cbegin(), v.cend(), [](double i){ return i <= 0; }))
@@ -2452,6 +2453,7 @@ namespace Opm
                                                                           max_pressure,
                                                                           this->getRho(),
                                                                           alq_value,
+                                                                          this->getTHPConstraint(summary_state),
                                                                           deferred_logger);
         v = frates(*bhpAtLimit);
         if(bhpAtLimit && std::all_of(v.cbegin(), v.cend(), [](double i){ return i <= 0; }))
