@@ -466,6 +466,10 @@ namespace Opm {
             if (getPropValue<TypeTag, Properties::EnablePolymerMW>() && well->isInjector()) {
                 well->updateWaterThroughput(dt, this->wellState());
             }
+
+            if (well->isInjector()) {
+                well->updateWaterInjectionVolume(dt, this->wellState());
+            }
         }
         // report well switching
         for (const auto& well : well_container_) {
