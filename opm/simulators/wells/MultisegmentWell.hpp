@@ -231,13 +231,17 @@ namespace Opm
 
         // get the mobility for specific perforation
         void getMobilityEval(const Simulator& ebosSimulator,
+                             const int seg,
                              const int perf,
-                             std::vector<EvalWell>& mob) const;
+                             std::vector<EvalWell> &mob,
+                             DeferredLogger& deferred_logger) const;
 
         // get the mobility for specific perforation
         void getMobilityScalar(const Simulator& ebosSimulator,
+                               const int seg,
                                const int perf,
-                               std::vector<Scalar>& mob) const;
+                               std::vector<Scalar> &mob,
+                               DeferredLogger& deferred_logger) const;
 
         void computeWellRatesAtBhpLimit(const Simulator& ebosSimulator,
                                         std::vector<double>& well_flux,
