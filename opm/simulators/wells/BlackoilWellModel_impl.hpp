@@ -481,7 +481,6 @@ namespace Opm {
                 well->updateWaterThroughput(dt, this->wellState());
             }
             if (well->isInjector()) {
-                // well->updateInjMult(this->wellState().well(well->indexOfWell()));
                 well->updateInjMult(this->inj_multipliers_[well->name()]);
             }
         }
