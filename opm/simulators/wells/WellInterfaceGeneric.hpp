@@ -324,6 +324,11 @@ protected:
     double wsolvent_;
     std::optional<double> dynamic_thp_limit_;
 
+    // TODO: remove the mutable
+    // the multiplier due to injection filtration cake
+    mutable std::vector<double> inj_fc_multiplier_;
+    // TODO: currently, the water_injection_volume is in PerfData, maybe we should move it here
+
     double well_efficiency_factor_;
     const VFPProperties* vfp_properties_;
     const GuideRate* guide_rate_;
