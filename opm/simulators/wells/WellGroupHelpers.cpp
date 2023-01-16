@@ -1244,6 +1244,13 @@ namespace WellGroupHelpers
             return std::make_pair(false, 1.0);
         }
 
+        const std::set<std::string> well_names = {"S-P2", "S-P3", "S-P4", "S-P6", "PROD1", "PROD2", "PROD3"};
+        const bool output_for_well = well_names.count(name) > 0;
+        if (output_for_well) {
+            std::cout << " well " << name << " in checkGroupConstraintsProd with group.name() " << group.name()
+                      << std::endl;
+        }
+
         // If we are here, we are at the topmost group to be visited in the recursion.
         // This is the group containing the control we will check against.
 
@@ -1328,6 +1335,11 @@ namespace WellGroupHelpers
         if (current_rate > 1e-12)
             scale = target_rate / current_rate;
 
+        if (output_for_well) {
+            std::cout << "orig_target " << orig_target * 86400. << " current_rate " << current_rate * 86400.
+                      << " target_rate " << target_rate * 86400. << " scale " << scale << std::endl;
+            std::cout << " well " << name << " is LEAVING checkGroupConstraintsProd with group.name " << group.name() << std::endl;
+        }
         return std::make_pair(current_rate > target_rate, scale);
     }
 

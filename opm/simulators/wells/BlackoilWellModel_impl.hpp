@@ -533,6 +533,7 @@ namespace Opm {
 
         //reporting output temperatures
         this->computeWellTemperature();
+        this->prev_node_pressures_ = this->node_pressures_;
     }
 
 
@@ -762,6 +763,7 @@ namespace Opm {
 
         const auto& network = schedule()[time_step].network();
         if (network.active()) {
+            node_pressures_ = prev_node_pressures_;
             for (auto& well: well_container_generic_) {
                 // Producers only, since we so far only support the
                 // "extended" network model (properties defined by
@@ -783,7 +785,7 @@ namespace Opm {
                         const double nodal_pressure = it->second;
                         well->setDynamicThpLimit(nodal_pressure);
                         if (output_for_well) {
-                            std::cout << " well " << well->name() << " set dyanmic thp limit " << nodal_pressure / 1.e5
+                            std::cout << " well " << well->name() << " set dynamic thp limit " << nodal_pressure / 1.e5
                                       << " bar " << std::endl;
                         }
                     }

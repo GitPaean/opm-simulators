@@ -2073,7 +2073,7 @@ updateNetworkPressures(const int reportStepIdx, const bool solve_welleq)
     if (!network.active()) {
         return { false, 0.0 };
     }
-    const auto previous_node_pressures = node_pressures_;
+    const auto node_pressures_prev_iter = node_pressures_;
     node_pressures_ = WellGroupHelpers::computeNetworkPressures(network,
                                                                 this->wellState(),
                                                                 this->groupState(),
@@ -2083,12 +2083,12 @@ updateNetworkPressures(const int reportStepIdx, const bool solve_welleq)
 #define EXTRA_NETWORK_OUTPUT 1
 #if EXTRA_NETWORK_OUTPUT
     double biggest_change = 1.e9;
-    if (!previous_node_pressures.empty()) {
+    if (!node_pressures_prev_iter.empty()) {
         std::ostringstream sstream;
         sstream << " the pressure change during the iterations \n";
         biggest_change = 0;
         std::string biggest_change_name;
-        for (const auto& [name, pressure]: previous_node_pressures) {
+        for (const auto& [name, pressure]: node_pressures_prev_iter) {
             const auto new_pressure = node_pressures_.at(name);
             const double change = (new_pressure - pressure);
             sstream << name << " " << pressure / 1.e5 << " " << new_pressure / 1.e5 << " change " << change/1.e5 << " \n";
@@ -2104,10 +2104,10 @@ updateNetworkPressures(const int reportStepIdx, const bool solve_welleq)
     }
 #endif
 
-if (!previous_node_pressures.empty()) {
+if (!node_pressures_prev_iter.empty()) {
     std::ostringstream sstream;
     sstream << " the pressure change during the iterations \n";
-    for (const auto& [name, pressure]: previous_node_pressures) {
+    for (const auto& [name, pressure]: node_pressures_prev_iter) {
         const auto new_pressure = node_pressures_.at(name);
         const double change = (new_pressure - pressure);
         // const double allowed_change = solve_welleq ? std::max(std::min(0.1*std::abs(change), 5.e5), 0.05e5) : 0.2e5;

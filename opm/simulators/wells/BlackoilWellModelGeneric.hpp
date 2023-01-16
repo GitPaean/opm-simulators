@@ -433,6 +433,8 @@ protected:
     GuideRate guideRate_;
     std::unique_ptr<VFPProperties> vfp_properties_{};
     std::map<std::string, double> node_pressures_; // Storing network pressures for output.
+    // the nodal pressure at the begining of the time step or at the end of last time step
+    std::map<std::string, double> prev_node_pressures_;
 
     /*
       The various wellState members should be accessed and modified
