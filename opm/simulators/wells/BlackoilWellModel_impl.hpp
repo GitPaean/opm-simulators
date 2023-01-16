@@ -23,11 +23,15 @@
 #include <opm/simulators/utils/DeferredLoggingErrorHelpers.hpp>
 #include <opm/core/props/phaseUsageFromDeck.hpp>
 #include <opm/grid/utility/cartesianToCompressed.hpp>
+
 #include <opm/input/eclipse/Units/UnitSystem.hpp>
 
+#include <opm/simulators/wells/BlackoilWellModelConstraints.hpp>
 #include <opm/simulators/wells/VFPProperties.hpp>
 #include <opm/simulators/utils/MPIPacker.hpp>
 #include <opm/simulators/linalg/bda/WellContributions.hpp>
+// TODO: remove the following include
+ #include <opm/input/eclipse/Schedule/Network/Balance.hpp>
 
 #if HAVE_MPI
 #include <ebos/eclmpiserializer.hh>
@@ -126,20 +130,7 @@ namespace Opm {
         // initialize the additional cell connections introduced by wells.
         for (const auto& well : schedule_wells)
         {
-            std::vector<int> wellCells;
-            // All possible connections of the well
-            const auto& connectionSet = well.getConnections();
-            wellCells.reserve(connectionSet.size());
-
-            for ( size_t c=0; c < connectionSet.size(); c++ )
-            {
-                const auto& connection = connectionSet.get(c);
-                int compressed_idx = compressedIndexForInterior(connection.global_index());
-                if ( compressed_idx >= 0 ) { // Ignore connections in inactive/remote cells.
-                    wellCells.push_back(compressed_idx);
-                }
-            }
-
+            std::vector<int> wellCells = this->getCellsForConnections(well);
             for (int cellIdx : wellCells) {
                 neighbors[cellIdx].insert(wellCells.begin(),
                                           wellCells.end());
@@ -628,7 +619,7 @@ namespace Opm {
             for (int w = 0; w < nw; ++w) {
                 const Well& well_ecl = wells_ecl_[w];
 
-                if (well_ecl.getConnections().empty()) {
+                if (!well_ecl.hasConnections()) {
                     // No connections in this well.  Nothing to do.
                     continue;
                 }
@@ -833,7 +824,9 @@ namespace Opm {
         }
         // It should be able to find in wells_ecl.
         if (index_well_ecl == nw_wells_ecl) {
-            OPM_DEFLOG_THROW(std::logic_error, "Could not find well " << well_name << " in wells_ecl ", deferred_logger);
+            OPM_DEFLOG_THROW(std::logic_error,
+                             fmt::format("Could not find well {} in wells_ecl ", well_name),
+                             deferred_logger);
         }
 
         return this->createWellPointer(index_well_ecl, report_step);
@@ -876,8 +869,9 @@ namespace Opm {
                 calculateExplicitQuantities(local_deferredLogger);
                 prepareTimeStep(local_deferredLogger);
             }
-            OPM_END_PARALLEL_TRY_CATCH_LOG(local_deferredLogger, "assemble() failed (It=0): ",
-                                               terminal_output_, grid().comm());
+            OPM_END_PARALLEL_TRY_CATCH_LOG(local_deferredLogger,
+                                           "assemble() failed (It=0): ",
+                                           terminal_output_, grid().comm());
         }
 
         const bool well_group_control_changed = updateWellControlsAndNetwork(dt, local_deferredLogger);
@@ -944,7 +938,8 @@ namespace Opm {
 
         //update guide rates
         const int reportStepIdx = ebosSimulator_.episodeIndex();
-        if (alq_updated || guideRateUpdateIsNeeded(reportStepIdx)) {
+        if (alq_updated || BlackoilWellModelGuideRates(*this).
+                           guideRateUpdateIsNeeded(reportStepIdx)) {
             const double simulationTime = ebosSimulator_.time();
             const auto& comm = ebosSimulator_.vanguard().grid().comm();
             const auto& summaryState = ebosSimulator_.vanguard().summaryState();
@@ -1019,6 +1014,7 @@ namespace Opm {
                 phase_usage_,
                 deferred_logger,
                 this->wellState(),
+                this->groupState(),
                 ebosSimulator_.vanguard().grid().comm(),
                 this->glift_debug
             };
@@ -1026,7 +1022,7 @@ namespace Opm {
             gasLiftOptimizationStage1(
                 deferred_logger, prod_wells, glift_wells, group_info, state_map);
             gasLiftOptimizationStage2(
-                deferred_logger, prod_wells, glift_wells, state_map,
+                deferred_logger, prod_wells, glift_wells, group_info, state_map,
                 ebosSimulator_.episodeIndex());
             if (this->glift_debug) gliftDebugShowALQ(deferred_logger);
             num_wells_changed = glift_wells.size();
@@ -1085,10 +1081,6 @@ namespace Opm {
                 }
                 num_rates_to_sync = groups_to_sync.size();
             }
-            // Since "group_info" is not used in stage2, there is no need to
-            //   communicate rates if this is the last iteration...
-            if (i == (num_procs - 1))
-                break;
             num_rates_to_sync = comm.sum(num_rates_to_sync);
             if (num_rates_to_sync > 0) {
                 std::vector<int> group_indexes;
@@ -1117,14 +1109,6 @@ namespace Opm {
                     group_water_rates.resize(num_rates_to_sync);
                     group_alq_rates.resize(num_rates_to_sync);
                 }
-                // TODO: We only need to broadcast to processors with index
-                //   j > i since we do not use the "group_info" in stage 2. In
-                //   this case we should use comm.send() and comm.receive()
-                //   instead of comm.broadcast() to communicate with specific
-                //   processes, and these processes only need to receive the
-                //   data if they are going to check the group rates in stage1
-                //   Another similar idea is to only communicate the rates to
-                //   process j = i + 1
 #if HAVE_MPI
                 EclMpiSerializer ser(comm);
                 ser.broadcast(i, group_indexes, group_oil_rates,
@@ -1235,9 +1219,7 @@ namespace Opm {
             auto& well = well_container_[i];
             std::shared_ptr<StandardWell<TypeTag> > derived = std::dynamic_pointer_cast<StandardWell<TypeTag> >(well);
             if (derived) {
-                unsigned int numBlocks;
-                derived->getNumBlocks(numBlocks);
-                wellContribs.addNumBlocks(numBlocks);
+                wellContribs.addNumBlocks(derived->linSys().getNumBlocks());
             }
         }
 
@@ -1247,13 +1229,13 @@ namespace Opm {
         for(unsigned int i = 0; i < well_container_.size(); i++){
             auto& well = well_container_[i];
             // maybe WellInterface could implement addWellContribution()
-            auto derived_std = std::dynamic_pointer_cast<StandardWell<TypeTag> >(well);
+            auto derived_std = std::dynamic_pointer_cast<StandardWell<TypeTag>>(well);
             if (derived_std) {
-                derived_std->addWellContribution(wellContribs);
+                derived_std->linSys().extract(derived_std->numStaticWellEq, wellContribs);
             } else {
                 auto derived_ms = std::dynamic_pointer_cast<MultisegmentWell<TypeTag> >(well);
                 if (derived_ms) {
-                    derived_ms->addWellContribution(wellContribs);
+                    derived_ms->linSys().extract(wellContribs);
                 } else {
                     OpmLog::warning("Warning unknown type of well");
                 }
@@ -1333,19 +1315,7 @@ namespace Opm {
         // initialize the additional cell connections introduced by wells.
         for ( const auto& well : schedule_wells )
         {
-            std::vector<int> compressed_well_perforations;
-            // All possible completions of the well
-            const auto& completionSet = well.getConnections();
-            compressed_well_perforations.reserve(completionSet.size());
-
-            for (const auto& connection: well.getConnections())
-            {
-                const int compressed_idx = compressedIndexForInterior(connection.global_index());
-                if ( compressed_idx >= 0 ) // Ignore completions in inactive/remote cells.
-                {
-                    compressed_well_perforations.push_back(compressed_idx);
-                }
-            }
+            std::vector<int> compressed_well_perforations = this->getCellsForConnections(well);
 
             // also include wells with no perforations in case
             std::sort(compressed_well_perforations.begin(),
@@ -1490,35 +1460,6 @@ namespace Opm {
 
 
     template<typename TypeTag>
-    bool
-    BlackoilWellModel<TypeTag>::
-    shouldBalanceNetwork(const int reportStepIdx, const int iterationIdx) const
-    {
-        const auto& network = schedule()[reportStepIdx].network();
-        if (!network.active()) {
-            return false;
-        }
-
-        const auto& balance = schedule()[reportStepIdx].network_balance();
-        if (balance.mode() == Network::Balance::CalcMode::TimeStepStart) {
-            return iterationIdx == 0;
-        } else if (balance.mode() == Network::Balance::CalcMode::NUPCOL) {
-            const int nupcol = schedule()[reportStepIdx].nupcol();
-            return iterationIdx < nupcol;
-        } else {
-            // We do not support any other rebalancing modes,
-            // i.e. TimeInterval based rebalancing is not available.
-            // This should be warned about elsewhere, so we choose to
-            // avoid spamming with a warning here.
-            return false;
-        }
-    }
-
-
-
-
-
-    template<typename TypeTag>
     std::pair<bool, bool>
     BlackoilWellModel<TypeTag>::
     updateWellControls(DeferredLogger& deferred_logger,
@@ -1626,7 +1567,15 @@ namespace Opm {
             changed = true;
             updateAndCommunicate(reportStepIdx, iterationIdx, deferred_logger);
         }
-        bool changed_individual =  updateGroupIndividualControl( group, deferred_logger, reportStepIdx);
+        bool changed_individual =
+            BlackoilWellModelConstraints(*this).
+                updateGroupIndividualControl(group,
+                                             reportStepIdx,
+                                             this->switched_inj_groups_,
+                                             this->switched_prod_groups_,
+                                             this->groupState(),
+                                             this->wellState(),
+                                             deferred_logger);
         if (changed_individual) {
             changed = true;
             updateAndCommunicate(reportStepIdx, iterationIdx, deferred_logger);
@@ -1718,7 +1667,7 @@ namespace Opm {
         // corresponding "this->wells_ecl_[shutWell]".
 
         for (const auto& shutWell : this->local_shut_wells_) {
-            if (this->wells_ecl_[shutWell].getConnections().empty()) {
+            if (!this->wells_ecl_[shutWell].hasConnections()) {
                 // No connections in this well.  Nothing to do.
                 continue;
             }

@@ -28,6 +28,7 @@
 #include <opm/common/OpmLog/OpmLog.hpp>
 
 #include <cassert>
+#include <cstddef>
 #include <map>
 #include <memory>
 #include <optional>
@@ -37,10 +38,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include <stddef.h>
-
-#include <opm/input/eclipse/EclipseState/Runspec.hpp>
-
 #include <opm/input/eclipse/Schedule/Schedule.hpp>
 #include <opm/input/eclipse/Schedule/Well/WellTestState.hpp>
 #include <opm/input/eclipse/Schedule/Group/GuideRate.hpp>
@@ -49,6 +46,7 @@
 #include <opm/simulators/timestepping/SimulatorReport.hpp>
 #include <opm/simulators/flow/countGlobalCells.hpp>
 #include <opm/simulators/wells/BlackoilWellModelGeneric.hpp>
+#include <opm/simulators/wells/BlackoilWellModelGuideRates.hpp>
 #include <opm/simulators/wells/GasLiftSingleWell.hpp>
 #include <opm/simulators/wells/GasLiftWellState.hpp>
 #include <opm/simulators/wells/GasLiftSingleWellGeneric.hpp>
@@ -241,7 +239,7 @@ namespace Opm {
 
                 this->assignWellTracerRates(wsrpt);
 
-                this->assignWellGuideRates(wsrpt, this->reportStepIndex());
+                BlackoilWellModelGuideRates(*this).assignWellGuideRates(wsrpt, this->reportStepIndex());
                 this->assignShutConnections(wsrpt, this->reportStepIndex());
 
                 return wsrpt;
@@ -280,7 +278,6 @@ namespace Opm {
             // at the beginning of each time step (Not report step)
             void prepareTimeStep(DeferredLogger& deferred_logger);
             void initPrimaryVariablesEvaluation() const;
-            bool shouldBalanceNetwork(const int reportStepIndex, const int iterationIdx) const;
             std::pair<bool, bool> updateWellControls(DeferredLogger& deferred_logger, const size_t network_update_it = 0);
 
             void updateAndCommunicate(const int reportStepIdx,
@@ -319,7 +316,7 @@ namespace Opm {
             Simulator& ebosSimulator_;
 
             // a vector of all the wells.
-            std::vector<WellInterfacePtr > well_container_{};
+            std::vector<WellInterfacePtr> well_container_{};
 
             std::vector<bool> is_cell_perforated_{};
 
@@ -342,9 +339,9 @@ namespace Opm {
 
 
             const ModelParameters param_;
-            size_t global_num_cells_{};
+            std::size_t global_num_cells_{};
             // the number of the cells in the local grid
-            size_t local_num_cells_{};
+            std::size_t local_num_cells_{};
             double gravity_{};
             std::vector<double> depth_{};
             bool alternative_well_rate_init_{};

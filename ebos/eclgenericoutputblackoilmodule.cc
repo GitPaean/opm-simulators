@@ -31,8 +31,10 @@
 #include <opm/output/data/Solution.hpp>
 
 #include <opm/input/eclipse/EclipseState/EclipseState.hpp>
+#include <opm/input/eclipse/Schedule/RFTConfig.hpp>
 #include <opm/input/eclipse/Schedule/Schedule.hpp>
 #include <opm/input/eclipse/Schedule/SummaryState.hpp>
+#include <opm/input/eclipse/Schedule/Well/WellConnections.hpp>
 #include <opm/input/eclipse/Units/Units.hpp>
 
 #include <algorithm>
@@ -685,6 +687,7 @@ assignToSolution(data::Solution& sol)
         {"PCOG",     UnitSystem::measure::pressure,  data::TargetType::RESTART_SOLUTION,      pcog_},
         {"PRES_OVB", UnitSystem::measure::pressure,  data::TargetType::RESTART_SOLUTION,      overburdenPressure_},
         {"RS",       UnitSystem::measure::gas_oil_ratio, data::TargetType::RESTART_SOLUTION,  rs_},
+        {"RSW",      UnitSystem::measure::gas_oil_ratio, data::TargetType::RESTART_SOLUTION,  rsw_},
         {"RSSAT",    UnitSystem::measure::gas_oil_ratio, data::TargetType::RESTART_AUXILIARY, gasDissolutionFactor_},
         {"RV",       UnitSystem::measure::oil_gas_ratio, data::TargetType::RESTART_SOLUTION,  rv_},
         {"RVSAT",    UnitSystem::measure::oil_gas_ratio, data::TargetType::RESTART_AUXILIARY, oilVaporizationFactor_},
@@ -706,7 +709,7 @@ assignToSolution(data::Solution& sol)
         {"TMULT_RC", UnitSystem::measure::identity,  data::TargetType::RESTART_AUXILIARY,     rockCompTransMultiplier_},
         {"WATKR",    UnitSystem::measure::identity,  data::TargetType::RESTART_AUXILIARY,     relativePermeability_[waterPhaseIdx]},
         {"WAT_DEN",  UnitSystem::measure::density,   data::TargetType::RESTART_AUXILIARY,     density_[waterPhaseIdx]},
-        {"WAT_VISC", UnitSystem::measure::viscosity, data::TargetType::RESTART_AUXILIARY,     viscosity_[gasPhaseIdx]}
+        {"WAT_VISC", UnitSystem::measure::viscosity, data::TargetType::RESTART_AUXILIARY,     viscosity_[waterPhaseIdx]},
     };
 
     for (const auto& entry : data)
@@ -791,6 +794,8 @@ setRestart(const data::Solution& sol,
         temperature_[elemIdx] = sol.data("TEMP")[globalDofIndex];
     if (!rs_.empty() && sol.has("RS"))
         rs_[elemIdx] = sol.data("RS")[globalDofIndex];
+    if (!rsw_.empty() && sol.has("RSW"))
+        rsw_[elemIdx] = sol.data("RSW")[globalDofIndex];
     if (!rv_.empty() && sol.has("RV"))
         rv_[elemIdx] = sol.data("RV")[globalDofIndex];
     if (!rvw_.empty() && sol.has("RVW"))
@@ -984,6 +989,10 @@ doAllocBuffers(unsigned bufferSize,
     if (FluidSystem::enableDissolvedGas()) {
         rs_.resize(bufferSize, 0.0);
         rstKeywords["RS"] = 0;
+    }
+    if (FluidSystem::enableDissolvedGasInWater()) {
+        rsw_.resize(bufferSize, 0.0);
+        rstKeywords["RSW"] = 0;
     }
     if (FluidSystem::enableVaporizedOil()) {
         rv_.resize(bufferSize, 0.0);

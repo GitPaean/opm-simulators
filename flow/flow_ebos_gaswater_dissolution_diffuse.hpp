@@ -1,6 +1,4 @@
 /*
-  Copyright 2020 Equinor ASA
-
   This file is part of the Open Porous Media project (OPM).
 
   OPM is free software: you can redistribute it and/or modify
@@ -16,27 +14,17 @@
   You should have received a copy of the GNU General Public License
   along with OPM.  If not, see <http://www.gnu.org/licenses/>.
 */
+#ifndef FLOW_EBOS_GASWATER_DISSOLUTION_DIFFUSE_HPP
+#define FLOW_EBOS_GASWATER_DISSOLUTION_DIFFUSE_HPP
 
-#ifndef FPGA_UTILS_HEADER_INCLUDED
-#define FPGA_UTILS_HEADER_INCLUDED
+namespace Opm {
 
-namespace Opm
-{
-namespace Accelerator
-{
+//! \brief Main function used in flow binary.
+int flowEbosGasWaterDissolutionDiffuseMain(int argc, char** argv, bool outputCout, bool outputFiles);
 
-union double2int
-{
-    unsigned long int int_val;
-    double double_val;
-};
+//! \brief Main function used in flow_gaswater_dissolution binary.
+int flowEbosGasWaterDissolutionDiffuseMainStandalone(int argc, char** argv);
 
-double second(void);
-bool even(int n);
-int roundUpTo(int i, int n);
-bool fileExists(const char *filename);
+}
 
-} // namespace Accelerator
-} // namespace Opm
-
-#endif // FPGA_UTILS_HEADER_INCLUDED
+#endif // FLOW_EBOS_GASWATER_DISSOLUTION_DIFFUSE_HPP

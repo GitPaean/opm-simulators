@@ -47,6 +47,7 @@ namespace Opm {
     class EclipseState;
     class GasLiftSingleWellGeneric;
     class GasLiftWellState;
+    class GasLiftGroupInfo;
     class Group;
     class GuideRateConfig;
     class ParallelWellInfo;
@@ -89,7 +90,7 @@ public:
 
     /// return true if wells are available in the reservoir
     bool wellsActive() const;
-    bool hasWell(const std::string& wname);
+    bool hasWell(const std::string& wname) const;
 
     // whether there exists any multisegment well open on this process
     bool anyMSWellOpenLocal() const;
@@ -99,6 +100,8 @@ public:
     const Schedule& schedule() const { return schedule_; }
     const PhaseUsage& phaseUsage() const { return phase_usage_; }
     const GroupState& groupState() const { return this->active_wgstate_.group_state; }
+    std::vector<const WellInterfaceGeneric*> genericWells() const
+    { return {well_container_generic_.begin(), well_container_generic_.end()}; }
 
     /*
       Immutable version of the currently active wellstate.
@@ -130,13 +133,6 @@ public:
                         const std::unordered_set<std::string>& wells,
                         const SummaryState& st);
 
-
-    void loadRestartData(const data::Wells& rst_wells,
-                         const data::GroupAndNetworkValues& grpNwrkValues,
-                         const PhaseUsage& phases,
-                         const bool handle_ms_well,
-                         WellState& well_state);
-
     void initFromRestartFile(const RestartValue& restartValues,
                              WellTestState wtestState,
                              const size_t numCells,
@@ -162,6 +158,24 @@ public:
     /// Returns true if the well was actually found and shut.
     bool forceShutWellByName(const std::string& wellname,
                              const double simulation_time);
+
+    const std::vector<PerforationData>& perfData(const int well_idx) const
+    { return well_perf_data_[well_idx]; }
+
+    const Parallel::Communication& comm() const { return comm_; }
+
+    const SummaryState& summaryState() const { return summaryState_; }
+
+    const GuideRate& guideRate() const { return guideRate_; }
+
+    bool reportStepStarts() const { return report_step_starts_; }
+
+    bool shouldBalanceNetwork(const int reportStepIndex,
+                              const int iterationIdx) const;
+
+    bool shouldIterateNetwork(const int reportStepIndex,
+                              const std::size_t recursion_level,
+                              const double network_imbalance) const;
 
 protected:
 
@@ -265,70 +279,15 @@ protected:
                            const int pvtreg,
                            std::vector<double>& resv_coeff) = 0;
 
-    data::GuideRateValue getGuideRateValues(const Group& group) const;
-    data::GuideRateValue getGuideRateValues(const Well& well) const;
-    data::GuideRateValue getGuideRateInjectionGroupValues(const Group& group) const;
-    void getGuideRateValues(const GuideRate::RateVector& qs,
-                            const bool                   is_inj,
-                            const std::string&           wgname,
-                            data::GuideRateValue&        grval) const;
-
-    void assignWellGuideRates(data::Wells& wsrpt,
-                              const int reportStepIdx) const;
     void assignShutConnections(data::Wells& wsrpt,
                                const int reportStepIndex) const;
     void assignGroupControl(const Group& group,
                             data::GroupData& gdata) const;
-    void assignGroupGuideRates(const Group& group,
-                               const std::unordered_map<std::string, data::GroupGuideRates>& groupGuideRates,
-                               data::GroupData& gdata) const;
     void assignGroupValues(const int reportStepIdx,
                            std::map<std::string, data::GroupData>& gvalues) const;
     void assignNodeValues(std::map<std::string, data::NodeData>& nodevalues) const;
 
-    void loadRestartConnectionData(const std::vector<data::Rates::opt>& phs,
-                                   const data::Well&                    rst_well,
-                                   const std::vector<PerforationData>&  old_perf_data,
-                                   SingleWellState&                     ws);
-
-    void loadRestartSegmentData(const std::string&                   well_name,
-                                const std::vector<data::Rates::opt>& phs,
-                                const data::Well&                    rst_well,
-                                SingleWellState&                     ws);
-
-    void loadRestartWellData(const std::string&                   well_name,
-                             const bool                           handle_ms_well,
-                             const std::vector<data::Rates::opt>& phs,
-                             const data::Well&                    rst_well,
-                             const std::vector<PerforationData>&  old_perf_data,
-                             SingleWellState&                     ws);
-
-    void loadRestartGroupData(const std::string&     group,
-                              const data::GroupData& value);
-
-    void loadRestartGuideRates(const int                    report_step,
-                               const GuideRateModel::Target target,
-                               const data::Wells&           rst_wells);
-
-    void loadRestartGuideRates(const int                                     report_step,
-                               const GuideRateConfig&                        config,
-                               const std::map<std::string, data::GroupData>& rst_groups);
-
-    std::unordered_map<std::string, data::GroupGuideRates>
-    calculateAllGroupGuiderates(const int reportStepIdx) const;
-
     void calculateEfficiencyFactors(const int reportStepIdx);
-
-    bool checkGroupConstraints(const Group& group,
-                               const int reportStepIdx,
-                               DeferredLogger& deferred_logger) const;
-
-    std::pair<Group::InjectionCMode, double> checkGroupInjectionConstraints(const Group& group,
-                                                         const int reportStepIdx,
-                                                         const Phase& phase) const;
-    std::pair<Group::ProductionCMode, double> checkGroupProductionConstraints(const Group& group,
-                                                           const int reportStepIdx,
-                                                           DeferredLogger& deferred_logger) const;
 
     void checkGconsaleLimits(const Group& group,
                              WellState& well_state,
@@ -338,19 +297,6 @@ protected:
     bool checkGroupHigherConstraints(const Group& group,
                                      DeferredLogger& deferred_logger,
                                      const int reportStepIdx);
-
-    bool updateGroupIndividualControl(const Group& group,
-                                      DeferredLogger& deferred_logger,
-                                      const int reportStepIdx);
-
-    void actionOnBrokenConstraints(const Group& group,
-                                   const Group::ExceedAction& exceed_action,
-                                   const Group::ProductionCMode& newControl,
-                                   DeferredLogger& deferred_logger);
-    void actionOnBrokenConstraints(const Group& group,
-                                   const Group::InjectionCMode& newControl,
-                                   const Phase& controlPhase,
-                                   DeferredLogger& deferred_logger);
 
     void updateAndCommunicateGroupData(const int reportStepIdx,
                                        const int iterationIdx);
@@ -367,6 +313,7 @@ protected:
     void gasLiftOptimizationStage2(DeferredLogger& deferred_logger,
                                    GLiftProdWells& prod_wells,
                                    GLiftOptWells& glift_wells,
+                                   GasLiftGroupInfo& group_info,
                                    GLiftWellStateMap& map,
                                    const int episodeIndex);
 
@@ -382,8 +329,6 @@ protected:
                               const SummaryConfig& summaryConfig,
                               DeferredLogger& deferred_logger);
 
-    bool guideRateUpdateIsNeeded(const int reportStepIdx) const;
-
     // create the well container
     virtual void createWellContainer(const int time_step) = 0;
     virtual void initWellContainer(const int reportStepIdx) = 0;
@@ -398,6 +343,7 @@ protected:
     /// \brief get compressed index for interior cells (-1, otherwise
     virtual int compressedIndexForInterior(int cartesian_cell_idx) const = 0;
 
+    std::vector<int> getCellsForConnections(const Well& well) const;
 
     Schedule& schedule_;
     const SummaryState& summaryState_;

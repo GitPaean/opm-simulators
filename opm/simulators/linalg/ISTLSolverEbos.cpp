@@ -31,11 +31,15 @@
 #include <opm/simulators/linalg/ParallelIstlInformation.hpp>
 #include <opm/simulators/utils/ParallelCommunication.hpp>
 
-#if HAVE_CUDA || HAVE_OPENCL || HAVE_FPGA || HAVE_AMGCL
+#if COMPILE_BDA_BRIDGE
 #include <opm/simulators/linalg/bda/BdaBridge.hpp>
 #include <opm/simulators/linalg/bda/WellContributions.hpp>
-#include <iostream>
 #endif
+
+#if HAVE_DUNE_ALUGRID
+#include <dune/alugrid/grid.hh>
+#include <ebos/alucartesianindexmapper.hh>
+#endif // HAVE_DUNE_ALUGRID
 
 namespace Opm {
 namespace detail {
@@ -102,8 +106,9 @@ std::function<Vector()> getWeightsCalculator(const PropertyTree& prm,
             weightsCalculator = trueFunc;
         } else {
             OPM_THROW(std::invalid_argument,
-                      "Weights type " << weightsType << "not implemented for cpr."
-                      << " Please use quasiimpes or trueimpes.");
+                      "Weights type " + weightsType +
+                      "not implemented for cpr."
+                      " Please use quasiimpes or trueimpes.");
         }
     }
     return weightsCalculator;
@@ -145,7 +150,7 @@ void FlexibleSolverInfo<Matrix,Vector,Comm>::create(const Matrix& matrix,
             this->op_ = std::move(pop);
             this->solver_ = std::move(sol);
         }
-    #endif
+#endif
     } else {
         if (!wellOperator_) {
             using SeqOperatorType = Dune::MatrixAdapter<Matrix, Vector, Vector>;
@@ -171,11 +176,10 @@ void FlexibleSolverInfo<Matrix,Vector,Comm>::create(const Matrix& matrix,
     }
 }
 
-#if HAVE_CUDA || HAVE_OPENCL || HAVE_FPGA || HAVE_AMGCL
+#if COMPILE_BDA_BRIDGE
 template<class Matrix, class Vector>
 BdaSolverInfo<Matrix,Vector>::
 BdaSolverInfo(const std::string& accelerator_mode,
-              const std::string& fpga_bitstream,
               const int linear_solver_verbosity,
               const int maxit,
               const double tolerance,
@@ -183,7 +187,7 @@ BdaSolverInfo(const std::string& accelerator_mode,
               const int deviceID,
               const bool opencl_ilu_parallel,
               const std::string& linsolver)
-    : bridge_(std::make_unique<Bridge>(accelerator_mode, fpga_bitstream,
+    : bridge_(std::make_unique<Bridge>(accelerator_mode,
                                        linear_solver_verbosity, maxit,
                                        tolerance, platformID, deviceID,
                                        opencl_ilu_parallel, linsolver))
@@ -208,7 +212,6 @@ prepare(const Grid& grid,
                                  useWellConn,
                                  wellConnectionsGraph_,
                                  numJacobiBlocks_);
-      std::cout << "Create block-Jacobi pattern" << std::endl;
       this->blockJacobiAdjacency(grid, cellPartition, nonzeroes);
     }
 }
@@ -224,12 +227,11 @@ apply(Vector& rhs,
       Dune::InverseOperatorResult& result)
 {
     bool use_gpu = bridge_->getUseGpu();
-    bool use_fpga = bridge_->getUseFpga();
-    if (use_gpu || use_fpga) {
+    if (use_gpu) {
         auto wellContribs = WellContributions::create(accelerator_mode_, useWellConn);
         bridge_->initWellContributions(*wellContribs, x.N() * x[0].N());
 
-        // the WellContributions can only be applied separately with CUDA or OpenCL, not with an FPGA or amgcl
+        // the WellContributions can only be applied separately with CUDA or OpenCL, not with amgcl or rocalution
 #if HAVE_CUDA || HAVE_OPENCL
         if (!useWellConn) {
             getContribs(*wellContribs);
@@ -328,7 +330,7 @@ copyMatToBlockJac(const Matrix& mat, Matrix& blockJac)
         }
     }
 }
-#endif
+#endif // COMPILE_BDA_BRIDGE
 
 template<int Dim>
 using BM = Dune::BCRSMatrix<MatrixBlock<double,Dim,Dim>>;
@@ -345,20 +347,37 @@ using CommunicationType = Dune::CollectiveCommunication<int>;
     template void makeOverlapRowsInvalid<BM<Dim>>(BM<Dim>&, const std::vector<int>&); \
     template struct FlexibleSolverInfo<BM<Dim>,BV<Dim>,CommunicationType>;
 
-#if HAVE_CUDA || HAVE_OPENCL || HAVE_FPGA || HAVE_AMGCL
+#if COMPILE_BDA_BRIDGE
+
+#define INSTANCE_GRID(Dim, Grid) \
+    template void BdaSolverInfo<BM<Dim>,BV<Dim>>:: \
+    prepare(const Grid&, \
+            const Dune::CartesianIndexMapper<Grid>&, \
+            const std::vector<Well>&, \
+            const std::vector<int>&, \
+            const size_t, const bool);
+
+#if HAVE_DUNE_ALUGRID
+#if HAVE_MPI
+    using ALUGrid3CN = Dune::ALUGrid<3, 3, Dune::cube, Dune::nonconforming, Dune::ALUGridMPIComm>;
+#else
+    using ALUGrid3CN = Dune::ALUGrid<3, 3, Dune::cube, Dune::nonconforming, Dune::ALUGridNoComm>;
+#endif //HAVE_MPI
 #define INSTANCE(Dim) \
     template struct BdaSolverInfo<BM<Dim>,BV<Dim>>; \
-    template void BdaSolverInfo<BM<Dim>,BV<Dim>>:: \
-    prepare<Dune::CpGrid>(const Dune::CpGrid&, \
-               const Dune::CartesianIndexMapper<Dune::CpGrid>&, \
-               const std::vector<Well>&, \
-               const std::vector<int>&, \
-               const size_t, const bool); \
+    INSTANCE_GRID(Dim,Dune::CpGrid) \
+    INSTANCE_GRID(Dim,ALUGrid3CN) \
     INSTANCE_FLEX(Dim)
 #else
 #define INSTANCE(Dim) \
+    template struct BdaSolverInfo<BM<Dim>,BV<Dim>>; \
+    INSTANCE_GRID(Dim,Dune::CpGrid) \
     INSTANCE_FLEX(Dim)
 #endif
+#else
+#define INSTANCE(Dim) \
+    INSTANCE_FLEX(Dim)
+#endif // COMPILE_BDA_BRIDGE
 
 INSTANCE(1)
 INSTANCE(2)

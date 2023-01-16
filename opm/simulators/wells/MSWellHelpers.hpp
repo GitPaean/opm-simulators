@@ -42,17 +42,17 @@ namespace mswellhelpers
     /// Applies umfpack and checks for singularity
     template <typename MatrixType, typename VectorType>
     VectorType
-    applyUMFPack(const MatrixType& D,
-                 std::shared_ptr<Dune::UMFPack<MatrixType>>& linsolver,
+    applyUMFPack(Dune::UMFPack<MatrixType>& linsolver,
                  VectorType x);
 
 
 
     /// Applies umfpack and checks for singularity
-    template <typename MatrixType, typename VectorType>
+    template <typename VectorType, typename MatrixType>
     Dune::Matrix<typename MatrixType::block_type>
-    invertWithUMFPack(const MatrixType& D,
-                      std::shared_ptr<Dune::UMFPack<MatrixType> >& linsolver);
+    invertWithUMFPack(const int size,
+                      const int bsize,
+                      Dune::UMFPack<MatrixType>& linsolver);
 
 
 
@@ -60,13 +60,6 @@ namespace mswellhelpers
     template <typename MatrixType, typename VectorType>
     VectorType
     invDX(const MatrixType& D, VectorType x, DeferredLogger& deferred_logger);
-
-
-    template <typename ValueType>
-    ValueType calculateFrictionFactor(const double area, const double diameter,
-                                      const ValueType& w, const double roughness,
-                                      const ValueType& mu);
-
 
     // calculating the friction pressure loss
     // l is the segment length

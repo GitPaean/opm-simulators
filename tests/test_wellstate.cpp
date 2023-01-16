@@ -41,8 +41,10 @@
 #include <opm/input/eclipse/EclipseState/EclipseState.hpp>
 #include <opm/input/eclipse/Parser/Parser.hpp>
 #include <opm/input/eclipse/Parser/ParseContext.hpp>
+#include <opm/input/eclipse/Schedule/MSW/WellSegments.hpp>
 #include <opm/input/eclipse/Schedule/Schedule.hpp>
 #include <opm/input/eclipse/Schedule/SummaryState.hpp>
+#include <opm/input/eclipse/Schedule/Well/WellConnections.hpp>
 #include <opm/input/eclipse/Units/Units.hpp>
 #include <opm/common/utility/TimeService.hpp>
 
@@ -112,7 +114,9 @@ struct Setup
                 } else {
                     if (completion.state() != Opm::Connection::State::SHUT) {
                         OPM_THROW(std::runtime_error,
-                                  "Completion state: " << Opm::Connection::State2String(completion.state()) << " not handled");
+                                  "Completion state: " +
+                                  Opm::Connection::State2String(completion.state()) +
+                                  " not handled");
                     }
                 }
             }

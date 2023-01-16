@@ -71,7 +71,6 @@ class WellInterface : public WellInterfaceIndices<GetPropType<TypeTag, Propertie
                                                   GetPropType<TypeTag, Properties::Scalar>>
 {
 public:
-
     using ModelParameters = BlackoilModelParametersEbos<TypeTag>;
 
     using Grid = GetPropType<TypeTag, Properties::Grid>;
@@ -103,7 +102,6 @@ public:
     using WellInterfaceFluidSystem<FluidSystem>::Gas;
     using WellInterfaceFluidSystem<FluidSystem>::Oil;
     using WellInterfaceFluidSystem<FluidSystem>::Water;
-    using RatioLimitCheckReport = typename WellInterfaceFluidSystem<FluidSystem>::RatioLimitCheckReport;
 
     static constexpr bool has_solvent = getPropValue<TypeTag, Properties::EnableSolvent>();
     static constexpr bool has_zFraction = getPropValue<TypeTag, Properties::EnableExtbo>();
@@ -115,6 +113,7 @@ public:
     static constexpr bool has_foam = getPropValue<TypeTag, Properties::EnableFoam>();
     static constexpr bool has_brine = getPropValue<TypeTag, Properties::EnableBrine>();
     static constexpr bool has_watVapor = getPropValue<TypeTag, Properties::EnableEvaporation>();
+    static constexpr bool has_disgas_in_water = getPropValue<TypeTag, Properties::EnableDisgasInWater>();
     static constexpr bool has_saltPrecip = getPropValue<TypeTag, Properties::EnableSaltPrecipitation>();
     static constexpr bool has_micp = getPropValue<TypeTag, Properties::EnableMICP>();
 
@@ -127,6 +126,7 @@ public:
                                           has_watVapor,
                                           has_brine,
                                           has_saltPrecip,
+                                          has_disgas_in_water,
                                           Indices::numPhases >;
     /// Constructor
     WellInterface(const Well& well,
@@ -150,7 +150,7 @@ public:
                       const std::vector< Scalar >& B_avg,
                       const bool changed_to_open_this_step);
 
-    virtual void initPrimaryVariablesEvaluation() const = 0;
+    virtual void initPrimaryVariablesEvaluation() = 0;
 
     virtual ConvergenceReport getWellConvergence(const WellState& well_state, const std::vector<double>& B_avg, DeferredLogger& deferred_logger, const bool relax_tolerance) const = 0;
 
@@ -172,15 +172,15 @@ public:
     virtual std::optional<double> computeBhpAtThpLimitProdWithAlq(
         const Simulator& ebos_simulator,
         const SummaryState& summary_state,
-        DeferredLogger& deferred_logger,
-        double alq_value
+        const double alq_value,
+        DeferredLogger& deferred_logger
     ) const = 0;
 
     /// using the solution x to recover the solution xw for wells and applying
     /// xw to update Well State
     virtual void recoverWellSolutionAndUpdateWellState(const BVector& x,
                                                        WellState& well_state,
-                                                       DeferredLogger& deferred_logger) const = 0;
+                                                       DeferredLogger& deferred_logger) = 0;
 
     /// Ax = Ax - C D^-1 B x
     virtual void apply(const BVector& x, BVector& Ax) const = 0;
@@ -206,7 +206,7 @@ public:
                            const GroupState& group_state,
                            DeferredLogger& deferred_logger) /* const */;
 
-    virtual void updatePrimaryVariables(const WellState& well_state, DeferredLogger& deferred_logger) const = 0;
+    virtual void updatePrimaryVariables(const WellState& well_state, DeferredLogger& deferred_logger) = 0;
 
     virtual void calculateExplicitQuantities(const Simulator& ebosSimulator,
                                              const WellState& well_state,
@@ -226,8 +226,6 @@ public:
     // Add well contributions to matrix
     virtual void addWellContributions(SparseMatrixAdapter&) const = 0;
 
-    virtual bool isPressureControlled(const WellState& well_state) const;
-    
     virtual void addWellPressureEquations(PressureMatrix& mat,
                                           const BVector& x,
                                           const int pressureVarIndex,

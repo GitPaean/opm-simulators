@@ -25,8 +25,6 @@
 #include <opm/simulators/wells/WellInterface.hpp>
 #include <opm/simulators/wells/MultisegmentWellEval.hpp>
 
-#include <opm/input/eclipse/EclipseState/Runspec.hpp>
-
 namespace Opm
 {
     class DeferredLogger;
@@ -65,15 +63,10 @@ namespace Opm
         using typename Base::BVector;
         using typename Base::Eval;
 
+        using typename MSWEval::Equations;
         using typename MSWEval::EvalWell;
         using typename MSWEval::BVectorWell;
-        using typename MSWEval::DiagMatWell;
-        using typename MSWEval::OffDiagMatrixBlockWellType;
-        using MSWEval::GFrac;
-        using MSWEval::WFrac;
-        using MSWEval::WQTotal;
         using MSWEval::SPres;
-        using MSWEval::numWellEq;
         using typename Base::PressureMatrix;
 
         MultisegmentWell(const Well& well,
@@ -94,7 +87,7 @@ namespace Opm
                           const std::vector< Scalar >& B_avg,
                           const bool changed_to_open_this_step) override;
 
-        virtual void initPrimaryVariablesEvaluation() const override;
+        void initPrimaryVariablesEvaluation() override;
 
         /// updating the well state based the current control mode
         virtual void updateWellStateWithTarget(const Simulator& ebos_simulator,
@@ -115,9 +108,9 @@ namespace Opm
 
         /// using the solution x to recover the solution xw for wells and applying
         /// xw to update Well State
-        virtual void recoverWellSolutionAndUpdateWellState(const BVector& x,
-                                                           WellState& well_state,
-                                                           DeferredLogger& deferred_logger) const override;
+        void recoverWellSolutionAndUpdateWellState(const BVector& x,
+                                                   WellState& well_state,
+                                                   DeferredLogger& deferred_logger) override;
 
         /// computing the well potentials for group control
         virtual void computeWellPotentials(const Simulator& ebosSimulator,
@@ -125,7 +118,7 @@ namespace Opm
                                            std::vector<double>& well_potentials,
                                            DeferredLogger& deferred_logger) override;
 
-        virtual void updatePrimaryVariables(const WellState& well_state, DeferredLogger& deferred_logger) const override;
+        void updatePrimaryVariables(const WellState& well_state, DeferredLogger& deferred_logger) override;
 
         virtual void solveEqAndUpdateWellState(WellState& well_state, DeferredLogger& deferred_logger) override; // const?
 
@@ -138,13 +131,13 @@ namespace Opm
                                              WellState& well_state,
                                              DeferredLogger& deferred_logger) const override;
 
-        virtual void  addWellContributions(SparseMatrixAdapter& jacobian) const override;
-        
-        virtual void addWellPressureEquations(PressureMatrix& mat,
-                                              const BVector& x,
-                                              const int pressureVarIndex,
-                                              const bool use_well_weights,
-                                              const WellState& well_state) const override;
+        void addWellContributions(SparseMatrixAdapter& jacobian) const override;
+
+        void addWellPressureEquations(PressureMatrix& mat,
+                                      const BVector& x,
+                                      const int pressureVarIndex,
+                                      const bool use_well_weights,
+                                      const WellState& well_state) const override;
 
         virtual std::vector<double> computeCurrentWellRates(const Simulator& ebosSimulator,
                                                             DeferredLogger& deferred_logger) const override;
@@ -161,22 +154,16 @@ namespace Opm
                                     double* connII,
                                     DeferredLogger& deferred_logger) const;
 
-        virtual std::optional<double> computeBhpAtThpLimitProdWithAlq(
-            const Simulator& ebos_simulator,
-            const SummaryState& summary_state,
-            DeferredLogger& deferred_logger,
-            double alq_value) const override;
+        std::optional<double>
+        computeBhpAtThpLimitProdWithAlq(const Simulator& ebos_simulator,
+                                        const SummaryState& summary_state,
+                                        const double alq_value,
+                                        DeferredLogger& deferred_logger) const override;
 
     protected:
-        int number_segments_;
 
         // regularize msw equation
         bool regularize_;
-
-        // components of the pressure drop to be included
-        WellSegments::CompPressureDrop compPressureDrop() const;
-        // multi-phase flow model
-        WellSegments::MultiPhaseModel multiphaseModel() const;
 
         // the intial amount of fluids in each segment under surface condition
         std::vector<std::vector<double> > segment_fluid_initial_;
@@ -187,7 +174,7 @@ namespace Opm
         void updateWellState(const BVectorWell& dwells,
                              WellState& well_state,
                              DeferredLogger& deferred_logger,
-                             const double relaxation_factor=1.0) const;
+                             const double relaxation_factor = 1.0);
 
 
         // computing the accumulation term for later use in well mass equations

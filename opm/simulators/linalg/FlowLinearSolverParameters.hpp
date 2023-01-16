@@ -81,10 +81,6 @@ struct UseGmres {
     using type = UndefinedProperty;
 };
 template<class TypeTag, class MyTypeTag>
-struct LinearSolverRequireFullSparsityPattern {
-    using type = UndefinedProperty;
-};
-template<class TypeTag, class MyTypeTag>
 struct LinearSolverIgnoreConvergenceFailure{
     using type = UndefinedProperty;
 };
@@ -94,14 +90,6 @@ struct PreconditionerAddWellContributions {
 };
 template<class TypeTag, class MyTypeTag>
 struct ScaleLinearSystem {
-    using type = UndefinedProperty;
-};
-template<class TypeTag, class MyTypeTag>
-struct CprMaxEllIter {
-    using type = UndefinedProperty;
-};
-template<class TypeTag, class MyTypeTag>
-struct CprEllSolvetype {
     using type = UndefinedProperty;
 };
 template<class TypeTag, class MyTypeTag>
@@ -130,10 +118,6 @@ struct OpenclPlatformId {
 };
 template<class TypeTag, class MyTypeTag>
 struct OpenclIluParallel {
-    using type = UndefinedProperty;
-};
-template<class TypeTag, class MyTypeTag>
-struct FpgaBitstream {
     using type = UndefinedProperty;
 };
 template<class TypeTag>
@@ -179,10 +163,6 @@ struct UseGmres<TypeTag, TTag::FlowIstlSolverParams> {
     static constexpr bool value = false;
 };
 template<class TypeTag>
-struct LinearSolverRequireFullSparsityPattern<TypeTag, TTag::FlowIstlSolverParams> {
-    static constexpr bool value = false;
-};
-template<class TypeTag>
 struct LinearSolverIgnoreConvergenceFailure<TypeTag, TTag::FlowIstlSolverParams> {
     static constexpr bool value = false;
 };
@@ -199,20 +179,12 @@ struct ScaleLinearSystem<TypeTag, TTag::FlowIstlSolverParams> {
     static constexpr bool value = false;
 };
 template<class TypeTag>
-struct CprMaxEllIter<TypeTag, TTag::FlowIstlSolverParams> {
-    static constexpr int value = 20;
-};
-template<class TypeTag>
-struct CprEllSolvetype<TypeTag, TTag::FlowIstlSolverParams> {
-    static constexpr int value = 0;
-};
-template<class TypeTag>
 struct CprReuseSetup<TypeTag, TTag::FlowIstlSolverParams> {
-    static constexpr int value = 3;
+    static constexpr int value = 4;
 };
 template<class TypeTag>
 struct CprReuseInterval<TypeTag, TTag::FlowIstlSolverParams> {
-    static constexpr int value = 10;
+    static constexpr int value = 30;
 };
 template<class TypeTag>
 struct LinearSolver<TypeTag, TTag::FlowIstlSolverParams> {
@@ -233,10 +205,6 @@ struct OpenclPlatformId<TypeTag, TTag::FlowIstlSolverParams> {
 template<class TypeTag>
 struct OpenclIluParallel<TypeTag, TTag::FlowIstlSolverParams> {
     static constexpr bool value = true; // note: false should only be used in debug
-};
-template<class TypeTag>
-struct FpgaBitstream<TypeTag, TTag::FlowIstlSolverParams> {
-    static constexpr auto value = "";
 };
 
 } // namespace Opm::Properties
@@ -265,11 +233,9 @@ namespace Opm
         std::string accelerator_mode_;
         int bda_device_id_;
         int opencl_platform_id_;
-        int cpr_max_ell_iter_;
         int cpr_reuse_setup_;
         int cpr_reuse_interval_;
         bool opencl_ilu_parallel_;
-        std::string fpga_bitstream_;
 
         template <class TypeTag>
         void init()
@@ -285,10 +251,8 @@ namespace Opm
             ilu_redblack_ = EWOMS_GET_PARAM(TypeTag, bool, IluRedblack);
             ilu_reorder_sphere_ = EWOMS_GET_PARAM(TypeTag, bool, IluReorderSpheres);
             newton_use_gmres_ = EWOMS_GET_PARAM(TypeTag, bool, UseGmres);
-            require_full_sparsity_pattern_ = EWOMS_GET_PARAM(TypeTag, bool, LinearSolverRequireFullSparsityPattern);
             ignoreConvergenceFailure_ = EWOMS_GET_PARAM(TypeTag, bool, LinearSolverIgnoreConvergenceFailure);
             scale_linear_system_ = EWOMS_GET_PARAM(TypeTag, bool, ScaleLinearSystem);
-            cpr_max_ell_iter_  =  EWOMS_GET_PARAM(TypeTag, int, CprMaxEllIter);
             cpr_reuse_setup_  =  EWOMS_GET_PARAM(TypeTag, int, CprReuseSetup);
             cpr_reuse_interval_  =  EWOMS_GET_PARAM(TypeTag, int, CprReuseInterval);
             linsolver_ = EWOMS_GET_PARAM(TypeTag, std::string, LinearSolver);
@@ -296,7 +260,6 @@ namespace Opm
             bda_device_id_ = EWOMS_GET_PARAM(TypeTag, int, BdaDeviceId);
             opencl_platform_id_ = EWOMS_GET_PARAM(TypeTag, int, OpenclPlatformId);
             opencl_ilu_parallel_ = EWOMS_GET_PARAM(TypeTag, bool, OpenclIluParallel);
-            fpga_bitstream_ = EWOMS_GET_PARAM(TypeTag, std::string, FpgaBitstream);
         }
 
         template <class TypeTag>
@@ -312,18 +275,15 @@ namespace Opm
             EWOMS_REGISTER_PARAM(TypeTag, bool, IluRedblack, "Use red-black partitioning for the ILU preconditioner");
             EWOMS_REGISTER_PARAM(TypeTag, bool, IluReorderSpheres, "Whether to reorder the entries of the matrix in the red-black ILU preconditioner in spheres starting at an edge. If false the original ordering is preserved in each color. Otherwise why try to ensure D4 ordering (in a 2D structured grid, the diagonal elements are consecutive).");
             EWOMS_REGISTER_PARAM(TypeTag, bool, UseGmres, "Use GMRES as the linear solver");
-            EWOMS_REGISTER_PARAM(TypeTag, bool, LinearSolverRequireFullSparsityPattern, "Produce the full sparsity pattern for the linear solver");
             EWOMS_REGISTER_PARAM(TypeTag, bool, LinearSolverIgnoreConvergenceFailure, "Continue with the simulation like nothing happened after the linear solver did not converge");
             EWOMS_REGISTER_PARAM(TypeTag, bool, ScaleLinearSystem, "Scale linear system according to equation scale and primary variable types");
-            EWOMS_REGISTER_PARAM(TypeTag, int, CprMaxEllIter, "MaxIterations of the elliptic pressure part of the cpr solver");
             EWOMS_REGISTER_PARAM(TypeTag, int, CprReuseSetup, "Reuse preconditioner setup. Valid options are 0: recreate the preconditioner for every linear solve, 1: recreate once every timestep, 2: recreate if last linear solve took more than 10 iterations, 3: never recreate, 4: recreated every CprReuseInterval");
             EWOMS_REGISTER_PARAM(TypeTag, int, CprReuseInterval, "Reuse preconditioner interval. Used when CprReuseSetup is set to 4, then the preconditioner will be fully recreated instead of reused every N linear solve, where N is this parameter.");
             EWOMS_REGISTER_PARAM(TypeTag, std::string, LinearSolver, "Configuration of solver. Valid options are: ilu0 (default), cpr (an alias for cpr_trueimpes), cpr_quasiimpes, cpr_trueimpes or amg. Alternatively, you can request a configuration to be read from a JSON file by giving the filename here, ending with '.json.'");
-            EWOMS_REGISTER_PARAM(TypeTag, std::string, AcceleratorMode, "Use GPU (cusparseSolver or openclSolver) or FPGA (fpgaSolver) as the linear solver, usage: '--accelerator-mode=[none|cusparse|opencl|fpga|amgcl]'");
+            EWOMS_REGISTER_PARAM(TypeTag, std::string, AcceleratorMode, "Choose a linear solver, usage: '--accelerator-mode=[none|cusparse|opencl|amgcl|rocalution]'");
             EWOMS_REGISTER_PARAM(TypeTag, int, BdaDeviceId, "Choose device ID for cusparseSolver or openclSolver, use 'nvidia-smi' or 'clinfo' to determine valid IDs");
             EWOMS_REGISTER_PARAM(TypeTag, int, OpenclPlatformId, "Choose platform ID for openclSolver, use 'clinfo' to determine valid platform IDs");
-            EWOMS_REGISTER_PARAM(TypeTag, bool, OpenclIluParallel, "Parallelize ILU decomposition and application on GPU. Default: true");
-            EWOMS_REGISTER_PARAM(TypeTag, std::string, FpgaBitstream, "Specify the bitstream file for fpgaSolver (including path), usage: '--fpga-bitstream=<filename>'");
+            EWOMS_REGISTER_PARAM(TypeTag, bool, OpenclIluParallel, "Parallelize ILU decomposition and application on GPU");
         }
 
         FlowLinearSolverParameters() { reset(); }
@@ -347,7 +307,6 @@ namespace Opm
             bda_device_id_            = 0;
             opencl_platform_id_       = 0;
             opencl_ilu_parallel_      = true;
-            fpga_bitstream_           = "";
         }
     };
 

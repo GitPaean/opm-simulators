@@ -177,24 +177,24 @@ static void initDefaultFluidSystem()
     FluidSystem::setReferenceDensities(rhoRefO, rhoRefW, rhoRefG, /*regionIdx=*/0);
 
     auto gasPvt = std::make_shared<Opm::GasPvtMultiplexer<double>>();
-    gasPvt->setApproach(Opm::GasPvtApproach::DryGasPvt);
-    auto& dryGasPvt = gasPvt->getRealPvt<Opm::GasPvtApproach::DryGasPvt>();
+    gasPvt->setApproach(Opm::GasPvtApproach::DryGas);
+    auto& dryGasPvt = gasPvt->getRealPvt<Opm::GasPvtApproach::DryGas>();
     dryGasPvt.setNumRegions(/*numPvtRegion=*/1);
     dryGasPvt.setReferenceDensities(/*regionIdx=*/0, rhoRefO, rhoRefG, rhoRefW);
     dryGasPvt.setGasFormationVolumeFactor(/*regionIdx=*/0, Bg);
     dryGasPvt.setGasViscosity(/*regionIdx=*/0, mug);
 
     auto oilPvt = std::make_shared<Opm::OilPvtMultiplexer<double>>();
-    oilPvt->setApproach(Opm::OilPvtApproach::DeadOilPvt);
-    auto& deadOilPvt = oilPvt->getRealPvt<Opm::OilPvtApproach::DeadOilPvt>();
+    oilPvt->setApproach(Opm::OilPvtApproach::DeadOil);
+    auto& deadOilPvt = oilPvt->getRealPvt<Opm::OilPvtApproach::DeadOil>();
     deadOilPvt.setNumRegions(/*numPvtRegion=*/1);
     deadOilPvt.setReferenceDensities(/*regionIdx=*/0, rhoRefO, rhoRefG, rhoRefW);
     deadOilPvt.setInverseOilFormationVolumeFactor(/*regionIdx=*/0, Bo);
     deadOilPvt.setOilViscosity(/*regionIdx=*/0, muo);
 
     auto waterPvt = std::make_shared<Opm::WaterPvtMultiplexer<double>>();
-    waterPvt->setApproach(Opm::WaterPvtApproach::ConstantCompressibilityWaterPvt);
-    auto& ccWaterPvt = waterPvt->getRealPvt<Opm::WaterPvtApproach::ConstantCompressibilityWaterPvt>();
+    waterPvt->setApproach(Opm::WaterPvtApproach::ConstantCompressibilityWater);
+    auto& ccWaterPvt = waterPvt->getRealPvt<Opm::WaterPvtApproach::ConstantCompressibilityWater>();
     ccWaterPvt.setNumRegions(/*numPvtRegions=*/1);
     ccWaterPvt.setReferenceDensities(/*regionIdx=*/0, rhoRefO, rhoRefG, rhoRefW);
     ccWaterPvt.setViscosity(/*regionIdx=*/0, 1);
@@ -789,6 +789,49 @@ BOOST_AUTO_TEST_CASE(DeckWithLiveOil)
         BOOST_CHECK_CLOSE(rs[i], rs_ecl[i], reltol_ecl);
     }
 }
+
+BOOST_AUTO_TEST_CASE(DeckWithCO2STORE)
+{
+    using TypeTag = Opm::Properties::TTag::TestEquilTypeTag;
+    using FluidSystem = Opm::GetPropType<TypeTag, Opm::Properties::FluidSystem>;
+    auto simulator1 = initSimulator<TypeTag>("equil_co2store_go.DATA");
+    EquilFixture::Initializer comp_go(*simulator1->problem().materialLawManager(),
+                                    simulator1->vanguard().eclState(),
+                                    simulator1->vanguard().grid(),
+                                    simulator1->vanguard().gridView(),
+                                    simulator1->vanguard().cartesianMapper(), 9.80665);
+
+    auto simulator2 = initSimulator<TypeTag>("equil_co2store_gw.DATA");
+    EquilFixture::Initializer comp_gw(*simulator2->problem().materialLawManager(),
+                                     simulator2->vanguard().eclState(),
+                                     simulator2->vanguard().grid(),
+                                     simulator2->vanguard().gridView(),
+                                     simulator2->vanguard().cartesianMapper(), 9.80665);
+
+    Opm::GridManager gm(simulator2->vanguard().eclState().getInputGrid());
+    const UnstructuredGrid& grid = *(gm.c_grid());
+
+    const double reltol = 1.0e-5;
+    const auto& pressures_go = comp_go.press();
+    BOOST_REQUIRE_EQUAL(pressures_go.size(), 3U);
+    BOOST_REQUIRE_EQUAL(int(pressures_go[0].size()), grid.number_of_cells);
+
+    const auto& pressures_gw = comp_gw.press();
+    BOOST_REQUIRE_EQUAL(pressures_gw.size(), 3U);
+    BOOST_REQUIRE_EQUAL(int(pressures_gw[0].size()), grid.number_of_cells);
+
+    const auto& sats_go = comp_go.saturation();
+    const auto& sats_gw = comp_gw.saturation();
+
+    for (int i = 0; i < grid.number_of_cells; ++i) {
+        BOOST_CHECK_CLOSE(pressures_go[FluidSystem::gasPhaseIdx][i],  pressures_gw[FluidSystem::gasPhaseIdx][i], reltol);
+        BOOST_CHECK_CLOSE(pressures_go[FluidSystem::oilPhaseIdx][i], pressures_gw[FluidSystem::waterPhaseIdx][i], reltol);
+
+        BOOST_CHECK_CLOSE(sats_go[FluidSystem::gasPhaseIdx][i], sats_gw[FluidSystem::gasPhaseIdx][i], reltol);
+        BOOST_CHECK_CLOSE(sats_go[FluidSystem::oilPhaseIdx][i], sats_gw[FluidSystem::waterPhaseIdx][i], reltol);
+    }
+}
+
 
 BOOST_AUTO_TEST_CASE(DeckWithWetGas)
 {

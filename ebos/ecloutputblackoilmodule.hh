@@ -27,6 +27,9 @@
 #ifndef EWOMS_ECL_OUTPUT_BLACK_OIL_MODULE_HH
 #define EWOMS_ECL_OUTPUT_BLACK_OIL_MODULE_HH
 
+#include <opm/common/Exceptions.hpp>
+#include <opm/common/OpmLog/OpmLog.hpp>
+
 #include <opm/models/blackoil/blackoilproperties.hh>
 
 #include <opm/models/utils/propertysystem.hh>
@@ -40,8 +43,6 @@
 #include <opm/output/data/Cells.hpp>
 #include <opm/output/eclipse/EclipseIO.hpp>
 #include <opm/output/eclipse/Inplace.hpp>
-
-#include <opm/common/OpmLog/OpmLog.hpp>
 
 #include <ebos/eclgenericoutputblackoilmodule.hh>
 
@@ -284,6 +285,10 @@ public:
                 this->rs_[globalDofIdx] = getValue(fs.Rs());
                 Valgrind::CheckDefined(this->rs_[globalDofIdx]);
             }
+            if (!this->rsw_.empty()) {
+                this->rsw_[globalDofIdx] = getValue(fs.Rsw());
+                Valgrind::CheckDefined(this->rsw_[globalDofIdx]);
+            }
 
             if (!this->rv_.empty()) {
                 this->rv_[globalDofIdx] = getValue(fs.Rv());
@@ -420,7 +425,7 @@ public:
                 try {
                     this->bubblePointPressure_[globalDofIdx] = getValue(FluidSystem::bubblePointPressure(fs, intQuants.pvtRegionIndex()));
                 }
-                catch (const NumericalIssue&) {
+                catch (const NumericalProblem&) {
                     const auto cartesianIdx = elemCtx.simulator().vanguard().cartesianIndex(globalDofIdx);
                     this->failedCellsPb_.push_back(cartesianIdx);
                 }
@@ -429,7 +434,7 @@ public:
                 try {
                     this->dewPointPressure_[globalDofIdx] = getValue(FluidSystem::dewPointPressure(fs, intQuants.pvtRegionIndex()));
                 }
-                catch (const NumericalIssue&) {
+                catch (const NumericalProblem&) {
                     const auto cartesianIdx = elemCtx.simulator().vanguard().cartesianIndex(globalDofIdx);
                     this->failedCellsPd_.push_back(cartesianIdx);
                 }
@@ -496,6 +501,9 @@ public:
 
                 if (!this->rs_.empty())
                     this->rs_[globalDofIdx] = fsInitial.Rs();
+
+                if (!this->rsw_.empty())
+                    this->rsw_[globalDofIdx] = fsInitial.Rsw();
 
                 if (!this->rvw_.empty())
                     this->rvw_[globalDofIdx] = fsInitial.Rvw();
@@ -742,7 +750,7 @@ public:
             const auto cellIndex = activeIndex(elem);
 
             return {
-                cellIndex,
+                static_cast<int>(cellIndex),
                 cartesianIndex(cellIndex),
                 elem.partitionType() == Dune::InteriorEntity
             };
@@ -822,6 +830,8 @@ public:
             fs.setTemperature(this->temperature_[elemIdx]);
         if (!this->rs_.empty())
            fs.setRs(this->rs_[elemIdx]);
+        if (!this->rsw_.empty())
+           fs.setRsw(this->rsw_[elemIdx]);
         if (!this->rv_.empty())
            fs.setRv(this->rv_[elemIdx]);
         if (!this->rvw_.empty())

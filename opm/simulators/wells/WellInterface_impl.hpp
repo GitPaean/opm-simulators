@@ -19,12 +19,17 @@
   along with OPM.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <opm/common/Exceptions.hpp>
+
 #include <opm/input/eclipse/Schedule/ScheduleTypes.hpp>
 #include <opm/simulators/utils/DeferredLoggingErrorHelpers.hpp>
 #include <opm/simulators/wells/GroupState.hpp>
 #include <opm/simulators/wells/TargetCalculator.hpp>
+#include <opm/simulators/wells/WellBhpThpCalculator.hpp>
 
 #include <dune/common/version.hh>
+
+#include <fmt/format.h>
 
 namespace Opm
 {
@@ -91,16 +96,7 @@ namespace Opm
     wpolymer() const
     {
         if constexpr (has_polymer) {
-            auto injectorType = this->well_ecl_.injectorType();
-
-            if (injectorType == InjectorType::WATER) {
-                WellPolymerProperties polymer = this->well_ecl_.getPolymerProperties();
-                const double polymer_injection_concentration = polymer.m_polymerConcentration;
-                return polymer_injection_concentration;
-            } else {
-                // Not a water injection well => no polymer.
-                return 0.0;
-            }
+            return this->wpolymer_();
         }
 
         return 0.0;
@@ -116,15 +112,7 @@ namespace Opm
     wfoam() const
     {
         if constexpr (has_foam) {
-            auto injectorType = this->well_ecl_.injectorType();
-
-            if (injectorType == InjectorType::GAS) {
-                WellFoamProperties fprop = this->well_ecl_.getFoamProperties();
-                return fprop.m_foamConcentration;
-            } else {
-                // Not a gas injection well => no foam.
-                return 0.0;
-            }
+            return this->wfoam_();
         }
 
         return 0.0;
@@ -138,15 +126,7 @@ namespace Opm
     wsalt() const
     {
         if constexpr (has_brine) {
-            auto injectorType = this->well_ecl_.injectorType();
-
-            if (injectorType == InjectorType::WATER) {
-                WellBrineProperties fprop = this->well_ecl_.getBrineProperties();
-                return fprop.m_saltConcentration;
-            } else {
-                // Not a water injection well => no salt (?).
-                return 0.0;
-            }
+            return this->wsalt_();
         }
 
         return 0.0;
@@ -158,16 +138,7 @@ namespace Opm
     wmicrobes() const
     {
       if constexpr (has_micp) {
-          auto injectorType = this->well_ecl_.injectorType();
-
-          if (injectorType == InjectorType::WATER) {
-              WellMICPProperties microbes = this->well_ecl_.getMICPProperties();
-              const double microbial_injection_concentration = microbes.m_microbialConcentration;
-              return microbial_injection_concentration;
-          } else {
-              // Not a water injection well => no microbes.
-              return 0.0;
-          }
+          return this->wmicrobes_();
       }
 
       return 0.0;
@@ -179,16 +150,7 @@ namespace Opm
     woxygen() const
     {
       if constexpr (has_micp) {
-          auto injectorType = this->well_ecl_.injectorType();
-
-          if (injectorType == InjectorType::WATER) {
-              WellMICPProperties oxygen = this->well_ecl_.getMICPProperties();
-              const double oxygen_injection_concentration = oxygen.m_oxygenConcentration;
-              return oxygen_injection_concentration;
-          } else {
-              // Not a water injection well => no oxygen.
-              return 0.0;
-          }
+          return this->woxygen_();
       }
 
       return 0.0;
@@ -206,16 +168,7 @@ namespace Opm
     wurea() const
     {
       if constexpr (has_micp) {
-          auto injectorType = this->well_ecl_.injectorType();
-
-          if (injectorType == InjectorType::WATER) {
-              WellMICPProperties urea = this->well_ecl_.getMICPProperties();
-              const double urea_injection_concentration = urea.m_ureaConcentration / 10.; //Dividing by scaling factor 10
-              return urea_injection_concentration;
-          } else {
-              // Not a water injection well => no urea.
-              return 0.0;
-          }
+          return this->wurea_();
       }
 
       return 0.0;
@@ -345,7 +298,6 @@ namespace Opm
                 deferred_logger.debug(msg);
                 return;
             }
-
             std::vector<double> potentials;
             try {
                 computeWellPotentials(simulator, well_state_copy, potentials, deferred_logger);
@@ -407,7 +359,7 @@ namespace Opm
         bool converged = false;
         try {
             converged = this->iterateWellEqWithControl(ebosSimulator, dt, inj_controls, prod_controls, well_state, group_state, deferred_logger);
-        } catch (NumericalIssue& e ) {
+        } catch (NumericalProblem& e ) {
             const std::string msg = "Inner well iterations failed for well " + this->name() + " Treat the well as unconverged. ";
             deferred_logger.warning("INNER_ITERATION_FAILED", msg);
             converged = false;
@@ -568,34 +520,6 @@ namespace Opm
         const auto inj_controls = this->well_ecl_.isInjector() ? this->well_ecl_.injectionControls(summary_state) : Well::InjectionControls(0);
         const auto prod_controls = this->well_ecl_.isProducer() ? this->well_ecl_.productionControls(summary_state) : Well::ProductionControls(0);
         assembleWellEqWithoutIteration(ebosSimulator, dt, inj_controls, prod_controls, well_state, group_state, deferred_logger);
-    }
-
-    template<typename TypeTag>
-    bool
-    WellInterface<TypeTag>::isPressureControlled(const WellState& well_state) const
-    {
-         bool thp_controlled_well = false;
-        bool bhp_controlled_well = false;
-        const auto& ws = well_state.well(this->index_of_well_);
-        if (this->isInjector()) {
-            const Well::InjectorCMode& current = ws.injection_cmode;
-            if (current == Well::InjectorCMode::THP) {
-                thp_controlled_well = true;
-            }
-            if (current == Well::InjectorCMode::BHP) {
-                bhp_controlled_well = true;
-            }
-        } else {
-            const Well::ProducerCMode& current = ws.production_cmode;
-            if (current == Well::ProducerCMode::THP) {
-                thp_controlled_well = true;
-            }
-            if (current == Well::ProducerCMode::BHP) {
-                bhp_controlled_well = true;
-            }
-        }
-        bool ispressureControlled =  (bhp_controlled_well || thp_controlled_well);
-        return ispressureControlled;
     }
 
     template<typename TypeTag>
@@ -811,7 +735,12 @@ namespace Opm
             case Well::InjectorCMode::THP:
             {
                 auto rates = ws.surface_rates;
-                double bhp = this->calculateBhpFromThp(well_state, rates, well, summaryState, this->getRefDensity(), deferred_logger);
+                double bhp = WellBhpThpCalculator(*this).calculateBhpFromThp(well_state,
+                                                                             rates,
+                                                                             well,
+                                                                             summaryState,
+                                                                             this->getRefDensity(),
+                                                                             deferred_logger);
                 ws.bhp = bhp;
                 ws.thp = this->getTHPConstraint(summaryState);
 
@@ -962,7 +891,9 @@ namespace Opm
             }
             case Well::ProducerCMode::CRAT:
             {
-                OPM_DEFLOG_THROW(std::runtime_error, "CRAT control not supported " << this->name(), deferred_logger);
+                OPM_DEFLOG_THROW(std::runtime_error,
+                                 fmt::format("CRAT control not supported, well {}", this->name()),
+                                 deferred_logger);
             }
             case Well::ProducerCMode::RESV:
             {
@@ -1036,7 +967,12 @@ namespace Opm
             {
                 auto rates = ws.surface_rates;
                 this->adaptRatesForVFP(rates);
-                double bhp = this->calculateBhpFromThp(well_state, rates, well, summaryState, this->getRefDensity(), deferred_logger);
+                double bhp = WellBhpThpCalculator(*this).calculateBhpFromThp(well_state,
+                                                                             rates,
+                                                                             well,
+                                                                             summaryState,
+                                                                             this->getRefDensity(),
+                                                                             deferred_logger);
                 ws.bhp = bhp;
                 ws.thp = this->getTHPConstraint(summaryState);
 
@@ -1181,16 +1117,12 @@ namespace Opm
     typename WellInterface<TypeTag>::Eval
     WellInterface<TypeTag>::getPerfCellPressure(const typename WellInterface<TypeTag>::FluidState& fs) const
     {
-        Eval pressure;
-        if (Indices::oilEnabled) {
-            pressure = fs.pressure(FluidSystem::oilPhaseIdx);
+        if constexpr (Indices::oilEnabled) {
+            return fs.pressure(FluidSystem::oilPhaseIdx);
+        } else if constexpr (Indices::waterEnabled) {
+            return fs.pressure(FluidSystem::waterPhaseIdx);
         } else {
-            if (Indices::waterEnabled) {
-                pressure = fs.pressure(FluidSystem::waterPhaseIdx);
-            } else {
-                pressure = fs.pressure(FluidSystem::gasPhaseIdx);
-            }
+            return fs.pressure(FluidSystem::gasPhaseIdx);
         }
-        return pressure;
     }
 } // namespace Opm

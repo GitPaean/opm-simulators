@@ -30,17 +30,6 @@
 
 #if USE_ALUGRID
 #define DISABLE_ALUGRID_SFC_ORDERING 1
-#if !HAVE_DUNE_ALUGRID
-#warning "ALUGrid was indicated to be used for the ECL black oil simulator, but this "
-#warning "requires the presence of dune-alugrid >= 2.4. Falling back to Dune::CpGrid"
-#undef USE_ALUGRID
-#define USE_ALUGRID 0
-#endif
-#else
-#define USE_ALUGRID 0
-#endif
-
-#if USE_ALUGRID
 #include "eclalugridvanguard.hh"
 #elif USE_POLYHEDRALGRID
 #include "eclpolyhedralgridvanguard.hh"
@@ -745,33 +734,11 @@ public:
     {
         using ParamsMeta = GetProp<TypeTag, Properties::ParameterMetaData>;
         Dune::ParameterTree& tree = ParamsMeta::tree();
-
-        std::string param  = argv[paramIdx];
-        size_t i = param.find('=');
-        if (i != std::string::npos) {
-            std::string oldParamName = param.substr(0, i);
-            std::string oldParamValue = param.substr(i+1);
-            std::string newParamName = "--" + oldParamName;
-            for (size_t j = 0; j < newParamName.size(); ++j)
-                if (newParamName[j] == '_')
-                    newParamName[j] = '-';
-            errorMsg =
-                "The old syntax to specify parameters on the command line is no longer supported: "
-                "Try replacing '"+oldParamName+"="+oldParamValue+"' with "+
-                "'"+newParamName+"="+oldParamValue+"'!";
-            return 0;
-        }
-
-        if (seenParams.count("EclDeckFileName") > 0) {
-            errorMsg =
-                "Parameter 'EclDeckFileName' specified multiple times"
-                " as a command line parameter";
-            return 0;
-        }
-
-        tree["EclDeckFileName"] = argv[paramIdx];
-        seenParams.insert("EclDeckFileName");
-        return 1;
+        return eclPositionalParameter(tree,
+                                      seenParams,
+                                      errorMsg,
+                                      argv,
+                                      paramIdx);
     }
 
     /*!
@@ -812,7 +779,7 @@ public:
         MICPModule::initFromState(vanguard.eclState());
 
         // create the ECL writer
-        eclWriter_.reset(new EclWriterType(simulator));
+        eclWriter_ = std::make_unique<EclWriterType>(simulator);
 
         enableDriftCompensation_ = EWOMS_GET_PARAM(TypeTag, bool, EclEnableDriftCompensation);
 
@@ -888,15 +855,11 @@ public:
         
         // Re-ordering in case of ALUGrid
         std::function<unsigned int(unsigned int)> gridToEquilGrid;
-        #ifdef HAVE_DUNE_ALUGRID
-        using Grid = GetPropType<TypeTag, Properties::Grid>;
-        typename std::is_same<Grid, Dune::ALUGrid<3, 3, Dune::cube, Dune::nonconforming>>::type isAlugrid;
-        if constexpr (isAlugrid) {
-            gridToEquilGrid = [&simulator](unsigned int i) {
-                return simulator.vanguard().gridIdxToEquilGridIdx(i);
-            };
-        }
-        #endif // HAVE_DUNE_ALUGRID
+        #if USE_ALUGRID
+        gridToEquilGrid = [&simulator](unsigned int i) {
+            return simulator.vanguard().gridIdxToEquilGridIdx(i);
+        };
+        #endif // USE_ALUGRID
         transmissibilities_.finishInit(gridToEquilGrid);
 
         const auto& initconfig = eclState.getInitConfig();
@@ -927,42 +890,6 @@ public:
             drift_ = 0.0;
         }
 
-        if constexpr (enableExperiments)
-        {
-            int success = 1;
-            const auto& cc = simulator.vanguard().grid().comm();
-
-            try
-            {
-                // Only rank 0 has the deck and hence can do the checks!
-                if (cc.rank() == 0)
-                    this->checkDeckCompatibility_(simulator.vanguard().deck(),
-                                                  enableApiTracking,
-                                                  enableSolvent,
-                                                  enablePolymer,
-                                                  enableExtbo,
-                                                  enableEnergy,
-                                                  Indices::numPhases,
-                                                  Indices::gasEnabled,
-                                                  Indices::oilEnabled,
-                                                  Indices::waterEnabled,
-                                                  enableMICP);
-            }
-            catch(const std::exception& e)
-            {
-                success = 0;
-                success = cc.min(success);
-                throw;
-            }
-
-            success = cc.min(success);
-
-            if (!success)
-            {
-                throw std::runtime_error("Checking deck compatibility failed");
-            }
-        }
-
         // write the static output files (EGRID, INIT, SMSPEC, etc.)
         if (enableEclOutput_) {
             if (simulator.vanguard().grid().comm().size() > 1) {
@@ -973,13 +900,11 @@ public:
 
             // Re-ordering in case of ALUGrid
             std::function<unsigned int(unsigned int)> equilGridToGrid;
-            #ifdef HAVE_DUNE_ALUGRID
-            if (isAlugrid) {
-              equilGridToGrid = [&simulator](unsigned int i) {
-                  return simulator.vanguard().gridEquilIdxToGridIdx(i);
-              };
-            }
-            #endif // HAVE_DUNE_ALUGRID
+            #if USE_ALUGRID
+            equilGridToGrid = [&simulator](unsigned int i) {
+                return simulator.vanguard().gridEquilIdxToGridIdx(i);
+            };
+            #endif // USE_ALUGRID
             eclWriter_->writeInit(equilGridToGrid);
         }
 
@@ -1068,22 +993,18 @@ public:
 
             // Re-ordering in case of ALUGrid
             std::function<unsigned int(unsigned int)> equilGridToGrid;
-            #ifdef HAVE_DUNE_ALUGRID
-            using Grid = GetPropType<TypeTag, Properties::Grid>;
-            typename std::is_same<Grid, Dune::ALUGrid<3, 3, Dune::cube,
-            Dune::nonconforming>>::type isAlugrid;
-            if constexpr (isAlugrid) {
-                  equilGridToGrid = [&simulator](unsigned int i) {
-                      return simulator.vanguard().gridEquilIdxToGridIdx(i);
-                  };
-            }
-            #endif // HAVE_DUNE_ALUGRID
+            #if USE_ALUGRID
+            equilGridToGrid = [&simulator](unsigned int i) {
+                  return simulator.vanguard().gridEquilIdxToGridIdx(i);
+            };
+            #endif // USE_ALUGRID
 
             // re-compute all quantities which may possibly be affected.
             transmissibilities_.update(true, equilGridToGrid);
             this->referencePorosity_[1] = this->referencePorosity_[0];
             updateReferencePorosity_();
             updatePffDofData_();
+            this->model().linearizer().updateDiscretizationParameters();
         }
 
         bool tuningEvent = this->beginEpisode_(enableExperiments, this->episodeIndex());
@@ -1106,11 +1027,7 @@ public:
 
         // Evaluate UDQ assign statements to make sure the settings are
         // available as UDA controls for the current report step.
-        const auto& udq = schedule[episodeIdx].udq();
-        const auto& well_matcher = schedule.wellMatcher(episodeIdx);
-        auto& summary_state = simulator.vanguard().summaryState();
-        auto& udq_state = simulator.vanguard().udqState();
-        udq.eval_assign(episodeIdx, well_matcher, summary_state, udq_state);
+        actionHandler_.evalUDQAssignments(episodeIdx, simulator.vanguard().udqState());
     }
 
     /*!
@@ -1218,15 +1135,11 @@ public:
 
         // Re-ordering in case of Alugrid
         std::function<unsigned int(unsigned int)> gridToEquilGrid;
-        #ifdef HAVE_DUNE_ALUGRID
-        using Grid = GetPropType<TypeTag, Properties::Grid>;
-        typename std::is_same<Grid, Dune::ALUGrid<3, 3, Dune::cube, Dune::nonconforming>>::type isAlugrid;
-        if constexpr (isAlugrid) {
-            gridToEquilGrid = [&simulator](unsigned int i) {
-                return simulator.vanguard().gridIdxToEquilGridIdx(i);
-            };
-        }
-        #endif // HAVE_DUNE_ALUGRID
+        #if USE_ALUGRID
+        gridToEquilGrid = [&simulator](unsigned int i) {
+            return simulator.vanguard().gridIdxToEquilGridIdx(i);
+        };
+        #endif // USE_ALUGRID
 
         std::function<void(bool)> transUp =
             [this,gridToEquilGrid](bool global) {
@@ -1671,8 +1584,11 @@ public:
             unsigned globalDofIdx = context.globalSpaceIndex(interiorDofIdx, timeIdx);
             unsigned pvtRegionIdx = pvtRegionIndex(context, spaceIdx, timeIdx);
             FaceDir::DirEnum dir = FaceDir::FromIntersectionIndex(indexInInside);
+            const auto& dirichlet = dirichlet_(dir)[globalDofIdx];
             if (freebc_(dir)[globalDofIdx])
-                values.setFreeFlow(context, spaceIdx, timeIdx, initialFluidStates_[globalDofIdx]);
+                values.setFreeFlow(context, spaceIdx, timeIdx, boundaryFluidState(globalDofIdx, indexInInside));
+            else if (std::get<0>(dirichlet) != BCComponent::NONE)
+                values.setFreeFlow(context, spaceIdx, timeIdx, boundaryFluidState(globalDofIdx, indexInInside));
             else
                 values.setMassRate(massratebc_(dir)[globalDofIdx], pvtRegionIdx);
         }
@@ -1796,7 +1712,7 @@ public:
             values[Indices::polymerMoleWeightIdx]= this->polymerMoleWeight_[globalDofIdx];
 
         if constexpr (enableBrine) {
-            if (enableSaltPrecipitation && values.primaryVarsMeaningBrine() == PrimaryVariables::Sp) {
+            if (enableSaltPrecipitation && values.primaryVarsMeaningBrine() == PrimaryVariables::BrineMeaning::Sp) {
                 values[Indices::saltConcentrationIdx] = initialFluidStates_[globalDofIdx].saltSaturation();
             }
             else {
@@ -1934,6 +1850,89 @@ public:
     bool nonTrivialBoundaryConditions() const
     { return nonTrivialBoundaryConditions_; }
 
+    const InitialFluidState boundaryFluidState(unsigned globalDofIdx, const int directionId) const
+    {
+        FaceDir::DirEnum dir = FaceDir::FromIntersectionIndex(directionId);
+        const auto& dirichlet = dirichlet_(dir)[globalDofIdx];
+        if(std::get<0>(dirichlet) == BCComponent::NONE)
+            return initialFluidStates_[globalDofIdx];
+
+        InitialFluidState fluidState;
+        const int pvtRegionIdx = this->pvtRegionIndex(globalDofIdx);
+        fluidState.setPvtRegionIndex(pvtRegionIdx);
+
+        double pressure = initialFluidStates_[globalDofIdx].pressure(oilPhaseIdx);
+        const auto pressure_input = std::get<1>(dirichlet);
+        if(pressure_input)
+            pressure = *pressure_input;
+
+        std::array<Scalar, numPhases> pc = {0};
+        const auto& matParams = materialLawParams(globalDofIdx);
+        MaterialLaw::capillaryPressures(pc, matParams, fluidState);
+        Valgrind::CheckDefined(pressure);
+        Valgrind::CheckDefined(pc);
+        for (unsigned phaseIdx = 0; phaseIdx < numPhases; ++phaseIdx) {
+            if (!FluidSystem::phaseIsActive(phaseIdx))
+                continue;
+
+            if (Indices::oilEnabled)
+                fluidState.setPressure(phaseIdx, pressure + (pc[phaseIdx] - pc[oilPhaseIdx]));
+            else if (Indices::gasEnabled)
+                fluidState.setPressure(phaseIdx, pressure + (pc[phaseIdx] - pc[gasPhaseIdx]));
+            else if (Indices::waterEnabled)
+                //single (water) phase
+                fluidState.setPressure(phaseIdx, pressure);
+        }
+        switch (std::get<0>(dirichlet)) {
+            case BCComponent::OIL:
+                if (!FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx))
+                    throw std::logic_error("oil is not active and you're trying to add oil BC");
+
+                fluidState.setSaturation(FluidSystem::oilPhaseIdx, 1.0);
+                break;
+            case BCComponent::GAS:
+                if (!FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx))
+                    throw std::logic_error("gas is not active and you're trying to add gas BC");
+
+                fluidState.setSaturation(FluidSystem::gasPhaseIdx, 1.0);
+                break;
+                case BCComponent::WATER:
+                if (!FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx))
+                    throw std::logic_error("water is not active and you're trying to add water BC");
+
+                fluidState.setSaturation(FluidSystem::waterPhaseIdx, 1.0);
+                break;
+            case BCComponent::SOLVENT:
+            case BCComponent::POLYMER:
+            case BCComponent::NONE:
+                throw std::logic_error("you need to specify a valid component (OIL, WATER or GAS) when DIRICHLET type is set in BC");
+                break;
+        }
+        double temperature = initialFluidStates_[globalDofIdx].temperature(oilPhaseIdx);
+        const auto temperature_input = std::get<2>(dirichlet);
+        if(temperature_input)
+            temperature = *temperature_input;
+        fluidState.setTemperature(temperature);
+        fluidState.setRs(0.0);
+        fluidState.setRv(0.0);
+
+        if (FluidSystem::enableVaporizedWater())
+            fluidState.setRvw(0.0);
+
+        for (unsigned phaseIdx = 0; phaseIdx < numPhases; ++phaseIdx) {
+            if (!FluidSystem::phaseIsActive(phaseIdx))
+                continue;
+
+            const auto& b = FluidSystem::inverseFormationVolumeFactor(fluidState, phaseIdx, pvtRegionIdx);
+            fluidState.setInvB(phaseIdx, b);
+
+            const auto& rho = FluidSystem::density(fluidState, phaseIdx, pvtRegionIdx);
+            fluidState.setDensity(phaseIdx, rho);
+
+        }
+        return fluidState;
+    }
+
     /*!
      * \brief Propose the size of the next time step to the simulator.
      *
@@ -2044,7 +2043,9 @@ public:
             return { false, RateVector(0.0) };
         }
         FaceDir::DirEnum dir = FaceDir::FromIntersectionIndex(directionId);
-        return { freebc_(dir)[globalSpaceIdx], massratebc_(dir)[globalSpaceIdx] };
+        const auto& dirichlet = dirichlet_(dir)[globalSpaceIdx];
+        bool free = freebc_(dir)[globalSpaceIdx] || std::get<0>(dirichlet) != BCComponent::NONE;
+        return { free, massratebc_(dir)[globalSpaceIdx] };
     }
 
 private:
@@ -2184,10 +2185,10 @@ private:
         this->updateProperty_("EclProblem::updateMinPressure_() failed:",
                               [this](unsigned compressedDofIdx, const IntensiveQuantities& iq)
                               {
-                                const auto& fs = iq.fluidState();
-                                const Scalar mo = getValue(fs.pressure(oilPhaseIdx));
-                                auto& mos = this->minOilPressure_;
-                                mos[compressedDofIdx] = std::min(mos[compressedDofIdx], mo);
+                                  const auto& fs = iq.fluidState();
+                                  const Scalar mo = getValue(fs.pressure(oilPhaseIdx));
+                                  auto& mos = this->minOilPressure_;
+                                  mos[compressedDofIdx] = std::min(mos[compressedDofIdx], mo);
                               });
         return true;
     }
@@ -2741,6 +2742,7 @@ private:
 
             massratebc_.resize(numElems, 0.0);
             freebc_.resize(numElems, false);
+            dirichlet_.resize(numElems, {BCComponent::NONE, 0.0,0.0});
 
             auto loopAndApply = [&cartesianToCompressedElemIdx,
                                  &vanguard](const auto& bcface,
@@ -2807,6 +2809,13 @@ private:
                     if (initconfig.restartRequested()) {
                         throw std::logic_error("restart is not compatible with using free boundary conditions");
                     }
+                } else if (type == BCType::DIRICHLET) {
+                    const auto component = bcface.component;
+                    const auto pressure = bcface.pressure;
+                    const auto temperature = bcface.temperature;
+                    std::vector<std::tuple<BCComponent, std::optional<double>, std::optional<double>>>& data = dirichlet_(bcface.dir);
+                    loopAndApply(bcface,
+                                 [&data,component,pressure,temperature](int elemIdx) { data[elemIdx] = {component, pressure, temperature}; });
                 } else {
                     throw std::logic_error("invalid type for BC. Use FREE or RATE");
                 }
@@ -2928,7 +2937,7 @@ private:
         const std::vector<T>& operator()(FaceDir::DirEnum dir) const
         {
             if (dir == FaceDir::DirEnum::Unknown)
-                throw std::runtime_error("Tried to acess BC data for the 'Unknown' direction");
+                throw std::runtime_error("Tried to access BC data for the 'Unknown' direction");
             int idx = 0;
             int div = static_cast<int>(dir);
             while ((div /= 2) >= 1)
@@ -2945,6 +2954,7 @@ private:
 
     BCData<bool> freebc_;
     BCData<RateVector> massratebc_;
+    BCData<std::tuple<BCComponent, std::optional<double>, std::optional<double>>> dirichlet_;
     bool nonTrivialBoundaryConditions_ = false;
 };
 

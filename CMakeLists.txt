@@ -26,7 +26,6 @@ option(BUILD_FLOW_POLY_GRID "Build flow blackoil with polyhedral grid" OFF)
 option(OPM_ENABLE_PYTHON "Enable python bindings?" OFF)
 option(OPM_ENABLE_PYTHON_TESTS "Enable tests for the python bindings?" ON)
 option(OPM_INSTALL_PYTHON "Install python bindings?" ON)
-option(ENABLE_FPGA "Enable FPGA kernels integration?" OFF)
 option(USE_CHOW_PATEL_ILU "Use the iterative ILU by Chow and Patel?" OFF)
 option(USE_CHOW_PATEL_ILU_GPU "Run iterative ILU decomposition on GPU? Requires USE_CHOW_PATEL_ILU" OFF)
 option(USE_CHOW_PATEL_ILU_GPU_PARALLEL "Try to use more parallelism on the GPU during the iterative ILU decomposition? Requires USE_CHOW_PATEL_ILU_GPU" OFF)
@@ -163,74 +162,11 @@ endif()
 
 if(CUDA_FOUND)
   set(HAVE_CUDA 1)
+  set(COMPILE_BDA_BRIDGE 1)
   include_directories(${CUDA_INCLUDE_DIRS})
 endif()
 
 find_package(OpenCL)
-
-# include FPGA target only when ENABLE_FPGA is set to ON
-if(ENABLE_FPGA)
-  # must include opencl.h which is a wrapper for all the OpenCL extensions
-  find_file(OPENCL_H CL/opencl.h HINTS ${OpenCL_INCLUDE_DIRS})
-
-  # FIXME: devise a check for the presence of the "FPGA" module; currently looking for makefile in <opm-simulators>/../FPGA
-  find_file(FPGA_MODULE linearalgebra/ilu0bicgstab/xilinx/alveo_u280/vitis_20192/OPM-integration/makefile HINTS ${opm-simulators_SOURCE_DIR}/../FPGA)
-
-  # this code only runs if the user explicitly enabled the FPGA
-  # hence fatal_error instead of warning
-  if(NOT OPENCL_H OR NOT OpenCL_FOUND)
-    set(HAVE_FPGA 0)
-    message(FATAL_ERROR " OpenCL packages/headers were not found. Make sure CL/opencl.h exists or deactivate FPGA.")
-  elseif(NOT FPGA_MODULE)
-    set(HAVE_FPGA 0)
-    message(FATAL_ERROR " FPGA module was not found. Make sure FPGA repository exists or deactivate FPGA.")
-  elseif(NOT DEFINED ENV{XILINX_XRT})
-    # Xilinx XRT must be installed and properly setup
-    set(HAVE_FPGA 0)
-    message(FATAL_ERROR " Xilinx XRT not found. Make sure it is installed and setup (check its documentation) or deactivate FPGA.")
-  else()
-    set(HAVE_FPGA 1)
-    message(STATUS "FPGA library and kernel integration active.")
-
-    # FIXME: set the correct path to the FPGA module
-    set(FPGA_SOURCE_DIR ${opm-simulators_SOURCE_DIR}/../FPGA)
-
-    # configuration variables with default values: they can be overridden on the cmake command line
-    # FPGA_PORTS_CONFIG selects the kernel's memory ports configuration; must be in sync with available kernel bitstream
-    if(NOT FPGA_PORTS_CONFIG)
-      set(FPGA_PORTS_CONFIG 2r_3r3w_ddr)
-    endif()
-    # FPGA_DEBUG_LEVEL sets the debug messages level for FPGA library functions (should be set to 0 for Release build)
-    if(NOT FPGA_DEBUG_LEVEL)
-      set(FPGA_DEBUG_LEVEL 0)
-    endif()
-    message(STATUS "Using the following settings for the FPGA library compilation: "
-      "FPGA_PORTS_CONFIG=${FPGA_PORTS_CONFIG}, "
-      "FPGA_DEBUG_LEVEL=${FPGA_DEBUG_LEVEL}")
-    add_compile_options(-DPORTS_CONFIG=PORTS_${FPGA_PORTS_CONFIG})
-    add_compile_options(-DBDA_DEBUG_LEVEL=${FPGA_DEBUG_LEVEL})
-    # include directories for the FPGA library
-    include_directories(${FPGA_SOURCE_DIR})
-    include_directories(${FPGA_SOURCE_DIR}/linearalgebra/ilu0bicgstab/xilinx/src/sda_app)
-    include_directories(${FPGA_SOURCE_DIR}/linearalgebra/ilu0bicgstab/xilinx/src/sda_app/common)
-    # add external project to compile the FPGA library
-    include (ExternalProject)
-    ExternalProject_Add(FPGA_library
-      # force the build step to always be run because source dependencies cannot be made explicit
-      BUILD_ALWAYS 1
-      DOWNLOAD_COMMAND ""
-      UPDATE_COMMAND ""
-      CONFIGURE_COMMAND ""
-      BUILD_COMMAND make
-        -f ${FPGA_SOURCE_DIR}/linearalgebra/ilu0bicgstab/xilinx/alveo_u280/vitis_20192/OPM-integration/makefile
-        SRCDIR=${FPGA_SOURCE_DIR}/linearalgebra/ilu0bicgstab/xilinx/src/sda_app
-        PORTS_CONFIG=${FPGA_PORTS_CONFIG}
-        DEBUG_LEVEL=${FPGA_DEBUG_LEVEL}
-      INSTALL_COMMAND ""
-      TEST_COMMAND ""
-    )
-  endif()
-endif()
 
 if(OpenCL_FOUND)
   # the current OpenCL implementation relies on cl2.hpp, not cl.hpp
@@ -238,6 +174,7 @@ if(OpenCL_FOUND)
   find_file(CL2_HPP CL/cl2.hpp HINTS ${OpenCL_INCLUDE_DIRS})
   if(CL2_HPP)
     set(HAVE_OPENCL 1)
+    set(COMPILE_BDA_BRIDGE 1)
     include_directories(${OpenCL_INCLUDE_DIRS})
     find_file(OPENCL_HPP CL/opencl.hpp HINTS ${OpenCL_INCLUDE_DIRS})
     if(OPENCL_HPP)
@@ -271,6 +208,7 @@ endif()
 find_package(amgcl)
 if(amgcl_FOUND)
   set(HAVE_AMGCL 1)
+  set(COMPILE_BDA_BRIDGE 1)
   # Linking to target angcl::amgcl drags in OpenMP and -fopenmp as a compile
   # flag. With that nvcc fails as it does not that flag.
   # Hence we set AMGCL_INCLUDE_DIRS.
@@ -282,6 +220,7 @@ if(OpenCL_FOUND)
   find_package(VexCL)
   if(VexCL_FOUND)
     set(HAVE_VEXCL 1)
+    set(COMPILE_BDA_BRIDGE 1)
     # generator expressions in vexcl do not seem to work and therefore
     # we cannot use the imported target. Hence we exract the needed info
     # from the targets
@@ -296,6 +235,13 @@ if(OpenCL_FOUND)
     target_include_directories(OPM::VexCL::OpenCL SYSTEM INTERFACE "${VEXCL_INCLUDE_DIRS}")
   endif()
 endif()
+
+find_package(rocalution)
+if(ROCALUTION_FOUND)
+  set(HAVE_ROCALUTION 1)
+  set(COMPILE_BDA_BRIDGE 1)
+endif()
+
 
 # read the list of components from this file (in the project directory);
 # it should set various lists with the names of the files to include
@@ -426,7 +372,8 @@ set(FLOW_MODELS blackoil brine energy extbo foam gasoil gaswater
                 oilwater_polymer_injectivity micp polymer solvent
                 gasoil_energy brine_saltprecipitation
                 gaswater_saltprec_vapwat brine_precsalt_vapwat
-                blackoil_legacyassembly gasoildiffuse)
+                blackoil_legacyassembly gasoildiffuse gaswater_dissolution
+                gaswater_dissolution_diffuse)
 set(FLOW_VARIANT_MODELS brine_energy onephase onephase_energy)
 
 set(FLOW_TGTS)
@@ -493,23 +440,25 @@ opm_add_test(flow_distribute_z
   ${FLOW_TGTS}
   $<TARGET_OBJECTS:moduleVersion>
   )
-if (NOT BUILD_FLOW_ALU_GRID)
-  set(FLOW_ALUGRID_ONLY_DEFAULT_ENABLE_IF "FALSE")
-else()
-  set(FLOW_ALUGRID_ONLY_DEFAULT_ENABLE_IF "TRUE")
-endif()
 
-# the production oriented general-purpose ECL simulator
-opm_add_test(flow_alugrid
-  ONLY_COMPILE
-  ALWAYS_ENABLE
-  DEFAULT_ENABLE_IF ${FLOW_ALUGRID_ONLY_DEFAULT_ENABLE_IF}
-  DEPENDS opmsimulators
-  LIBRARIES opmsimulators
-  SOURCES
-  flow/flow_blackoil_alugrid.cpp
-  $<TARGET_OBJECTS:moduleVersion>)
-target_compile_definitions(flow_alugrid PRIVATE USE_ALUGRID)
+if(dune-alugrid_FOUND)
+  if (NOT BUILD_FLOW_ALU_GRID)
+    set(FLOW_ALUGRID_ONLY_DEFAULT_ENABLE_IF "FALSE")
+  else()
+    set(FLOW_ALUGRID_ONLY_DEFAULT_ENABLE_IF "TRUE")
+  endif()
+
+  opm_add_test(flow_alugrid
+    ONLY_COMPILE
+    ALWAYS_ENABLE
+    DEFAULT_ENABLE_IF ${FLOW_ALUGRID_ONLY_DEFAULT_ENABLE_IF}
+    DEPENDS opmsimulators
+    LIBRARIES opmsimulators
+    SOURCES
+    flow/flow_blackoil_alugrid.cpp
+    $<TARGET_OBJECTS:moduleVersion>)
+  target_compile_definitions(flow_alugrid PRIVATE USE_ALUGRID)
+endif()
 
 if (BUILD_FLOW)
   install(TARGETS flow DESTINATION bin)
@@ -538,14 +487,14 @@ if(OpenCL_FOUND)
   target_link_libraries( opmsimulators PUBLIC ${OpenCL_LIBRARIES} )
 endif()
 
+if(ROCALUTION_FOUND)
+  target_include_directories(opmsimulators PUBLIC ${rocalution_INCLUDE_DIR}/rocalution)
+endif()
+
 if(VexCL_FOUND)
   target_link_libraries( opmsimulators PUBLIC OPM::VexCL::OpenCL )
 endif()
-if(HAVE_FPGA)
-  add_dependencies(opmsimulators FPGA_library)
-  ExternalProject_Get_Property(FPGA_library binary_dir)
-  target_link_libraries(opmsimulators PUBLIC ${binary_dir}/fpga_lib_alveo_u280.a)
-endif()
+
 if(Damaris_FOUND)
   target_link_libraries(opmsimulators PUBLIC damaris)
 endif()

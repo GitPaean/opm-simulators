@@ -17,6 +17,9 @@
   along with OPM.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <opm/input/eclipse/Schedule/GasLiftOpt.hpp>
+#include <fmt/format.h>
+
 namespace Opm {
 
 template<typename TypeTag>
@@ -130,8 +133,8 @@ computeBhpAtThpLimit_(double alq) const
     auto bhp_at_thp_limit = this->well_.computeBhpAtThpLimitProdWithAlq(
         this->ebos_simulator_,
         this->summary_state_,
-        this->deferred_logger_,
-        alq);
+        alq,
+        this->deferred_logger_);
     if (bhp_at_thp_limit) {
         if (*bhp_at_thp_limit < this->controls_.bhp_limit) {
             const std::string msg = fmt::format(
@@ -189,7 +192,7 @@ setupPhaseVariables_()
 template<typename TypeTag>
 void
 GasLiftSingleWell<TypeTag>::
-setAlqMaxRate_(const GasLiftOpt::Well &well)
+setAlqMaxRate_(const GasLiftWell &well)
 {
     auto& max_alq_optional = well.max_rate();
     if (max_alq_optional) {

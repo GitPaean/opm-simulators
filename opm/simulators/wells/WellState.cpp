@@ -18,19 +18,108 @@
   along with OPM.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <fmt/format.h>
 #include <config.h>
+
 #include <opm/simulators/wells/WellState.hpp>
 
 #include <opm/common/ErrorMacros.hpp>
+#include <opm/input/eclipse/Schedule/MSW/WellSegments.hpp>
 #include <opm/input/eclipse/Schedule/Schedule.hpp>
-#include <opm/simulators/wells/ParallelWellInfo.hpp>
+#include <opm/input/eclipse/Schedule/Well/WellConnections.hpp>
 
 #include <opm/simulators/utils/ParallelCommunication.hpp>
+#include <opm/simulators/wells/ParallelWellInfo.hpp>
+#include <opm/grid/common/p2pcommunicator.hh>
+#include <opm/output/data/Wells.hpp>
 
 #include <algorithm>
 #include <cassert>
 #include <numeric>
+#include <set>
+#include <stdexcept>
+#include <vector>
+
+#include <fmt/format.h>
+
+namespace {
+
+using P2PCommunicatorType = Dune::Point2PointCommunicator<Dune::SimpleMessageBuffer>;
+using MessageBufferType = P2PCommunicatorType::MessageBufferType;
+
+class PackUnpackXConn : public P2PCommunicatorType::DataHandleInterface
+{
+public:
+    using XConn = std::vector<Opm::data::Connection>;
+
+    explicit PackUnpackXConn(const bool   isOwner,
+                             const XConn& local,
+                             XConn&       global);
+
+    // Pack all data associated with link.
+    void pack(const int link, MessageBufferType& buffer);
+
+    // Unpack all data associated with link.
+    void unpack([[maybe_unused]] const int link,
+                MessageBufferType&         buffer);
+
+private:
+    const XConn& local_;
+    XConn& global_;
+};
+
+PackUnpackXConn::PackUnpackXConn(const bool   isOwner,
+                                 const XConn& local,
+                                 XConn&       global)
+    : local_ (local)
+    , global_(global)
+{
+    if (! isOwner) { return; }
+
+    this->global_.insert(this->global_.end(),
+                         this->local_.begin(),
+                         this->local_.end());
+}
+
+void PackUnpackXConn::pack(const int          link,
+                           MessageBufferType& buffer)
+{
+    // We should only get one link
+    if (link != 0) {
+        throw std::logic_error {
+            "link in pack() does not match expected value 0"
+        };
+    }
+
+    // Write all local connection results
+    {
+        const auto nconn = this->local_.size();
+        buffer.write(nconn);
+    }
+
+    for (const auto& conn : this->local_) {
+        conn.write(buffer);
+    }
+}
+
+void PackUnpackXConn::unpack([[maybe_unused]] const int link,
+                             MessageBufferType&         buffer)
+{
+    const auto nconn = [this, &buffer]()
+    {
+        auto nc = 0 * this->local_.size();
+        buffer.read(nc);
+
+        return nc;
+    }();
+
+    this->global_.reserve(this->global_.size() + nconn);
+
+    for (auto conn = 0*nconn; conn < nconn; ++conn) {
+        this->global_.emplace_back().read(buffer);
+    }
+}
+
+} // Anonymous namespace
 
 namespace Opm
 {
@@ -84,8 +173,7 @@ void WellState::initSingleInjector(const Well& well,
                                    const SummaryState& summary_state) {
 
     const auto& pu = this->phase_usage_;
-    const auto& inj_controls = well.injectionControls(summary_state);
-    const double temp = inj_controls.temperature;
+    const double temp = well.temperature();
 
     auto& ws = this->wells_.add(well.name(), SingleWellState{well.name(), well_info, false, pressure_first_connection, well_perf_data, pu, temp});
 
@@ -307,7 +395,8 @@ WellState::currentWellRates(const std::string& wellName) const
     auto it = well_rates.find(wellName);
 
     if (it == well_rates.end())
-        OPM_THROW(std::logic_error, "Could not find any rates for well  " << wellName);
+        OPM_THROW(std::logic_error,
+                  "Could not find any rates for well " + wellName);
 
     return it->second.second;
 }
@@ -317,35 +406,39 @@ void WellState::gatherVectorsOnRoot(const std::vector<data::Connection>& from_co
                                                          std::vector<data::Connection>& to_connections,
                                                          const Communication& comm) const
 {
-    int size = from_connections.size();
-    std::vector<int> sizes;
-    std::vector<int> displ;
-    if (comm.rank()==0){
-        sizes.resize(comm.size());
-    }
-    comm.gather(&size, sizes.data(), 1, 0);
+    auto send = std::set<int>{};
+    auto recv = std::set<int>{};
 
-    if (comm.rank()==0){
-        displ.resize(comm.size()+1, 0);
-        std::partial_sum(sizes.begin(), sizes.end(), displ.begin()+1);
-        to_connections.resize(displ.back());
+    const auto isOwner = comm.rank() == 0;
+    if (isOwner) {
+        for (auto other = 0*comm.size() + 1; other < comm.size(); ++other) {
+            recv.insert(other);
+        }
     }
-    comm.gatherv(from_connections.data(), size, to_connections.data(),
-                 sizes.data(), displ.data(), 0);
+    else {
+        send.insert(0);
+    }
+
+    auto toOwnerComm = P2PCommunicatorType{ comm };
+    toOwnerComm.insertRequest(send, recv);
+
+    PackUnpackXConn lineariser { isOwner, from_connections, to_connections };
+    toOwnerComm.exchange(lineariser);
 }
 
 data::Wells
 WellState::report(const int* globalCellIdxMap,
                   const std::function<bool(const int)>& wasDynamicallyClosed) const
 {
-    if (this->numWells() == 0)
+    if (this->numWells() == 0) {
         return {};
+    }
 
     using rt = data::Rates::opt;
     const auto& pu = this->phaseUsage();
 
     data::Wells res;
-    for( std::size_t well_index = 0; well_index < this->size(); well_index++) {
+    for (std::size_t well_index = 0; well_index < this->size(); ++well_index) {
         const auto& ws = this->well(well_index);
         if ((ws.status == Well::Status::SHUT) && !wasDynamicallyClosed(well_index))
         {
@@ -358,8 +451,9 @@ WellState::report(const int* globalCellIdxMap,
         const auto& wv = ws.surface_rates;
         const auto& wname = this->name(well_index);
 
+        auto dummyWell = data::Well{};
+        auto& well = ws.parallel_info.get().isOwner() ? res[wname] : dummyWell;
 
-        data::Well well;
         well.bhp = ws.bhp;
         well.thp = ws.thp;
         well.temperature = ws.temperature;
@@ -404,7 +498,7 @@ WellState::report(const int* globalCellIdxMap,
             well.rates.set(rt::alq, 0.0);
         }
 
-        well.rates.set(rt::dissolved_gas, ws.dissolved_gas_rate);
+        well.rates.set(rt::dissolved_gas, ws.dissolved_gas_rate + ws.dissolved_gas_rate_in_water);
         well.rates.set(rt::vaporized_oil, ws.vaporized_oil_rate);
         well.rates.set(rt::vaporized_water, ws.vaporized_wat_rate);
 
@@ -417,12 +511,10 @@ WellState::report(const int* globalCellIdxMap,
         }
 
         const auto& pwinfo = ws.parallel_info.get();
-        if (pwinfo.communication().size()==1)
-        {
+        if (pwinfo.communication().size() == 1) {
             reportConnections(well.connections, pu, well_index, globalCellIdxMap);
         }
-        else
-        {
+        else {
             std::vector<data::Connection> connections;
 
             reportConnections(connections, pu, well_index, globalCellIdxMap);
@@ -434,9 +526,8 @@ WellState::report(const int* globalCellIdxMap,
             const auto seg_no = ws.segments.segment_number()[seg_ix];
             well.segments[seg_no] = this->reportSegmentResults(well_index, seg_ix, seg_no);
         }
-
-        res.insert( {wname, well} );
     }
+
     return res;
 }
 
@@ -462,7 +553,6 @@ void WellState::reportConnections(std::vector<data::Connection>& connections,
     }
 
     const int np = pu.num_phases;
-    size_t local_comp_index = 0;
     std::vector< rt > phs( np );
     std::vector<rt> pi(np);
     if( pu.phase_used[Water] ) {
@@ -479,9 +569,12 @@ void WellState::reportConnections(std::vector<data::Connection>& connections,
         phs.at( pu.phase_pos[Gas] ) = rt::gas;
         pi .at( pu.phase_pos[Gas] ) = rt::productivity_index_gas;
     }
+
+    size_t local_conn_index = 0;
     for( auto& comp : connections) {
-        const auto * rates = &perf_data.phase_rates[np*local_comp_index];
-        const auto& connPI  = perf_data.prod_index;
+        const auto * rates = &perf_data.phase_rates[np * local_conn_index];
+        const auto * connPI = &perf_data.prod_index[np * local_conn_index];
+
 
         for( int i = 0; i < np; ++i ) {
             comp.rates.set( phs[ i ], rates[i] );
@@ -489,18 +582,18 @@ void WellState::reportConnections(std::vector<data::Connection>& connections,
         }
         if ( pu.has_polymer ) {
             const auto& perf_polymer_rate = perf_data.polymer_rates;
-            comp.rates.set( rt::polymer, perf_polymer_rate[local_comp_index]);
+            comp.rates.set( rt::polymer, perf_polymer_rate[local_conn_index]);
         }
         if ( pu.has_brine ) {
             const auto& perf_brine_rate = perf_data.brine_rates;
-            comp.rates.set( rt::brine, perf_brine_rate[local_comp_index]);
+            comp.rates.set( rt::brine, perf_brine_rate[local_conn_index]);
         }
         if ( pu.has_solvent ) {
             const auto& perf_solvent_rate = perf_data.solvent_rates;
-            comp.rates.set( rt::solvent, perf_solvent_rate[local_comp_index] );
+            comp.rates.set( rt::solvent, perf_solvent_rate[local_conn_index] );
         }
 
-        ++local_comp_index;
+        ++local_conn_index;
     }
 }
 
@@ -537,6 +630,14 @@ void WellState::initWellStateMSWell(const std::vector<Well>& wells_ecl,
                 const Connection& connection = completion_set.get(perf);
                 if (connection.state() == Connection::State::OPEN) {
                     const int segment_index = segment_set.segmentNumberToIndex(connection.segment());
+                    if ( segment_index == -1) {
+                        OPM_THROW(std::logic_error,
+                                  fmt::format("COMPSEGS: Well {} has connection in cell {}, {}, {} "
+                                              "without associated segment.", well_ecl.name(),
+                                              connection.getI() + 1 , connection.getJ() + 1,
+                                              connection.getK() + 1 ));
+                    }
+
                     segment_perforations[segment_index].push_back(n_activeperf);
                     n_activeperf++;
                 }
@@ -616,10 +717,11 @@ void WellState::initWellStateMSWell(const std::vector<Well>& wells_ecl,
                     continue;
                 }
 
-                // TODO: the well with same name can change a lot, like they might not have same number of segments
-                // we need to handle that later.
-                // for now, we just copy them.
-                ws.segments = prev_ws.segments;
+                // we do not copy the segment information if the number of segments have changed
+                // safer way should be to check the relevant Event
+                if (ws.segments.size() == prev_ws.segments.size()) {
+                    ws.segments = prev_ws.segments;
+                }
             }
         }
     }
@@ -740,17 +842,21 @@ void WellState::updateGlobalIsGrup(const Comm& comm)
 }
 
 data::Segment
-WellState::reportSegmentResults(const int         well_id,
-                                const int         seg_ix,
-                                const int         seg_no) const
+WellState::reportSegmentResults(const int well_id,
+                                const int seg_ix,
+                                const int seg_no) const
 {
+    using PhaseQuant = data::SegmentPhaseQuantity::Item;
+
     const auto& segments = this->well(well_id).segments;
-    if (segments.empty())
+    if (segments.empty()) {
         return {};
+    }
 
     auto seg_res = data::Segment{};
     {
         using Value = data::SegmentPressures::Value;
+
         auto& segpress = seg_res.pressures;
         segpress[Value::Pressure] = segments.pressure[seg_ix];
         segpress[Value::PDrop] = segments.pressure_drop(seg_ix);
@@ -760,20 +866,42 @@ WellState::reportSegmentResults(const int         well_id,
     }
 
     const auto& pu = this->phaseUsage();
-    const auto rate = &segments.rates[seg_ix * pu.num_phases];
+    const auto* rate = &segments.rates[seg_ix * pu.num_phases];
+    const auto* resv = &segments.phase_resv_rates[seg_ix * pu.num_phases];
+    const auto* velocity = &segments.phase_velocity[seg_ix * pu.num_phases];
+    const auto* holdup = &segments.phase_holdup[seg_ix * pu.num_phases];
+    const auto* viscosity = &segments.phase_viscosity[seg_ix * pu.num_phases];
+
     if (pu.phase_used[Water]) {
-        seg_res.rates.set(data::Rates::opt::wat,
-                          rate[pu.phase_pos[Water]]);
+        const auto iw = pu.phase_pos[Water];
+
+        seg_res.rates.set(data::Rates::opt::wat, rate[iw]);
+        seg_res.rates.set(data::Rates::opt::reservoir_water, resv[iw]);
+        seg_res.velocity.set(PhaseQuant::Water, velocity[iw]);
+        seg_res.holdup.set(PhaseQuant::Water, holdup[iw]);
+        seg_res.viscosity.set(PhaseQuant::Water, viscosity[iw]);
     }
 
     if (pu.phase_used[Oil]) {
-        seg_res.rates.set(data::Rates::opt::oil,
-                          rate[pu.phase_pos[Oil]]);
+        const auto io = pu.phase_pos[Oil];
+
+        seg_res.rates.set(data::Rates::opt::oil, rate[io]);
+        seg_res.rates.set(data::Rates::opt::vaporized_oil, segments.vaporized_oil_rate[seg_ix]);
+        seg_res.rates.set(data::Rates::opt::reservoir_oil, resv[io]);
+        seg_res.velocity.set(PhaseQuant::Oil, velocity[io]);
+        seg_res.holdup.set(PhaseQuant::Oil, holdup[io]);
+        seg_res.viscosity.set(PhaseQuant::Oil, viscosity[io]);
     }
 
     if (pu.phase_used[Gas]) {
-        seg_res.rates.set(data::Rates::opt::gas,
-                          rate[pu.phase_pos[Gas]]);
+        const auto ig = pu.phase_pos[Gas];
+
+        seg_res.rates.set(data::Rates::opt::gas, rate[ig]);
+        seg_res.rates.set(data::Rates::opt::dissolved_gas, segments.dissolved_gas_rate[seg_ix]);
+        seg_res.rates.set(data::Rates::opt::reservoir_gas, resv[ig]);
+        seg_res.velocity.set(PhaseQuant::Gas, velocity[ig]);
+        seg_res.holdup.set(PhaseQuant::Gas, holdup[ig]);
+        seg_res.viscosity.set(PhaseQuant::Gas, viscosity[ig]);
     }
 
     seg_res.segNumber = seg_no;
@@ -793,8 +921,10 @@ bool WellState::wellIsOwned(std::size_t well_index,
 bool WellState::wellIsOwned(const std::string& wellName) const
 {
     const auto& well_index = this->index(wellName);
-    if (!well_index.has_value())
-        OPM_THROW(std::logic_error, "Could not find well " << wellName << " in well map");
+    if (!well_index.has_value()) {
+        OPM_THROW(std::logic_error,
+                  fmt::format("Could not find well {} in well map", wellName));
+    }
 
     return wellIsOwned(well_index.value(), wellName);
 }
@@ -824,6 +954,5 @@ WellState::parallelWellInfo(std::size_t well_index) const
 
 template void WellState::updateGlobalIsGrup<Parallel::Communication>(const Parallel::Communication& comm);
 template void WellState::communicateGroupRates<Parallel::Communication>(const Parallel::Communication& comm);
+
 } // namespace Opm
-
-
