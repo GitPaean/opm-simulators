@@ -143,13 +143,23 @@ getWellConvergence(const WellState& well_state,
             report.setWellFailed({type, CR::Severity::Normal, compIdx, baseif_.name()});
         }
     }
+    const std::set<std::string> well_names = {"B-1H", "C-1H"};
+    const bool output_for_well = well_names.count(baseif_.name()) > 0;
+    if (output_for_well) {
+        std::cout << " well " << baseif_.name() << " flux residual ";
+        for (const auto& val : well_flux_residual) {
+            std::cout << " " << val;
+        }
+        std::cout << std::endl;
+    }
 
     WellConvergence(baseif_).
         checkConvergenceControlEq(well_state,
                                   {1.e3, 1.e4, 1.e-4, 1.e-6, maxResidualAllowed},
                                   std::abs(this->linSys_.residual()[0][Bhp]),
                                   report,
-                                  deferred_logger);
+                                  deferred_logger,
+                                  output_for_well);
 
     return report;
 }

@@ -38,7 +38,8 @@ checkConvergenceControlEq(const WellState& well_state,
                           const Tolerances& tolerances,
                           const double well_control_residual,
                           ConvergenceReport& report,
-                          DeferredLogger& deferred_logger) const
+                          DeferredLogger& deferred_logger,
+                          const bool output_for_well) const
 {
     double control_tolerance = 0.;
     using CR = ConvergenceReport;
@@ -116,6 +117,9 @@ checkConvergenceControlEq(const WellState& well_state,
         report.setWellFailed({ctrltype, CR::Severity::TooLarge, dummy_component, well_.name()});
     } else if (well_control_residual > control_tolerance) {
         report.setWellFailed({ctrltype, CR::Severity::Normal, dummy_component, well_.name()});
+    }
+    if (output_for_well) {
+        std::cout << " well_control_residual " << well_control_residual << " control_tolerance " << control_tolerance << std::endl;
     }
 }
 

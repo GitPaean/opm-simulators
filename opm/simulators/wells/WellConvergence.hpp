@@ -53,7 +53,8 @@ public:
                                    const Tolerances& tolerances,
                                    const double well_control_residual,
                                    ConvergenceReport& report,
-                                   DeferredLogger& deferred_logger) const;
+                                   DeferredLogger& deferred_logger,
+                                   bool output_for_well = false) const;
 
     void checkConvergencePolyMW(const std::vector<double>& res,
                                 const int Bhp,
