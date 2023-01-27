@@ -1761,11 +1761,13 @@ namespace Opm
 
         const auto& well = this->well_ecl_;
         if (well.isInjector()){
-            const auto& controls = this->well_ecl_.injectionControls(summary_state);
+            const auto& controls = well.injectionControls(summary_state);
             auto bhp_at_thp_limit = computeBhpAtThpLimitInj(ebos_simulator, summary_state, deferred_logger);
             if (bhp_at_thp_limit) {
                 const double bhp = std::min(*bhp_at_thp_limit, controls.bhp_limit);
                 computeWellRatesWithBhp(ebos_simulator, bhp, potentials, deferred_logger);
+                deferred_logger.debug("Converged thp based potential calculation for well "
+                                      + this->name() + ", at bhp = " + std::to_string(bhp));
             } else {
                 deferred_logger.warning("FAILURE_GETTING_CONVERGED_POTENTIAL",
                                         "Failed in getting converged thp based potential calculation for well "
@@ -2580,5 +2582,33 @@ namespace Opm
         const auto zero   = EvalWell{this->primary_variables_.numWellEq() + Indices::numEq, 0.0};
         const auto mt     = std::accumulate(mobility.begin(), mobility.end(), zero);
         connII[phase_pos] = connIICalc(mt.value() * fs.invB(this->flowPhaseToEbosPhaseIdx(phase_pos)).value());
+    }
+
+
+
+    template <typename TypeTag>
+    bool
+    StandardWell<TypeTag>::
+    updateWellStateWithTHPTargetProd(const Simulator& ebos_simulator,
+                                     WellState& well_state,
+                                     DeferredLogger& deferred_logger) const
+    {
+        const auto& summary_state = ebos_simulator.vanguard().summaryState();
+
+        auto bhp_at_thp_limit = computeBhpAtThpLimitProdWithAlq(
+            ebos_simulator, summary_state, this->getALQ(well_state), deferred_logger);
+        if (bhp_at_thp_limit) {
+            std::vector<double> rates(this->number_of_phases_, 0.0);
+            const auto& controls = this->well_ecl_.productionControls(summary_state);
+            const double bhp = std::max(*bhp_at_thp_limit, controls.bhp_limit);
+            computeWellRatesWithBhp(ebos_simulator, bhp, rates, deferred_logger);
+            auto& ws = well_state.well(this->name());
+            ws.surface_rates = rates;
+            ws.bhp = bhp;
+            ws.thp = this->getTHPConstraint(summary_state);
+            return true;
+        } else {
+            return false;
+        }
     }
 } // namespace Opm

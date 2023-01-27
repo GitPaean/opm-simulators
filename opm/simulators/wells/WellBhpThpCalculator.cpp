@@ -638,7 +638,7 @@ computeBhpAtThpLimit(const std::function<std::vector<double>(const double)>& fra
     }
 
     // Solve for the proper solution in the given interval.
-    const int max_iteration = 100;
+    const int max_iteration = 1000;
     const double bhp_tolerance = 0.01 * unit::barsa;
     int iteration = 0;
     try {
