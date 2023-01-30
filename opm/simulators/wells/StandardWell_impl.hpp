@@ -2365,9 +2365,12 @@ namespace Opm
                                                                                alq_value,
                                                                                this->getTHPConstraint(summary_state),
                                                                                deferred_logger);
-        auto v = frates(*bhpAtLimit);
-        if (bhpAtLimit && std::all_of(v.cbegin(), v.cend(), [](double i){ return i <= 0; }))
-            return bhpAtLimit;
+        if (bhpAtLimit) {
+            auto v = frates(*bhpAtLimit);
+            if (std::all_of(v.cbegin(), v.cend(), [](double i){ return i <= 0; })) {
+                return bhpAtLimit;
+            }
+        }
 
         auto fratesIter = [this, &ebos_simulator, &deferred_logger](const double bhp) {
             // Solver the well iterations to see if we are
@@ -2386,9 +2389,12 @@ namespace Opm
                                                                           alq_value,
                                                                           this->getTHPConstraint(summary_state),
                                                                           deferred_logger);
-        v = frates(*bhpAtLimit);
-        if(bhpAtLimit && std::all_of(v.cbegin(), v.cend(), [](double i){ return i <= 0; }))
-            return bhpAtLimit;
+        if(bhpAtLimit) {
+            auto v = frates(*bhpAtLimit);
+            if (std::all_of(v.cbegin(), v.cend(), [](double i){ return i <= 0; })) {
+                return bhpAtLimit;
+            }
+        }
 
         // we still don't get a valied solution.
         return std::nullopt;
