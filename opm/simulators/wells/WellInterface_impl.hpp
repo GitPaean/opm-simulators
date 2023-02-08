@@ -227,6 +227,7 @@ namespace Opm
         Parallel::Communication cc = ebos_simulator.vanguard().grid().comm();
         // checking whether control changed
         if (changed) {
+            this->updated_to_target = false;
             std::string to;
             if (well.isInjector()) {
                 to = WellInjectorCMode2String(ws.injection_cmode);
@@ -661,6 +662,13 @@ namespace Opm
                               WellState& well_state,
                               DeferredLogger& deferred_logger) const
     {
+        if (this->updated_to_target) {
+            return;
+        }
+        const bool output = (this->name() == "B-3H");
+        if (output) {
+            std::cout << " well " << this->name() << " in updateWellStateWithTarget ";
+        }
 
         // only bhp and wellRates are used to initilize the primaryvariables for standard wells
         const auto& well = this->well_ecl_;
@@ -808,6 +816,9 @@ namespace Opm
             switch (current) {
             case Well::ProducerCMode::ORAT:
             {
+                if (output) {
+                    std::cout << " for ORAT " << std::endl;
+                }
                 double current_rate = -ws.surface_rates[ pu.phase_pos[Oil] ];
                 // for trivial rates or opposite direction we don't just scale the rates
                 // but use either the potentials or the mobility ratio to initial the well rates
@@ -828,6 +839,9 @@ namespace Opm
             }
             case Well::ProducerCMode::WRAT:
             {
+                if (output) {
+                    std::cout << " for WRAT " << std::endl;
+                }
                 double current_rate = -ws.surface_rates[ pu.phase_pos[Water] ];
                 // for trivial rates or opposite direction we don't just scale the rates
                 // but use either the potentials or the mobility ratio to initial the well rates
@@ -848,6 +862,9 @@ namespace Opm
             }
             case Well::ProducerCMode::GRAT:
             {
+                if (output) {
+                    std::cout << " for GRAT " << std::endl;
+                }
                 double current_rate = -ws.surface_rates[pu.phase_pos[Gas] ];
                 // or trivial rates or opposite direction we don't just scale the rates
                 // but use either the potentials or the mobility ratio to initial the well rates
@@ -870,6 +887,9 @@ namespace Opm
             }
             case Well::ProducerCMode::LRAT:
             {
+                if (output) {
+                    std::cout << " for LRAT " << std::endl;
+                }
                 double current_rate = -ws.surface_rates[ pu.phase_pos[Water] ]
                         - ws.surface_rates[ pu.phase_pos[Oil] ];
                 // or trivial rates or opposite direction we don't just scale the rates
@@ -897,6 +917,9 @@ namespace Opm
             }
             case Well::ProducerCMode::RESV:
             {
+                if (output) {
+                    std::cout << " for RESV " << std::endl;
+                }
                 std::vector<double> convert_coeff(this->number_of_phases_, 1.0);
                 this->rateConverter_.calcCoeff(/*fipreg*/ 0, this->pvtRegionIdx_, convert_coeff);
                 double total_res_rate = 0.0;
@@ -948,6 +971,9 @@ namespace Opm
             }
             case Well::ProducerCMode::BHP:
             {
+                if (output) {
+                    std::cout << " for BHP " << std::endl;
+                }
                 ws.bhp = controls.bhp_limit;
                 double total_rate = 0.0;
                 for (int p = 0; p<np; ++p) {
@@ -965,6 +991,9 @@ namespace Opm
             }
             case Well::ProducerCMode::THP:
             {
+                if (output) {
+                    std::cout << " for THP " << std::endl;
+                }
                 auto rates = ws.surface_rates;
                 this->adaptRatesForVFP(rates);
                 double bhp = WellBhpThpCalculator(*this).calculateBhpFromThp(well_state,
@@ -989,6 +1018,9 @@ namespace Opm
             }
             case Well::ProducerCMode::GRUP:
             {
+                if (output) {
+                    std::cout << " for GRUP " << std::endl;
+                }
                 assert(well.isAvailableForGroupControl());
                 const auto& group = schedule.getGroup(well.groupName(), this->currentStep());
                 const double efficiencyFactor = well.getEfficiencyFactor();
@@ -1020,6 +1052,7 @@ namespace Opm
                 break;
             } // end of switch
         }
+        this->updated_to_target = true;
     }
 
     template<typename TypeTag>

@@ -289,6 +289,9 @@ public:
                            const GroupState& group_state,
                            DeferredLogger& deferred_logger);
 
+    // TODO: changed to use function to update this value
+    mutable bool updated_to_target = false;
+
 protected:
 
     // simulation parameters
@@ -299,6 +302,8 @@ protected:
     std::vector< Scalar > B_avg_;
 
     bool changed_to_stopped_this_step_ = false;
+
+    // mutable bool updated_to_target = false;
 
     double wpolymer() const;
 

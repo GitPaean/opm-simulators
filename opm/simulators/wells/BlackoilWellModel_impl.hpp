@@ -1423,6 +1423,7 @@ namespace Opm {
         // return as the DeferredLogger uses global communication.
         // For no well active globally we simply return.
         if( !wellsActive() ) return { false, false, 0.0 };
+        std::cout << " ENTERING updateWellControls " << std::endl;
 
         const int episodeIdx = ebosSimulator_.episodeIndex();
         const int iterationIdx = ebosSimulator_.model().newtonMethod().numIterations();
@@ -1478,6 +1479,7 @@ namespace Opm {
         // update wsolvent fraction for REIN wells
         const Group& fieldGroup = schedule().getGroup("FIELD", episodeIdx);
         updateWsolvent(fieldGroup, episodeIdx,  this->nupcolWellState());
+        std::cout << " LEAVING updateWellControls () " << std::endl;
 
         return { changed_well_group, network_changed, network_imbalance };
     }
@@ -1509,6 +1511,7 @@ namespace Opm {
         bool changed = false;
         bool changed_hc = checkGroupHigherConstraints( group, deferred_logger, reportStepIdx);
         if (changed_hc) {
+            this->makeAllWellReadyToUpdate();
             changed = true;
             updateAndCommunicate(reportStepIdx, iterationIdx, deferred_logger);
         }
@@ -1523,6 +1526,7 @@ namespace Opm {
                                              deferred_logger);
         if (changed_individual) {
             changed = true;
+            this->makeAllWellReadyToUpdate();
             updateAndCommunicate(reportStepIdx, iterationIdx, deferred_logger);
         }
         // call recursively down the group hierarchy

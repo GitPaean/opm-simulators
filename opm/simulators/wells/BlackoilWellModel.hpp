@@ -448,6 +448,12 @@ namespace Opm {
                 return ebosSimulator_.vanguard().compressedIndexForInterior(cartesian_cell_idx);
             }
 
+            void makeAllWellReadyToUpdate() const {
+                for (auto& well : this->well_container_) {
+                    well->updated_to_target = false;
+                }
+            }
+
         private:
             BlackoilWellModel(Simulator& ebosSimulator, const PhaseUsage& pu);
         };
