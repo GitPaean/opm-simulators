@@ -42,7 +42,7 @@
 
 #include <fmt/format.h>
 
-#define EXTRA_NETWORK_OUTPUT 0
+#define EXTRA_NETWORK_OUTPUT 1
 
 namespace Opm {
     template<typename TypeTag>

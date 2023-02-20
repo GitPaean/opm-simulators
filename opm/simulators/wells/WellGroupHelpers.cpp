@@ -880,7 +880,7 @@ namespace WellGroupHelpers
                                                               0.0, //explicit_wfr
                                                               0.0, //explicit_gfr
                                                               false); //use_expvfp we dont support explicit lookup
-#define EXTRA_DEBUG_NETWORK 0
+#define EXTRA_DEBUG_NETWORK 1
 #if EXTRA_DEBUG_NETWORK
                     std::ostringstream oss;
                     oss << "parent: " << (*upbranch).uptree_node() << "  child: " << node
