@@ -285,7 +285,12 @@ namespace Opm {
             // at the beginning of each time step (Not report step)
             void prepareTimeStep(DeferredLogger& deferred_logger);
             void initPrimaryVariablesEvaluation() const;
-            std::tuple<bool, bool, double> updateWellControls(DeferredLogger& deferred_logger);
+
+            // return { changed_well_group, more_network_update };
+            // the first return value indicates whether the well and group are changed
+            // the second return value indicated whether
+            std::pair<bool, bool> updateWellControls(DeferredLogger &deferred_logger, const bool balance_network,
+                                                     const bool relax_network_tolerance);
 
             void updateAndCommunicate(const int reportStepIdx,
                                       const int iterationIdx,
@@ -359,7 +364,11 @@ namespace Opm {
 
             SimulatorReportSingle last_report_{};
 
-            // used to better efficiency of calcuation
+            // solve to get a good network solution, group and well states might be updated as a result.
+            // the reservoir should stay static during this solution procedure
+            void balanceNetwork(DeferredLogger& deferred_logger);
+
+            // used to better efficiency of calculation
             mutable BVector scaleAddRes_{};
 
             std::vector<Scalar> B_avg_{};
@@ -377,10 +386,18 @@ namespace Opm {
             // and in the well equations.
             void assemble(const int iterationIdx,
                           const double dt);
-            bool assembleImpl(const int iterationIdx,
-                              const double dt,
-                              const std::size_t recursion_level,
-                              DeferredLogger& local_deferredLogger);
+            void assembleImpl(const double dt, DeferredLogger& local_deferredLogger);
+
+            // making the function that handle the update well controls and also network related
+            // to avoid calling the assembleImpl in recursive manner
+            // the name is temporary, and will rename when the refactoring is finished.
+            // the returned two booleans are {continue_due_to_network, well_group_control_changed}
+            std::pair<bool, bool>
+            updateWellControlsAndNetworkIteration(DeferredLogger &local_deferredLogger,
+                                                  const bool balance_network,
+                                                  const bool relax_network_tolerance);
+
+            bool updateWellControlsAndNetwork(DeferredLogger& local_deferredLogger, const bool balance_network);
 
             // called at the end of a time step
             void timeStepSucceeded(const double& simulationTime, const double dt);
