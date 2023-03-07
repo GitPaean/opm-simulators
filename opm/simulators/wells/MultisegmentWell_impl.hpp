@@ -22,6 +22,7 @@
 #include <opm/common/OpmLog/OpmLog.hpp>
 
 #include <opm/input/eclipse/Schedule/MSW/Valve.hpp>
+#include <opm/input/eclipse/Schedule/Well/WellConnections.hpp>
 #include <opm/input/eclipse/Units/Units.hpp>
 
 #include <opm/material/densead/EvaluationFormat.hpp>
@@ -704,8 +705,8 @@ namespace Opm
             };
 
             std::vector<Scalar> mob(this->num_components_, 0.0);
-            const WellConnections& completion_set = this->wellEcl().getConnections();
-            const Connection& connection = completion_set.get(static_cast<int>(subsetPerfID));
+            const WellConnections& connections = this->wellEcl().getConnections();
+            const Connection& connection = connections.get(static_cast<int>(subsetPerfID));
             const int seg = this->segmentNumberToIndex(connection.segment());
             getMobilityScalar(ebosSimulator, seg, static_cast<int>(subsetPerfID), mob, deferred_logger);
 
