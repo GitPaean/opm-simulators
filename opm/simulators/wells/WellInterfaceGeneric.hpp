@@ -114,7 +114,8 @@ public:
     }
 
     bool wellIsStopped() const {
-        return this->wellStatus_ == Well::Status::STOP;
+        return this->well_ecl_.getStatus() == Well::Status::STOP ||
+                         this->wellStatus_ == Well::Status::STOP;
     }
 
     int currentStep() const {
