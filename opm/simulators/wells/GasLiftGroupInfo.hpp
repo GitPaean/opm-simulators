@@ -27,9 +27,7 @@
 #include <opm/models/utils/propertysystem.hh>
 #include <opm/models/utils/parametersystem.hh>
 #include <opm/input/eclipse/Schedule/Schedule.hpp>
-#include <opm/input/eclipse/Schedule/Well/Well.hpp>
 #include <opm/input/eclipse/Schedule/Group/Group.hpp>
-#include <opm/input/eclipse/Schedule/SummaryState.hpp>
 #include <opm/simulators/wells/GasLiftCommon.hpp>
 #include <opm/simulators/wells/WellState.hpp>
 #include <opm/simulators/wells/GroupState.hpp>
@@ -45,6 +43,8 @@ namespace Opm
 {
 
 class GasLiftOpt;
+class SummaryState;
+class Well;
 
 class GasLiftGroupInfo : public GasLiftCommon
 {
@@ -60,11 +60,7 @@ protected:
     using GroupRateMap =
         std::map<std::string, GroupRates>;
     using GroupIdxMap = std::map<std::string, int>;
-#if DUNE_VERSION_NEWER(DUNE_COMMON, 2, 7)
     using Communication = Dune::Communication<Dune::MPIHelper::MPICommunicator>;
-#else
-    using Communication = Dune::CollectiveCommunication<Dune::MPIHelper::MPICommunicator>;
-#endif
 
     // TODO: same definition with WellInterface, and
     //   WellState eventually they should go to a common header file.

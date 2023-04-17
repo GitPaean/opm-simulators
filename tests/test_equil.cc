@@ -32,9 +32,12 @@
 #include <opm/grid/GridManager.hpp>
 #include <opm/grid/cpgrid/GridHelpers.hpp>
 
+#include <opm/input/eclipse/EclipseState/SummaryConfig/SummaryConfig.hpp>
+
 #include <opm/input/eclipse/Units/Units.hpp>
 
 #include <opm/models/utils/start.hh>
+#include <opm/simulators/linalg/parallelbicgstabbackend.hh>
 
 #include <opm/simulators/flow/BlackoilModelParametersEbos.hpp>
 #include <opm/simulators/wells/BlackoilWellModel.hpp>

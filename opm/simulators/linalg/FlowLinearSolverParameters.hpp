@@ -45,6 +45,12 @@ template<class TypeTag, class MyTypeTag>
 struct LinearSolverReduction {
     using type = UndefinedProperty;
 };
+
+template<class TypeTag, class MyTypeTag>
+struct RelaxedLinearSolverReduction {
+    using type = UndefinedProperty;
+};
+    
 template<class TypeTag, class MyTypeTag>
 struct IluRelaxation {
     using type = UndefinedProperty;
@@ -125,6 +131,11 @@ struct LinearSolverReduction<TypeTag, TTag::FlowIstlSolverParams> {
     using type = GetPropType<TypeTag, Scalar>;
     static constexpr type value = 1e-2;
 };
+template<class TypeTag>
+struct RelaxedLinearSolverReduction<TypeTag, TTag::FlowIstlSolverParams> {
+    using type = GetPropType<TypeTag, Scalar>;
+    static constexpr type value = 1e-2;
+};    
 template<class TypeTag>
 struct IluRelaxation<TypeTag, TTag::FlowIstlSolverParams> {
     using type = GetPropType<TypeTag, Scalar>;
@@ -217,6 +228,7 @@ namespace Opm
     struct FlowLinearSolverParameters
     {
         double linear_solver_reduction_;
+        double relaxed_linear_solver_reduction_;
         double ilu_relaxation_;
         int    linear_solver_maxiter_;
         int    linear_solver_restart_;
@@ -238,10 +250,11 @@ namespace Opm
         bool opencl_ilu_parallel_;
 
         template <class TypeTag>
-        void init()
+        void init(bool cprRequestedInDataFile)
         {
             // TODO: these parameters have undocumented non-trivial dependencies
             linear_solver_reduction_ = EWOMS_GET_PARAM(TypeTag, double, LinearSolverReduction);
+            relaxed_linear_solver_reduction_ = EWOMS_GET_PARAM(TypeTag, double, RelaxedLinearSolverReduction);
             ilu_relaxation_ = EWOMS_GET_PARAM(TypeTag, double, IluRelaxation);
             linear_solver_maxiter_ = EWOMS_GET_PARAM(TypeTag, int, LinearSolverMaxIter);
             linear_solver_restart_ = EWOMS_GET_PARAM(TypeTag, int, LinearSolverRestart);
@@ -255,7 +268,13 @@ namespace Opm
             scale_linear_system_ = EWOMS_GET_PARAM(TypeTag, bool, ScaleLinearSystem);
             cpr_reuse_setup_  =  EWOMS_GET_PARAM(TypeTag, int, CprReuseSetup);
             cpr_reuse_interval_  =  EWOMS_GET_PARAM(TypeTag, int, CprReuseInterval);
-            linsolver_ = EWOMS_GET_PARAM(TypeTag, std::string, LinearSolver);
+
+            if (!EWOMS_PARAM_IS_SET(TypeTag, int, LinearSolverMaxIter) && cprRequestedInDataFile) {
+                linsolver_ = "cpr";
+            } else {
+                linsolver_ = EWOMS_GET_PARAM(TypeTag, std::string, LinearSolver);
+            }
+
             accelerator_mode_ = EWOMS_GET_PARAM(TypeTag, std::string, AcceleratorMode);
             bda_device_id_ = EWOMS_GET_PARAM(TypeTag, int, BdaDeviceId);
             opencl_platform_id_ = EWOMS_GET_PARAM(TypeTag, int, OpenclPlatformId);
@@ -265,7 +284,8 @@ namespace Opm
         template <class TypeTag>
         static void registerParameters()
         {
-            EWOMS_REGISTER_PARAM(TypeTag, double, LinearSolverReduction, "The minimum reduction of the residual which the linear solver must achieve");
+            EWOMS_REGISTER_PARAM(TypeTag, double, LinearSolverReduction, "The minimum reduction of the residual which the linear solver must achieve should try to achive");
+            EWOMS_REGISTER_PARAM(TypeTag, double, RelaxedLinearSolverReduction, "The minimum reduction of the residual which the linear solver need to achieve for the solution to be accepted");
             EWOMS_REGISTER_PARAM(TypeTag, double, IluRelaxation, "The relaxation factor of the linear solver's ILU preconditioner");
             EWOMS_REGISTER_PARAM(TypeTag, int, LinearSolverMaxIter, "The maximum number of iterations of the linear solver");
             EWOMS_REGISTER_PARAM(TypeTag, int, LinearSolverRestart, "The number of iterations after which GMRES is restarted");
@@ -279,7 +299,7 @@ namespace Opm
             EWOMS_REGISTER_PARAM(TypeTag, bool, ScaleLinearSystem, "Scale linear system according to equation scale and primary variable types");
             EWOMS_REGISTER_PARAM(TypeTag, int, CprReuseSetup, "Reuse preconditioner setup. Valid options are 0: recreate the preconditioner for every linear solve, 1: recreate once every timestep, 2: recreate if last linear solve took more than 10 iterations, 3: never recreate, 4: recreated every CprReuseInterval");
             EWOMS_REGISTER_PARAM(TypeTag, int, CprReuseInterval, "Reuse preconditioner interval. Used when CprReuseSetup is set to 4, then the preconditioner will be fully recreated instead of reused every N linear solve, where N is this parameter.");
-            EWOMS_REGISTER_PARAM(TypeTag, std::string, LinearSolver, "Configuration of solver. Valid options are: ilu0 (default), cpr (an alias for cpr_trueimpes), cpr_quasiimpes, cpr_trueimpes or amg. Alternatively, you can request a configuration to be read from a JSON file by giving the filename here, ending with '.json.'");
+            EWOMS_REGISTER_PARAM(TypeTag, std::string, LinearSolver, "Configuration of solver. Valid options are: ilu0 (default), cprw, cpr (an alias for cprw), cpr_quasiimpes, cpr_trueimpes or amg. Alternatively, you can request a configuration to be read from a JSON file by giving the filename here, ending with '.json.'");
             EWOMS_REGISTER_PARAM(TypeTag, std::string, AcceleratorMode, "Choose a linear solver, usage: '--accelerator-mode=[none|cusparse|opencl|amgcl|rocalution]'");
             EWOMS_REGISTER_PARAM(TypeTag, int, BdaDeviceId, "Choose device ID for cusparseSolver or openclSolver, use 'nvidia-smi' or 'clinfo' to determine valid IDs");
             EWOMS_REGISTER_PARAM(TypeTag, int, OpenclPlatformId, "Choose platform ID for openclSolver, use 'clinfo' to determine valid platform IDs");
@@ -293,6 +313,7 @@ namespace Opm
         {
             newton_use_gmres_        = false;
             linear_solver_reduction_ = 1e-2;
+            relaxed_linear_solver_reduction_ = 1e-2;
             linear_solver_maxiter_   = 150;
             linear_solver_restart_   = 40;
             linear_solver_verbosity_ = 0;

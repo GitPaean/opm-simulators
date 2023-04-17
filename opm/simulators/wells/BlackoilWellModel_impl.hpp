@@ -204,21 +204,22 @@ namespace Opm {
             WellGroupHelpers::setCmodeGroup(fieldGroup, schedule(), summaryState, timeStepIdx, this->wellState(), this->groupState());
 
             // Compute reservoir volumes for RESV controls.
-            rateConverter_.reset(new RateConverterType (phase_usage_,
-                                                        std::vector<int>(local_num_cells_, 0)));
+            rateConverter_ = std::make_unique<RateConverterType>(phase_usage_,
+                                                                 std::vector<int>(local_num_cells_, 0));
             rateConverter_->template defineState<ElementContext>(ebosSimulator_);
 
             // Compute regional average pressures used by gpmaint
             if (schedule_[timeStepIdx].has_gpmaint()) {
-                const auto& fp = this->eclState_.fieldProps();
-                const auto& fipnum = fp.get_int("FIPNUM");
-                regionalAveragePressureCalculator_.reset(new AverageRegionalPressureType (phase_usage_,fipnum));
+                WellGroupHelpers::setRegionAveragePressureCalculator(fieldGroup, schedule(),
+                        timeStepIdx, this->eclState_.fieldProps(), phase_usage_, regionalAveragePressureCalculator_);
             }
 
             {
                 const auto& sched_state = this->schedule()[timeStepIdx];
                 // update VFP properties
-                vfp_properties_.reset(new VFPProperties( sched_state.vfpinj(), sched_state.vfpprod(), this->prevWellState()));
+                vfp_properties_ = std::make_unique<VFPProperties>(sched_state.vfpinj(),
+                                                                  sched_state.vfpprod(),
+                                                                  this->prevWellState());
                 this->initializeWellProdIndCalculators();
                 if (sched_state.events().hasEvent(ScheduleEvents::Events::WELL_PRODUCTIVITY_INDEX)) {
                     this->runWellPIScaling(timeStepIdx, local_deferredLogger);
@@ -238,6 +239,7 @@ namespace Opm {
     BlackoilWellModel<TypeTag>::
     beginTimeStep()
     {
+        OPM_TIMEBLOCK(beginTimeStep);
         updatePerforationIntensiveQuantities();
         updateAverageFormationFactor();
         DeferredLogger local_deferredLogger;
@@ -332,10 +334,12 @@ namespace Opm {
         auto exc_type = ExceptionType::NONE;
         // update gpmaint targets
         if (schedule_[reportStepIdx].has_gpmaint()) {
-            regionalAveragePressureCalculator_->template defineState<ElementContext>(ebosSimulator_);
+            for (auto& calculator : regionalAveragePressureCalculator_) {
+                calculator.second->template defineState<ElementContext>(ebosSimulator_);
+            }
             const double dt = ebosSimulator_.timeStepSize();
             WellGroupHelpers::updateGpMaintTargetForGroups(fieldGroup,
-                                                           schedule_, *regionalAveragePressureCalculator_, reportStepIdx, dt, this->wellState(), this->groupState());
+                                                           schedule_, regionalAveragePressureCalculator_, reportStepIdx, dt, this->wellState(), this->groupState());
         }
         try {
             // Compute initial well solution for new wells and injectors that change injection type i.e. WAG.
@@ -381,30 +385,24 @@ namespace Opm {
                                             const double simulationTime,
                                             DeferredLogger& deferred_logger)
     {
-        const auto& wtest_config = schedule()[timeStepIdx].wtest_config();
-        if (!wtest_config.empty()) { // there is a WTEST request
-            const std::vector<std::string> wellsForTesting = wellTestState()
-                .test_wells(wtest_config, simulationTime);
-            for (const std::string& well_name : wellsForTesting) {
+        for (const std::string& well_name : this->getWellsForTesting(timeStepIdx, simulationTime)) {
+            const Well& wellEcl = schedule().getWell(well_name, timeStepIdx);
+            if (wellEcl.getStatus() == Well::Status::SHUT)
+                continue;
 
-                const Well& wellEcl = schedule().getWell(well_name, timeStepIdx);
-                if (wellEcl.getStatus() == Well::Status::SHUT)
-                    continue;
+            WellInterfacePtr well = createWellForWellTest(well_name, timeStepIdx, deferred_logger);
+            // some preparation before the well can be used
+            well->init(&phase_usage_, depth_, gravity_, local_num_cells_, B_avg_, true);
 
-                WellInterfacePtr well = createWellForWellTest(well_name, timeStepIdx, deferred_logger);
-                // some preparation before the well can be used
-                well->init(&phase_usage_, depth_, gravity_, local_num_cells_, B_avg_, true);
+            double well_efficiency_factor = wellEcl.getEfficiencyFactor();
+            WellGroupHelpers::accumulateGroupEfficiencyFactor(schedule().getGroup(wellEcl.groupName(), timeStepIdx),
+                                                              schedule(), timeStepIdx, well_efficiency_factor);
 
-                double well_efficiency_factor = wellEcl.getEfficiencyFactor();
-                WellGroupHelpers::accumulateGroupEfficiencyFactor(schedule().getGroup(wellEcl.groupName(), timeStepIdx),
-                                                                  schedule(), timeStepIdx, well_efficiency_factor);
+            well->setWellEfficiencyFactor(well_efficiency_factor);
+            well->setVFPProperties(vfp_properties_.get());
+            well->setGuideRate(&guideRate_);
 
-                well->setWellEfficiencyFactor(well_efficiency_factor);
-                well->setVFPProperties(vfp_properties_.get());
-                well->setGuideRate(&guideRate_);
-
-                well->wellTesting(ebosSimulator_, simulationTime, this->wellState(), this->groupState(), wellTestState(), deferred_logger);
-            }
+            well->wellTesting(ebosSimulator_, simulationTime, this->wellState(), this->groupState(), wellTestState(), deferred_logger);
         }
     }
 
@@ -1291,6 +1289,35 @@ namespace Opm {
         }
     }
 
+    template <typename TypeTag>
+    void BlackoilWellModel<TypeTag>::
+    addReservoirSourceTerms(GlobalEqVector& residual,
+                            std::vector<typename SparseMatrixAdapter::MatrixBlock*>& diagMatAddress) const
+    {
+        // NB this loop may write multiple times to the same element
+        // if a cell is perforated by more than one well, so it should
+        // not be OpenMP-parallelized.
+        for (const auto& well : well_container_) {
+            if (!well->isOperableAndSolvable() && !well->wellIsStopped()) {
+                continue;
+            }
+            const auto& cells = well->cells();
+            const auto& rates = well->connectionRates();
+            for (unsigned perfIdx = 0; perfIdx < rates.size(); ++perfIdx) {
+                unsigned cellIdx = cells[perfIdx];
+                auto rate = rates[perfIdx];
+                rate *= -1.0;
+                VectorBlockType res(0.0);
+                using MatrixBlockType = typename SparseMatrixAdapter::MatrixBlock;
+                MatrixBlockType bMat(0.0);
+                ebosSimulator_.model().linearizer().setResAndJacobi(res, bMat, rate);
+                residual[cellIdx] += res;
+                *diagMatAddress[cellIdx] += bMat;
+            }
+        }
+    }
+
+
     template<typename TypeTag>
     int
     BlackoilWellModel<TypeTag>::
@@ -1366,7 +1393,8 @@ namespace Opm {
         OPM_BEGIN_PARALLEL_TRY_CATCH();
         {
             for (auto& well : well_container_) {
-                well->recoverWellSolutionAndUpdateWellState(x, this->wellState(), local_deferredLogger);
+                const auto& summary_state = ebosSimulator_.vanguard().summaryState();
+                well->recoverWellSolutionAndUpdateWellState(summary_state, x, this->wellState(), local_deferredLogger);
             }
 
         }
@@ -1406,7 +1434,10 @@ namespace Opm {
         const int iterationIdx = ebosSimulator_.model().newtonMethod().numIterations();
         for (const auto& well : well_container_) {
             if (well->isOperableAndSolvable() || well->wellIsStopped()) {
-                local_report += well->getWellConvergence(this->wellState(), B_avg, local_deferredLogger, iterationIdx > param_.strict_outer_iter_wells_ );
+                const auto& summary_state = ebosSimulator_.vanguard().summaryState();
+                local_report += well->getWellConvergence(
+                        summary_state, this->wellState(), B_avg, local_deferredLogger,
+                        iterationIdx > param_.strict_outer_iter_wells_);
             } else {
                 ConvergenceReport report;
                 using CR = ConvergenceReport;
@@ -1711,7 +1742,8 @@ namespace Opm {
             auto& events = this->wellState().well(well->indexOfWell()).events;
             if (events.hasEvent(WellState::event_mask)) {
                 well->updateWellStateWithTarget(ebosSimulator_, this->groupState(), this->wellState(), deferred_logger);
-                well->updatePrimaryVariables(this->wellState(), deferred_logger);
+                const auto& summary_state = ebosSimulator_.vanguard().summaryState();
+                well->updatePrimaryVariables(summary_state, this->wellState(), deferred_logger);
                 well->initPrimaryVariablesEvaluation();
                 // There is no new well control change input within a report step,
                 // so next time step, the well does not consider to have effective events anymore.
@@ -1785,7 +1817,8 @@ namespace Opm {
     updatePrimaryVariables(DeferredLogger& deferred_logger)
     {
         for (const auto& well : well_container_) {
-            well->updatePrimaryVariables(this->wellState(), deferred_logger);
+            const auto& summary_state = ebosSimulator_.vanguard().summaryState();
+            well->updatePrimaryVariables(summary_state, this->wellState(), deferred_logger);
         }
     }
 
@@ -1908,9 +1941,10 @@ namespace Opm {
     BlackoilWellModel<TypeTag>::
     calcRates(const int fipnum,
               const int pvtreg,
+              const std::vector<double>& production_rates,
               std::vector<double>& resv_coeff)
     {
-        rateConverter_->calcCoeff(fipnum, pvtreg, resv_coeff);
+        rateConverter_->calcCoeff(fipnum, pvtreg, production_rates, resv_coeff);
     }
 
     template<typename TypeTag>
@@ -1959,7 +1993,7 @@ namespace Opm {
 
             for (int perf = 0; perf < num_perf_this_well; ++perf) {
                 const int cell_idx = well_perf_data_[wellID][perf].cell_index;
-                const auto& intQuants = *(ebosSimulator_.model().cachedIntensiveQuantities(cell_idx, /*timeIdx=*/0));
+                const auto& intQuants = ebosSimulator_.model().intensiveQuantities(cell_idx, /*timeIdx=*/0);
                 const auto& fs = intQuants.fluidState();
 
                 // we on only have one temperature pr cell any phaseIdx will do

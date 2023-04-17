@@ -23,7 +23,7 @@
 #include <functional>
 #include <vector>
 
-#include <opm/input/eclipse/Schedule/Well/Well.hpp>
+#include <opm/input/eclipse/Schedule/Well/WellEnums.hpp>
 #include <opm/input/eclipse/Schedule/Events.hpp>
 
 #include <opm/simulators/wells/SegmentState.hpp>
@@ -34,6 +34,8 @@
 namespace Opm {
 
 struct PerforationData;
+class SummaryState;
+class Well;
 
 class SingleWellState {
 public:
@@ -45,10 +47,39 @@ public:
                     const PhaseUsage& pu,
                     double temp);
 
+    static SingleWellState serializationTestObject(const ParallelWellInfo& pinfo);
+
+    template<class Serializer>
+    void serializeOp(Serializer& serializer)
+    {
+        serializer(name);
+        serializer(status);
+        serializer(producer);
+        serializer(bhp);
+        serializer(thp);
+        serializer(temperature);
+        serializer(dissolved_gas_rate);
+        serializer(dissolved_gas_rate_in_water);
+        serializer(vaporized_oil_rate);
+        serializer(vaporized_wat_rate);
+        serializer(well_potentials);
+        serializer(productivity_index);
+        serializer(surface_rates);
+        serializer(reservoir_rates);
+        serializer(trivial_target);
+        serializer(segments);
+        serializer(events);
+        serializer(injection_cmode);
+        serializer(production_cmode);
+        serializer(perf_data);
+    }
+
+    bool operator==(const SingleWellState&) const;
+
     std::string name;
     std::reference_wrapper<const ParallelWellInfo> parallel_info;
 
-    Well::Status status{Well::Status::OPEN};
+    WellStatus status{WellStatus::OPEN};
     bool producer;
     PhaseUsage pu;
     double bhp{0};
@@ -66,8 +97,8 @@ public:
     bool trivial_target;
     SegmentState segments;
     Events events;
-    Well::InjectorCMode injection_cmode{Well::InjectorCMode::CMODE_UNDEFINED};
-    Well::ProducerCMode production_cmode{Well::ProducerCMode::CMODE_UNDEFINED};
+    WellInjectorCMode injection_cmode{WellInjectorCMode::CMODE_UNDEFINED};
+    WellProducerCMode production_cmode{WellProducerCMode::CMODE_UNDEFINED};
 
 
     /// Special purpose method to support dynamically rescaling a well's
@@ -80,7 +111,7 @@ public:
     void update_producer_targets(const Well& ecl_well, const SummaryState& st);
     void update_injector_targets(const Well& ecl_well, const SummaryState& st);
     void update_targets(const Well& ecl_well, const SummaryState& st);
-    void updateStatus(Well::Status status);
+    void updateStatus(WellStatus status);
     void init_timestep(const SingleWellState& other);
     void shut();
     void stop();
@@ -92,6 +123,7 @@ public:
     double sum_solvent_rates() const;
     double sum_polymer_rates() const;
     double sum_brine_rates() const;
+
 private:
     double sum_connection_rates(const std::vector<double>& connection_rates) const;
 };

@@ -26,6 +26,7 @@
 #include <opm/simulators/wells/GroupState.hpp>
 #include <opm/simulators/wells/TargetCalculator.hpp>
 #include <opm/simulators/wells/WellBhpThpCalculator.hpp>
+#include <opm/simulators/wells/WellHelpers.hpp>
 
 #include <dune/common/version.hh>
 
@@ -183,7 +184,8 @@ namespace Opm
                       const GroupState& group_state,
                       DeferredLogger& deferred_logger) /* const */
     {
-        if (this->wellIsStopped()) {
+        const auto& summary_state = ebos_simulator.vanguard().summaryState();
+        if (this->stopppedOrZeroRateTarget(summary_state, well_state)) {
             return false;
         }
 
@@ -193,9 +195,9 @@ namespace Opm
         auto& ws = well_state.well(this->index_of_well_);
         std::string from;
         if (well.isInjector()) {
-            from = Well::InjectorCMode2String(ws.injection_cmode);
+            from = WellInjectorCMode2String(ws.injection_cmode);
         } else {
-            from = Well::ProducerCMode2String(ws.production_cmode);
+            from = WellProducerCMode2String(ws.production_cmode);
         }
         bool oscillating = std::count(this->well_control_log_.begin(), this->well_control_log_.end(), from) >= param_.max_number_of_well_switches_;
 
@@ -229,9 +231,9 @@ namespace Opm
         if (changed) {
             std::string to;
             if (well.isInjector()) {
-                to = Well::InjectorCMode2String(ws.injection_cmode);
+                to = WellInjectorCMode2String(ws.injection_cmode);
             } else {
-                to = Well::ProducerCMode2String(ws.production_cmode);
+                to = WellProducerCMode2String(ws.production_cmode);
             }
             std::ostringstream ss;
             ss << "    Switching control mode for well " << this->name()
@@ -244,7 +246,7 @@ namespace Opm
 
             this->well_control_log_.push_back(from);
             updateWellStateWithTarget(ebos_simulator, group_state, well_state, deferred_logger);
-            updatePrimaryVariables(well_state, deferred_logger);
+            updatePrimaryVariables(summaryState, well_state, deferred_logger);
         }
 
         return changed;
@@ -269,7 +271,8 @@ namespace Opm
 
         updateWellStateWithTarget(simulator, group_state, well_state_copy, deferred_logger);
         calculateExplicitQuantities(simulator, well_state_copy, deferred_logger);
-        updatePrimaryVariables(well_state_copy, deferred_logger);
+        const auto& summary_state = simulator.vanguard().summaryState();
+        updatePrimaryVariables(summary_state, well_state_copy, deferred_logger);
         initPrimaryVariablesEvaluation();
 
         if (this->isProducer()) {
@@ -427,13 +430,13 @@ namespace Opm
                 thp_control = ws.injection_cmode == Well::InjectorCMode::THP;
                 if (thp_control) {
                     ws.injection_cmode = Well::InjectorCMode::BHP;
-                    this->well_control_log_.push_back(Well::InjectorCMode2String(Well::InjectorCMode::THP));
+                    this->well_control_log_.push_back(WellInjectorCMode2String(Well::InjectorCMode::THP));
                 }
             } else {
                 thp_control = ws.production_cmode == Well::ProducerCMode::THP;
                 if (thp_control) {
                     ws.production_cmode = Well::ProducerCMode::BHP;
-                    this->well_control_log_.push_back(Well::ProducerCMode2String(Well::ProducerCMode::THP));
+                    this->well_control_log_.push_back(WellProducerCMode2String(Well::ProducerCMode::THP));
                 }
             }
             if (thp_control) {
@@ -898,7 +901,7 @@ namespace Opm
             case Well::ProducerCMode::RESV:
             {
                 std::vector<double> convert_coeff(this->number_of_phases_, 1.0);
-                this->rateConverter_.calcCoeff(/*fipreg*/ 0, this->pvtRegionIdx_, convert_coeff);
+                this->rateConverter_.calcCoeff(/*fipreg*/ 0, this->pvtRegionIdx_, ws.surface_rates, convert_coeff);
                 double total_res_rate = 0.0;
                 for (int p = 0; p<np; ++p) {
                     total_res_rate -= ws.surface_rates[p] * convert_coeff[p];
@@ -965,24 +968,26 @@ namespace Opm
             }
             case Well::ProducerCMode::THP:
             {
-                auto rates = ws.surface_rates;
-                this->adaptRatesForVFP(rates);
-                double bhp = WellBhpThpCalculator(*this).calculateBhpFromThp(well_state,
-                                                                             rates,
-                                                                             well,
-                                                                             summaryState,
-                                                                             this->getRefDensity(),
-                                                                             deferred_logger);
-                ws.bhp = bhp;
-                ws.thp = this->getTHPConstraint(summaryState);
+                const bool update_success = updateWellStateWithTHPTargetProd(ebos_simulator, well_state, deferred_logger);
 
-                // if the total rates are negative or zero
-                // we try to provide a better intial well rate
-                // using the well potentials
-                double total_rate = -std::accumulate(rates.begin(), rates.end(), 0.0);
-                if (total_rate <= 0.0){
-                    for (int p = 0; p<np; ++p) {
-                        ws.surface_rates[p] = -ws.well_potentials[p];
+                if (!update_success) {
+                    // the following is the original way of initializing well state with THP constraint
+                    // keeping it for robust reason in case that it fails to get a bhp value with THP constraint
+                    // more sophisticated design might be needed in the future
+                    auto rates = ws.surface_rates;
+                    this->adaptRatesForVFP(rates);
+                    const double bhp = WellBhpThpCalculator(*this).calculateBhpFromThp(
+                        well_state, rates, well, summaryState, this->getRefDensity(), deferred_logger);
+                    ws.bhp = bhp;
+                    ws.thp = this->getTHPConstraint(summaryState);
+                    // if the total rates are negative or zero
+                    // we try to provide a better initial well rate
+                    // using the well potentials
+                    const double total_rate = -std::accumulate(rates.begin(), rates.end(), 0.0);
+                    if (total_rate <= 0.0) {
+                        for (int p = 0; p < this->number_of_phases_; ++p) {
+                            ws.surface_rates[p] = -ws.well_potentials[p];
+                        }
                     }
                 }
                 break;
@@ -997,7 +1002,8 @@ namespace Opm
                                                           group_state,
                                                           schedule,
                                                           summaryState,
-                                                          efficiencyFactor);
+                                                          efficiencyFactor,
+                                                          deferred_logger);
 
                 // we don't want to scale with zero and get zero rates.
                 if (scale > 0) {
@@ -1049,7 +1055,7 @@ namespace Opm
         }
         for (int perf = 0; perf < nperf; ++perf) {
             const int cell_idx = this->well_cells_[perf];
-            const auto& intQuants = *(ebosSimulator.model().cachedIntensiveQuantities(cell_idx, /*timeIdx=*/0));
+            const auto& intQuants = ebosSimulator.model().intensiveQuantities(cell_idx, /*timeIdx=*/0);
             const auto& fs = intQuants.fluidState();
             const double well_tw_fraction = this->well_index_[perf] / total_tw;
             double total_mobility = 0.0;
@@ -1125,4 +1131,5 @@ namespace Opm
             return fs.pressure(FluidSystem::gasPhaseIdx);
         }
     }
+
 } // namespace Opm

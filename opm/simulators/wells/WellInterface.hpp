@@ -28,7 +28,6 @@
 #include <opm/common/ErrorMacros.hpp>
 #include <opm/common/Exceptions.hpp>
 
-#include <opm/input/eclipse/Schedule/Well/Well.hpp>
 #include <opm/input/eclipse/Schedule/Well/WellTestState.hpp>
 
 #include <opm/core/props/BlackoilPhases.hpp>
@@ -64,6 +63,9 @@ namespace Opm {
 
 namespace Opm
 {
+
+class WellInjectionProperties;
+class WellProductionProperties;
 
 template<typename TypeTag>
 class WellInterface : public WellInterfaceIndices<GetPropType<TypeTag, Properties::FluidSystem>,
@@ -152,9 +154,11 @@ public:
 
     virtual void initPrimaryVariablesEvaluation() = 0;
 
-    virtual ConvergenceReport getWellConvergence(const WellState& well_state, const std::vector<double>& B_avg, DeferredLogger& deferred_logger, const bool relax_tolerance) const = 0;
-
-    virtual void solveEqAndUpdateWellState(WellState& well_state, DeferredLogger& deferred_logger) = 0;
+    virtual ConvergenceReport getWellConvergence(const SummaryState& summary_state,
+                                                 const WellState& well_state,
+                                                 const std::vector<double>& B_avg,
+                                                 DeferredLogger& deferred_logger,
+                                                 const bool relax_tolerance) const = 0;
 
     void assembleWellEq(const Simulator& ebosSimulator,
                         const double dt,
@@ -178,7 +182,8 @@ public:
 
     /// using the solution x to recover the solution xw for wells and applying
     /// xw to update Well State
-    virtual void recoverWellSolutionAndUpdateWellState(const BVector& x,
+    virtual void recoverWellSolutionAndUpdateWellState(const SummaryState& summary_state,
+                                                       const BVector& x,
                                                        WellState& well_state,
                                                        DeferredLogger& deferred_logger) = 0;
 
@@ -199,6 +204,10 @@ public:
                                            WellState& well_state,
                                            DeferredLogger& deferred_logger) const;
 
+    virtual bool updateWellStateWithTHPTargetProd(const Simulator& ebos_simulator,
+                                                  WellState& well_state,
+                                                  DeferredLogger& deferred_logger) const = 0;
+
     enum class IndividualOrGroup { Individual, Group, Both };
     bool updateWellControl(const Simulator& ebos_simulator,
                            const IndividualOrGroup iog,
@@ -206,7 +215,9 @@ public:
                            const GroupState& group_state,
                            DeferredLogger& deferred_logger) /* const */;
 
-    virtual void updatePrimaryVariables(const WellState& well_state, DeferredLogger& deferred_logger) = 0;
+    virtual void updatePrimaryVariables(const SummaryState& summary_state,
+                                        const WellState& well_state,
+                                        DeferredLogger& deferred_logger) = 0;
 
     virtual void calculateExplicitQuantities(const Simulator& ebosSimulator,
                                              const WellState& well_state,
@@ -287,6 +298,11 @@ public:
                            const GroupState& group_state,
                            DeferredLogger& deferred_logger);
 
+    const std::vector<RateVector>& connectionRates() const
+    {
+        return connectionRates_;
+    }
+
 protected:
 
     // simulation parameters
@@ -327,8 +343,8 @@ protected:
 
     virtual void assembleWellEqWithoutIteration(const Simulator& ebosSimulator,
                                                 const double dt,
-                                                const Well::InjectionControls& inj_controls,
-                                                const Well::ProductionControls& prod_controls,
+                                                const WellInjectionControls& inj_controls,
+                                                const WellProductionControls& prod_controls,
                                                 WellState& well_state,
                                                 const GroupState& group_state,
                                                 DeferredLogger& deferred_logger) = 0;
@@ -336,8 +352,8 @@ protected:
     // iterate well equations with the specified control until converged
     virtual bool iterateWellEqWithControl(const Simulator& ebosSimulator,
                                           const double dt,
-                                          const Well::InjectionControls& inj_controls,
-                                          const Well::ProductionControls& prod_controls,
+                                          const WellInjectionControls& inj_controls,
+                                          const WellProductionControls& prod_controls,
                                           WellState& well_state,
                                           const GroupState& group_state,
                                           DeferredLogger& deferred_logger) = 0;
@@ -352,7 +368,6 @@ protected:
                              DeferredLogger& deferred_logger);
 
     Eval getPerfCellPressure(const FluidState& fs) const;
-
 
 };
 

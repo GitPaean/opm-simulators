@@ -24,6 +24,8 @@
 
 #include <opm/simulators/wells/BlackoilWellModelGeneric.hpp>
 
+#include <opm/common/ErrorMacros.hpp>
+
 #include <opm/output/data/GuideRateValue.hpp>
 #include <opm/output/data/Groups.hpp>
 #include <opm/output/data/Wells.hpp>
@@ -38,6 +40,7 @@
 #include <opm/input/eclipse/Schedule/Network/ExtNetwork.hpp>
 #include <opm/input/eclipse/Schedule/Schedule.hpp>
 #include <opm/input/eclipse/Schedule/Well/WellConnections.hpp>
+#include <opm/input/eclipse/Schedule/Well/WellTestConfig.hpp>
 #include <opm/input/eclipse/EclipseState/SummaryConfig/SummaryConfig.hpp>
 
 #include <opm/simulators/utils/DeferredLogger.hpp>
@@ -213,6 +216,29 @@ initFromRestartFile(const RestartValue& restartValues,
     this->active_wgstate_.wtest_state(std::move(wtestState));
     this->commitWGState();
     initial_step_ = false;
+}
+
+void
+BlackoilWellModelGeneric::
+prepareDeserialize(int report_step, const size_t numCells, bool handle_ms_well)
+{
+    // wells_ecl_ should only contain wells on this processor.
+    wells_ecl_ = getLocalWells(report_step);
+    this->local_parallel_well_info_ = createLocalParallelWellInfo(wells_ecl_);
+
+    this->initializeWellProdIndCalculators();
+    initializeWellPerfData();
+
+    if (! this->wells_ecl_.empty()) {
+        handle_ms_well &= anyMSWellOpenLocal();
+        this->wellState().resize(this->wells_ecl_, this->local_parallel_well_info_,
+                                 this->schedule(), handle_ms_well, numCells,
+                                 this->well_perf_data_, this->summaryState_);
+
+    }
+    this->wellState().clearWellRates();
+    this->commitWGState();
+    this->updateNupcolWGState();
 }
 
 std::vector<Well>
@@ -523,7 +549,7 @@ checkGroupHigherConstraints(const Group& group,
             rates[phasePos] = -comm_.sum(local_current_rate);
         }
         std::vector<double> resv_coeff(phase_usage_.num_phases, 0.0);
-        calcRates(fipnum, pvtreg, resv_coeff);
+        calcRates(fipnum, pvtreg, this->groupState().production_rates(group.name()), resv_coeff);
         // Check higher up only if under individual (not FLD) control.
         const Group::ProductionCMode& currentControl = this->groupState().production_control(group.name());
         if (currentControl != Group::ProductionCMode::FLD && group.productionGroupControlAvailable()) {
@@ -1257,6 +1283,17 @@ getCellsForConnections(const Well& well) const
     }
 
     return wellCells;
+}
+
+std::vector<std::string>
+BlackoilWellModelGeneric::getWellsForTesting(const int timeStepIdx,
+                                             const double simulationTime)
+{
+  const auto& wtest_config = schedule()[timeStepIdx].wtest_config();
+  if (!wtest_config.empty()) { // there is a WTEST request
+      return wellTestState().test_wells(wtest_config, simulationTime);
+  } else
+      return {};
 }
 
 }

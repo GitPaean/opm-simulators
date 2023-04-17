@@ -52,6 +52,7 @@
 #include <opm/input/eclipse/EclipseState/IOConfig/IOConfig.hpp>
 #include <opm/input/eclipse/Schedule/RPTConfig.hpp>
 #include <opm/input/eclipse/Schedule/RSTConfig.hpp>
+#include <opm/input/eclipse/Schedule/SummaryState.hpp>
 #include <opm/input/eclipse/Schedule/Action/ActionResult.hpp>
 #include <opm/input/eclipse/Schedule/Action/State.hpp>
 #include <opm/input/eclipse/Schedule/Action/ActionAST.hpp>
@@ -143,18 +144,14 @@
 template<class T>
 std::tuple<T,int,int> PackUnpack(T& in)
 {
-#if DUNE_VERSION_NEWER(DUNE_COMMON, 2, 7)
     const auto& comm = Dune::MPIHelper::getCommunication();
-#else
-    const auto& comm = Dune::MPIHelper::getCollectiveCommunication();
-#endif
 
     Opm::EclMpiSerializer ser(comm);
     ser.pack(in);
-    size_t pos1 = ser.position();
+    const size_t pos1 = ser.position();
     T out;
     ser.unpack(out);
-    size_t pos2 = ser.position();
+    const size_t pos2 = ser.position();
 
     return std::make_tuple(out, pos1, pos2);
 }

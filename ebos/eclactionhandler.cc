@@ -27,6 +27,7 @@
 
 #include <opm/common/OpmLog/OpmLog.hpp>
 #include <opm/common/utility/TimeService.hpp>
+#include <opm/common/TimingMacros.hpp>
 
 #include <opm/input/eclipse/EclipseState/EclipseState.hpp>
 #include <opm/input/eclipse/Schedule/Action/ActionContext.hpp>
@@ -36,6 +37,7 @@
 #include <opm/input/eclipse/Schedule/Action/State.hpp>
 #include <opm/input/eclipse/Schedule/Schedule.hpp>
 #include <opm/input/eclipse/Schedule/UDQ/UDQConfig.hpp>
+#include <opm/input/eclipse/Schedule/Well/Well.hpp>
 #include <opm/input/eclipse/Schedule/Well/WellMatcher.hpp>
 
 #include <opm/simulators/wells/BlackoilWellModelGeneric.hpp>
@@ -129,6 +131,7 @@ void EclActionHandler::applyActions(const int reportStep,
                                     const double sim_time,
                                     const TransFunc& transUp)
 {
+    OPM_TIMEBLOCK(applyActions);
     const auto& actions = schedule_[reportStep].actions();
     if (actions.empty()) {
         return;
@@ -187,6 +190,7 @@ void EclActionHandler::applySimulatorUpdate(const int report_step,
                                             bool& commit_wellstate,
                                             const TransFunc& updateTrans)
   {
+      OPM_TIMEBLOCK(applySimulatorUpdate);
       this->wellModel_.updateEclWells(report_step, sim_update.affected_wells, summaryState_);
       if (!sim_update.affected_wells.empty())
           commit_wellstate = true;

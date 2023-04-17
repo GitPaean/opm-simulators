@@ -21,6 +21,8 @@
 #ifndef OPM_WELLSTATEFULLYIMPLICITBLACKOIL_HEADER_INCLUDED
 #define OPM_WELLSTATEFULLYIMPLICITBLACKOIL_HEADER_INCLUDED
 
+#include <opm/common/ErrorMacros.hpp>
+
 #include <opm/core/props/BlackoilPhases.hpp>
 
 #include <opm/simulators/wells/ALQState.hpp>
@@ -34,7 +36,6 @@
 #include <opm/output/data/Wells.hpp>
 
 #include <opm/input/eclipse/Schedule/Events.hpp>
-#include <opm/input/eclipse/Schedule/Well/Well.hpp>
 
 #include <dune/common/version.hh>
 #include <dune/common/parallel/mpihelper.hh>
@@ -51,6 +52,7 @@ namespace Opm
 
 class ParallelWellInfo;
 class Schedule;
+enum class WellStatus;
 
 /// The state of a set of wells, tailored for use by the fully
 /// implicit blackoil simulator.
@@ -58,18 +60,19 @@ class WellState
 {
 public:
     static const uint64_t event_mask = ScheduleEvents::WELL_STATUS_CHANGE + ScheduleEvents::PRODUCTION_UPDATE + ScheduleEvents::INJECTION_UPDATE;
-
-    virtual ~WellState() = default;
-
     // TODO: same definition with WellInterface, eventually they should go to a common header file.
     static const int Water = BlackoilPhases::Aqua;
     static const int Oil = BlackoilPhases::Liquid;
     static const int Gas = BlackoilPhases::Vapour;
 
+    // Only usable for testing purposes
+    explicit WellState(const ParallelWellInfo& pinfo);
+
     explicit WellState(const PhaseUsage& pu)
-    {
-        this->phase_usage_ = pu;
-    }
+        : phase_usage_(pu)
+    {}
+
+    static WellState serializationTestObject(const ParallelWellInfo& pinfo);
 
     std::size_t size() const {
         return this->wells_.size();
@@ -119,6 +122,11 @@ public:
 
     bool hasWellRates(const std::string& wellName) const {
         return this->well_rates.find(wellName) != this->well_rates.end();
+    }
+
+    void clearWellRates()
+    {
+        this->well_rates.clear();
     }
 
     template<class Communication>
@@ -211,7 +219,7 @@ public:
 
     bool wellIsOwned(const std::string& wellName) const;
 
-    void updateStatus(int well_index, Well::Status status);
+    void updateStatus(int well_index, WellStatus status);
 
     void openWell(int well_index);
     void shutWell(int well_index);
@@ -273,6 +281,27 @@ public:
 
     bool has(const std::string& well_name) const {
         return this->wells_.has(well_name);
+    }
+
+    bool operator==(const WellState&) const;
+
+    template<class Serializer>
+    void serializeOp(Serializer& serializer)
+    {
+        serializer(alq_state);
+        serializer(well_rates);
+        if (serializer.isSerializing()) {
+            serializer(wells_.size());
+        } else {
+            std::size_t size = 0;
+            serializer(size);
+            if (size != wells_.size()) {
+                OPM_THROW(std::runtime_error, "Error deserializing WellState: size mismatch");
+            }
+        }
+        for (auto& w : wells_) {
+            serializer(w);
+        }
     }
 
 private:
