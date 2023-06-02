@@ -194,16 +194,10 @@ void WellInterfaceGeneric::setInjMult(const std::vector<double>& inj_mult)
 {
     this->inj_multiplier_ = inj_mult;
     this->prev_inj_multipler_ = this->inj_multiplier_;
-    std::cout << " well " << this->name() << " in setInjMult " << std::endl;
-    for (size_t i = 0; i < this->inj_multiplier_.size(); ++i) {
-        std::cout << " well " << this->name() << " perf " << i << " inj_multipler " << this->inj_multiplier_[i] << std::endl;
-    }
 }
 
 void WellInterfaceGeneric::updateInjMult(std::vector<double>& multipliers, SingleWellState& ws) const
 {
-    // ws.perf_data.inj_multipler = this->inj_multiplier_;
-    std::cout << " in function updateInjMult " << std::endl;
     for (size_t perf = 0; perf < this->inj_multiplier_.size(); ++perf) {
         const auto perf_ecl_index = this->perforationData()[perf].ecl_index;
         if (this->well_ecl_.getInjMultMode() == Well::InjMultMode::CIRR) {
@@ -211,7 +205,6 @@ void WellInterfaceGeneric::updateInjMult(std::vector<double>& multipliers, Singl
         } else {
             multipliers[perf] = this->inj_multiplier_[perf];
         }
-        std::cout << " well " << this->name() << " perf " << perf << " perf_ecl_index " << perf_ecl_index << " inj_multipler " << this->inj_multiplier_[perf] << " final " << multipliers[perf] << std::endl;
     }
     ws.perf_data.inj_multipler = multipliers;
 }

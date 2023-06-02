@@ -949,22 +949,14 @@ namespace Opm
                 const auto frac_press = injmult.fracture_pressure;
                 const auto gradient = injmult.multiplier_gradient;
                 const auto connection_pressure = this->primary_variables_.value(Bhp) + this->connections_.pressure_diff(perf);
-                // double calc_mult = 1.0;
-                // const double old_mult =  this->inj_multiplier_[perf_ecl_index];
                 if (connection_pressure > frac_press) {
                     multipler = 1.0 + (connection_pressure - frac_press) * gradient;
-                    // calc_mult = multipler;
                 } else {
                     multipler = 1.0;
                 }
                 multipler = std::max(multipler, this->prev_inj_multipler_[perf_ecl_index]);
                 this->inj_multiplier_[perf_ecl_index] = multipler;
                 multipler = this->inj_multiplier_[perf_ecl_index];
-                /* const auto msg = fmt::format("perf {} bhp {} connection pressure {} calculated multplier "
-                                             " {} and the old mulplitier {} and the returned multplier {} \n",
-                                             perf, Opm::getValue(this->getBhp())/1.e5, connection_pressure/1.e5, calc_mult, old_mult, multipler); */
-                // std::cout << msg;
-                std::cout << "well " << this->name() << " perf " << perf << " multipler " << multipler << std::endl;
                 break;
             }
             default: {
@@ -1466,7 +1458,6 @@ namespace Opm
             setToZero(connPI);
 
             if (this->isInjector()) {
-                std::cout << "perf_ecl_index " << allPerfID << " ";
                 this->computeConnLevelInjInd(fs, preferred_phase, connPICalc,
                                              mob, connPI, deferred_logger);
             }
@@ -2595,15 +2586,12 @@ namespace Opm
 
         auto phase_pos = 0;
         if (preferred_phase == Phase::GAS) {
-            std::cout << " Gas ";
             phase_pos = pu.phase_pos[Gas];
         }
         else if (preferred_phase == Phase::OIL) {
-            std::cout << " Oil ";
             phase_pos = pu.phase_pos[Oil];
         }
         else if (preferred_phase == Phase::WATER) {
-            std::cout << " Water ";
             phase_pos = pu.phase_pos[Water];
         }
         else {
@@ -2617,8 +2605,5 @@ namespace Opm
         const auto zero   = EvalWell{this->primary_variables_.numWellEq() + Indices::numEq, 0.0};
         const auto mt     = std::accumulate(mobility.begin(), mobility.end(), zero);
         connII[phase_pos] = connIICalc(mt.value() * fs.invB(this->flowPhaseToEbosPhaseIdx(phase_pos)).value());
-        if (this->name() == "INJ-6") {
-            std::cout << "total_mobility " << mt.value() << " injectivity " << connII[phase_pos] << std::endl;
-        }
     }
 } // namespace Opm
