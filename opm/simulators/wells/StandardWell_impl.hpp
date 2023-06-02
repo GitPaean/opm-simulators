@@ -21,6 +21,7 @@
 
 #include <opm/common/Exceptions.hpp>
 
+#include <opm/input/eclipse/Schedule/Well/WellConnections.hpp>
 #include <opm/input/eclipse/Units/Units.hpp>
 
 #include <opm/simulators/utils/DeferredLoggingErrorHelpers.hpp>
@@ -902,7 +903,7 @@ namespace Opm
         }
 
         // checking whether the well has WINJMULT setup
-        const auto perf_ecl_index = this->perforationData()[perf].ecl_index;
+        const std::size_t perf_ecl_index = this->perforationData()[perf].ecl_index;
         if (this->well_ecl_.getConnections()[perf_ecl_index].injmult().active()) {
             const double mulipler = this->getInjMult(perf, deferred_logger);
             for (size_t i = 0; i < mob.size(); ++i) {
@@ -922,10 +923,8 @@ namespace Opm
         const auto perf_ecl_index = this->perforationData()[perf].ecl_index;
         double multipler = 1.;
         assert(!this->isProducer());
-        switch (this->well_ecl_.getConnections()[perf_ecl_index].injmult().mode) {
-            // TODO: for WREV, we should only need to calculate once
-            // TODO: since all the connections should enjoy the same multipler
-            case Connection::InjMultMode::WREV: {
+        switch (this->well_ecl_.getInjMultMode()) {
+            case Well::InjMultMode::WREV: {
                 const auto& injmult = this->well_ecl_.getConnections()[perf_ecl_index].injmult();
                 const auto frac_press = injmult.fracture_pressure;
                 const auto gradient = injmult.multiplier_gradient;
@@ -935,7 +934,7 @@ namespace Opm
                 }
                 break;
             }
-            case Connection::InjMultMode::CREV: {
+            case Well::InjMultMode::CREV: {
                 const auto& injmult = this->well_ecl_.getConnections()[perf_ecl_index].injmult();
                 const auto frac_press = injmult.fracture_pressure;
                 const auto gradient = injmult.multiplier_gradient;
@@ -945,7 +944,7 @@ namespace Opm
                 }
                 break;
             }
-            case Connection::InjMultMode::CIRR: {
+            case Well::InjMultMode::CIRR: {
                 const auto& injmult = this->well_ecl_.getConnections()[perf_ecl_index].injmult();
                 const auto frac_press = injmult.fracture_pressure;
                 const auto gradient = injmult.multiplier_gradient;
