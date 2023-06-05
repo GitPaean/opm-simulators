@@ -178,15 +178,17 @@ public:
     double wsolvent() const;
     double rsRvInj() const;
 
-    void setInjMult(const std::vector<double>& inj_mult);
+    // when creating the well, setting the maximum injection multiplier
+    // it can be used in the multiplier calculation with keyword WINJMULT
+    void setMaxInjMult(const std::vector<double>& max_inj_mult);
 
-    // update the InjMult information in the well state
-    void updateInjMult(std::vector<double>& multipliers) const;
+    // update the InjMult information in the BlackoilWellModel
+    void updateMaxInjMult(std::vector<double>& max_multipliers) const;
 
-    double  getInjMult(const int perf,
-               const double bhp,
-               const double perf_pres,
-               DeferredLogger& deferred_logger) const;
+    double getInjMult(const int perf,
+                      const double bhp,
+                      const double perf_pres,
+                      DeferredLogger& deferred_logger) const;
 
     // whether a well is specified with a non-zero and valid VFP table number
     bool isVFPActive(DeferredLogger& deferred_logger) const;
@@ -350,9 +352,12 @@ protected:
     double wsolvent_;
     std::optional<double> dynamic_thp_limit_;
 
-    // recording the multiplier from the keyword WINJMULT
+    // recording the multiplier calculate from the keyword WINJMULT during the time step
     mutable std::vector<double> inj_multiplier_;
-    std::vector<double> prev_inj_multipler_;
+
+    // the maximum injection multiplier achieved before this time step, it will be used in the
+    // multiplier calculation for keyword WINJMULT
+    std::vector<double> prev_max_inj_multiplier_;
 
     double well_efficiency_factor_;
     const VFPProperties* vfp_properties_;

@@ -420,8 +420,9 @@ protected:
     GuideRate guideRate_;
     std::unique_ptr<VFPProperties> vfp_properties_{};
     std::map<std::string, double> node_pressures_; // Storing network pressures for output.
-    // this is for supporting the WINJMULT keyword
-    std::unordered_map<std::string, std::vector<double>> inj_multipliers_;
+
+    // maximum multiplier achieved so far, it is for supporting the CIRR mode of WINJMULT keyword
+    std::unordered_map<std::string, std::vector<double>> max_inj_multipliers_;
 
     /*
       The various wellState members should be accessed and modified

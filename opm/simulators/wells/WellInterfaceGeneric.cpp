@@ -190,74 +190,77 @@ double WellInterfaceGeneric::rsRvInj() const
     return well_ecl_.getInjectionProperties().rsRvInj;
 }
 
-void WellInterfaceGeneric::setInjMult(const std::vector<double>& inj_mult)
+void WellInterfaceGeneric::setMaxInjMult(const std::vector<double>& max_inj_mult)
 {
-    this->inj_multiplier_ = inj_mult;
-    this->prev_inj_multipler_ = this->inj_multiplier_;
+    // prev_max_inj_multiplier_ will stay unchanged during the time step
+    // while inj_multiplier_ might be updated during the time step
+    this->prev_max_inj_multiplier_ = max_inj_mult;
+    // reset the inj_multipler_ to be 1.0
+    this->inj_multiplier_ = std::vector<double>(max_inj_mult.size(), 1.);
 }
 
-void WellInterfaceGeneric::updateInjMult(std::vector<double>& multipliers) const
+void WellInterfaceGeneric::updateMaxInjMult(std::vector<double>& max_multipliers) const
 {
     for (size_t perf = 0; perf < this->inj_multiplier_.size(); ++perf) {
-        const auto perf_ecl_index = this->perforationData()[perf].ecl_index;
         if (this->well_ecl_.getInjMultMode() == Well::InjMultMode::CIRR) {
-            multipliers[perf] = std::max(multipliers[perf], this->inj_multiplier_[perf]);
+            max_multipliers[perf] = std::max(max_multipliers[perf], this->inj_multiplier_[perf]);
         } else {
-            multipliers[perf] = this->inj_multiplier_[perf];
+            max_multipliers[perf] = this->inj_multiplier_[perf];
         }
     }
 }
 
 
 
-    double WellInterfaceGeneric::getInjMult(const int perf,
-                                            const double bhp,
-                                            const double perf_pres,
-                                            DeferredLogger& deferred_logger) const
+double WellInterfaceGeneric::getInjMult(const int perf,
+                                        const double bhp,
+                                        const double perf_pres,
+                                        DeferredLogger& deferred_logger) const
 {
-        const auto perf_ecl_index = this->perforationData()[perf].ecl_index;
-        double multipler = 1.;
-        // TODO: make it throw
-        assert(!this->isProducer());
-        switch (this->well_ecl_.getInjMultMode()) {
-            case Well::InjMultMode::WREV: {
-                const auto& injmult = this->well_ecl_.getConnections()[perf_ecl_index].injmult();
-                const auto frac_press = injmult.fracture_pressure;
-                const auto gradient = injmult.multiplier_gradient;
-                if (bhp > frac_press) {
-                    multipler = 1. + (bhp - frac_press) * gradient;
-                }
-                break;
+    const auto perf_ecl_index = this->perforationData()[perf].ecl_index;
+    double multipler = 1.;
+    assert(!this->isProducer());
+    switch (this->well_ecl_.getInjMultMode()) {
+        case Well::InjMultMode::WREV: {
+            const auto& injmult = this->well_ecl_.getConnections()[perf_ecl_index].injmult();
+            const auto frac_press = injmult.fracture_pressure;
+            const auto gradient = injmult.multiplier_gradient;
+            if (bhp > frac_press) {
+                multipler = 1. + (bhp - frac_press) * gradient;
             }
-            case Well::InjMultMode::CREV: {
-                const auto& injmult = this->well_ecl_.getConnections()[perf_ecl_index].injmult();
-                const auto frac_press = injmult.fracture_pressure;
-                const auto gradient = injmult.multiplier_gradient;
-                if (perf_pres > frac_press) {
-                    multipler = 1. + (perf_pres - frac_press) * gradient;
-                }
-                break;
-            }
-            case Well::InjMultMode::CIRR: {
-                const auto& injmult = this->well_ecl_.getConnections()[perf_ecl_index].injmult();
-                const auto frac_press = injmult.fracture_pressure;
-                const auto gradient = injmult.multiplier_gradient;
-                if (perf_pres > frac_press) {
-                    multipler = 1.0 + (perf_pres - frac_press) * gradient;
-                } else {
-                    multipler = 1.0;
-                }
-                multipler = std::max(multipler, this->prev_inj_multipler_[perf_ecl_index]);
-                // store the calculated multiplier value
-                this->inj_multiplier_[perf_ecl_index] = multipler;
-                break;
-            }
-            default: {
-                const auto msg = "Well " + this->name() + " has invalid InjMultMode \n";
-                OPM_DEFLOG_THROW(std::runtime_error, msg, deferred_logger);
-            }
+            break;
         }
-        return multipler;
+        case Well::InjMultMode::CREV: {
+            const auto& injmult = this->well_ecl_.getConnections()[perf_ecl_index].injmult();
+            const auto frac_press = injmult.fracture_pressure;
+            const auto gradient = injmult.multiplier_gradient;
+            if (perf_pres > frac_press) {
+                multipler = 1. + (perf_pres - frac_press) * gradient;
+            }
+            break;
+        }
+        case Well::InjMultMode::CIRR: {
+            const auto& injmult = this->well_ecl_.getConnections()[perf_ecl_index].injmult();
+            const auto frac_press = injmult.fracture_pressure;
+            const auto gradient = injmult.multiplier_gradient;
+            if (perf_pres > frac_press) {
+                multipler = 1.0 + (perf_pres - frac_press) * gradient;
+            } else {
+                multipler = 1.0;
+            }
+            multipler = std::max(multipler, this->prev_max_inj_multiplier_[perf_ecl_index]);
+            // store the calculated multiplier value
+            // we only need to record the historical values for the CIRR mode at the moment
+            // it might change with more complicated setup in the future
+            this->inj_multiplier_[perf_ecl_index] = multipler;
+            break;
+        }
+        default: {
+            const auto msg = "Well " + this->name() + " has invalid InjMultMode \n";
+            OPM_DEFLOG_THROW(std::runtime_error, msg, deferred_logger);
+        }
+    }
+    return multipler;
 }
 
 

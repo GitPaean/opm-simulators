@@ -1073,11 +1073,12 @@ namespace Opm
     template <typename TypeTag>
     template<class Value>
     void
-    MultisegmentWell<TypeTag>::getMobility(const Simulator& ebosSimulator,
-                                           const int seg,
-                                           const int perf,
-                                           std::vector<Value>& mob,
-                                           DeferredLogger& deferred_logger) const
+    MultisegmentWell<TypeTag>::
+    getMobility(const Simulator& ebosSimulator,
+                const int seg,
+                const int perf,
+                std::vector<Value>& mob,
+                DeferredLogger& deferred_logger) const
     {
         auto obtain = [this](const Eval& value)
                       {
@@ -1104,7 +1105,6 @@ namespace Opm
             }
         }
     }
-
 
 
 
@@ -1561,7 +1561,6 @@ namespace Opm
                 const int cell_idx = this->well_cells_[perf];
                 const auto& int_quants = ebosSimulator.model().intensiveQuantities(cell_idx, /*timeIdx=*/ 0);
                 std::vector<EvalWell> mob(this->num_components_, 0.0);
-
                 getMobility(ebosSimulator, seg, perf, mob, deferred_logger);
                 const double trans_mult = ebosSimulator.problem().template rockCompTransMultiplier<double>(int_quants, cell_idx);
                 const double Tw = this->well_index_[perf] * trans_mult;

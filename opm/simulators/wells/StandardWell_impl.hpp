@@ -902,6 +902,7 @@ namespace Opm
         }
 
         // checking whether the well has WINJMULT setup
+        // TODO: make this a function
         const auto perf_ecl_index = this->perforationData()[perf].ecl_index;
         if (this->well_ecl_.getConnections()[perf_ecl_index].injmult().active()) {
             const double bhp = this->primary_variables_.value(Bhp);
