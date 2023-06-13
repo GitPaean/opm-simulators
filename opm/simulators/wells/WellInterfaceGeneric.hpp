@@ -185,6 +185,8 @@ public:
     // update the InjMult information in the BlackoilWellModel
     void updateMaxInjMult(std::vector<double>& max_multipliers) const;
 
+    // Note:: for multisegment wells, bhp is actually segment pressure in practice based on observation
+    // it might change in the future
     double getInjMult(const int perf,
                       const double bhp,
                       const double perf_pres,

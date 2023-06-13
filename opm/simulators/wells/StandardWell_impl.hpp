@@ -902,14 +902,13 @@ namespace Opm
         }
 
         // checking whether the well has WINJMULT setup
-        // TODO: make this a function
         const auto perf_ecl_index = this->perforationData()[perf].ecl_index;
-        if (this->well_ecl_.getConnections()[perf_ecl_index].injmult().active()) {
+        if (this->isInjector() && this->well_ecl_.getConnections()[perf_ecl_index].injmult().active()) {
             const double bhp = this->primary_variables_.value(Bhp);
             const double perf_press = bhp +  this->connections_.pressure_diff(perf);
-            const double mulipler = this->getInjMult(perf, bhp, perf_press, deferred_logger);
+            const double multiplier = this->getInjMult(perf, bhp, perf_press, deferred_logger);
             for (size_t i = 0; i < mob.size(); ++i) {
-                mob[i] *= mulipler;
+                mob[i] *= multiplier;
             }
         }
     }

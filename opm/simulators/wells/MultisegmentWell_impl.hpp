@@ -1091,17 +1091,18 @@ namespace Opm
                       };
         WellInterface<TypeTag>::getMobility(ebosSimulator, perf, mob, obtain, deferred_logger);
 	
-	// TODO: make this a function
         // apply WINJMULT if it is active
         const auto perf_ecl_index = this->perforationData()[perf].ecl_index;
         if (this->isInjector() && this->well_ecl_.getConnections()[perf_ecl_index].injmult().active()) {
-            const double bhp = getValue(this->primary_variables_.getBhp());
+            //  const double bhp = getValue(this->primary_variables_.getBhp());
+            // from the reference results, it looks like MSW uses segment pressure instead of BHP here
+            const double segment_pres = this->primary_variables_.getSegmentPressure(seg).value();
             const double perf_seg_press_diff = this->gravity() * this->segments_.density(seg).value()
                                                                * this->segments_.perforation_depth_diff(perf);
             const double perf_press = this->primary_variables_.getSegmentPressure(seg).value() + perf_seg_press_diff;
-            const double mulipler = this->getInjMult(perf, bhp, perf_press, deferred_logger);
+            const double multiplier = this->getInjMult(perf, segment_pres, perf_press, deferred_logger);
             for (size_t i = 0; i < mob.size(); ++i) {
-                mob[i] *= mulipler;
+                mob[i] *= multiplier;
             }
         }
     }
