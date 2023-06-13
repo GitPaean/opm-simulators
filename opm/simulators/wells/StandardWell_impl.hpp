@@ -897,11 +897,11 @@ namespace Opm
                     }
                 } else {
                     updateWaterMobilityWithPolymer(ebosSimulator, perf, mob, deferred_logger);
-	        }
+                }
             }
         }
 
-        // checking whether the well has WINJMULT setup
+        // if the injecting well has WINJMULT setup, we update the mobility accordingly
         const auto perf_ecl_index = this->perforationData()[perf].ecl_index;
         if (this->isInjector() && this->well_ecl_.getConnections()[perf_ecl_index].injmult().active()) {
             const double bhp = this->primary_variables_.value(Bhp);

@@ -318,7 +318,7 @@ namespace Opm {
                 if ((this->max_inj_multipliers_.count(well->name())) == 0 ) {
                     this->max_inj_multipliers_[well->name()] = std::vector<double>(ws.perf_data.size(), 1.0);
                 }
-                well->setMaxInjMult(this->max_inj_multipliers_.at(well->name()));
+                well->initInjMult(this->max_inj_multipliers_.at(well->name()));
             }
         }
 

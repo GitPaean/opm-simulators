@@ -1094,8 +1094,9 @@ namespace Opm
         // apply WINJMULT if it is active
         const auto perf_ecl_index = this->perforationData()[perf].ecl_index;
         if (this->isInjector() && this->well_ecl_.getConnections()[perf_ecl_index].injmult().active()) {
-            //  const double bhp = getValue(this->primary_variables_.getBhp());
             // from the reference results, it looks like MSW uses segment pressure instead of BHP here
+            // Note: this is against the documented definition.
+            // we can change this depending on what we want
             const double segment_pres = this->primary_variables_.getSegmentPressure(seg).value();
             const double perf_seg_press_diff = this->gravity() * this->segments_.density(seg).value()
                                                                * this->segments_.perforation_depth_diff(perf);

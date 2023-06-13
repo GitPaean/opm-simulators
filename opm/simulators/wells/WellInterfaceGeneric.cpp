@@ -190,7 +190,7 @@ double WellInterfaceGeneric::rsRvInj() const
     return well_ecl_.getInjectionProperties().rsRvInj;
 }
 
-void WellInterfaceGeneric::setMaxInjMult(const std::vector<double>& max_inj_mult)
+void WellInterfaceGeneric::initInjMult(const std::vector<double>& max_inj_mult)
 {
     // prev_max_inj_multiplier_ will stay unchanged during the time step
     // while inj_multiplier_ might be updated during the time step
