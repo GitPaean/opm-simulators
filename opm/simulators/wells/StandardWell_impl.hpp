@@ -902,8 +902,7 @@ namespace Opm
         }
 
         // if the injecting well has WINJMULT setup, we update the mobility accordingly
-        const auto perf_ecl_index = this->perforationData()[perf].ecl_index;
-        if (this->isInjector() && this->well_ecl_.getConnections()[perf_ecl_index].injmult().active()) {
+        if (this->isInjector() && this->well_ecl_.getInjMultMode() != Well::InjMultMode::NONE) {
             const double bhp = this->primary_variables_.value(Bhp);
             const double perf_press = bhp +  this->connections_.pressure_diff(perf);
             const double multiplier = this->getInjMult(perf, bhp, perf_press, deferred_logger);

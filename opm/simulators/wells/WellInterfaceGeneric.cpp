@@ -202,11 +202,23 @@ void WellInterfaceGeneric::initInjMult(const std::vector<double>& max_inj_mult)
 void WellInterfaceGeneric::updateMaxInjMult(std::vector<double>& max_multipliers) const
 {
     for (size_t perf = 0; perf < this->inj_multiplier_.size(); ++perf) {
-        if (this->well_ecl_.getInjMultMode() == Well::InjMultMode::CIRR) {
+        const auto perf_ecl_index = this->perforationData()[perf].ecl_index;
+        const bool active_injmult_setup = this->well_ecl_.getConnections()[perf_ecl_index].injmult().active();
+        const bool cirr = this->well_ecl_.getInjMultMode() == Well::InjMultMode::CIRR;
+        const bool wrev = this->well_ecl_.getInjMultMode() == Well::InjMultMode::WREV;
+        const bool crev = this->well_ecl_.getInjMultMode() == Well::InjMultMode::CREV;
+        if (cirr && active_injmult_setup) {
             max_multipliers[perf] = std::max(max_multipliers[perf], this->inj_multiplier_[perf]);
-        } else {
+        } else if (wrev || (crev && active_injmult_setup)) {
             max_multipliers[perf] = this->inj_multiplier_[perf];
+        } else if (crev && !active_injmult_setup) { // !active_injmult_setup is unnecessary while it easier to read
+            // when the connection is under CREV mode, the fracture can close if the pressure reduce to
+            // be below the fracture pressure, so we reset the maximum multiplier
+            max_multipliers[perf] = 1.0;
         }
+        // the connection is under CIRR while without active INJMULT setup, we keep the previous maximum multipliers
+        // unchanged, which indicates the fracturing is kept open while without opening it further
+        // we did not write the condition " if (cirr && !active_injmult_setup) ", since the maximum multiplier is unchanged
     }
 }
 
@@ -222,7 +234,7 @@ double WellInterfaceGeneric::getInjMult(const int perf,
     assert(!this->isProducer());
     switch (this->well_ecl_.getInjMultMode()) {
         case Well::InjMultMode::WREV: {
-            const auto& injmult = this->well_ecl_.getConnections()[perf_ecl_index].injmult();
+            const auto& injmult = this->well_ecl_.getWellInjMult();
             const auto frac_press = injmult.fracture_pressure;
             const auto gradient = injmult.multiplier_gradient;
             if (bhp > frac_press) {
@@ -232,27 +244,34 @@ double WellInterfaceGeneric::getInjMult(const int perf,
         }
         case Well::InjMultMode::CREV: {
             const auto& injmult = this->well_ecl_.getConnections()[perf_ecl_index].injmult();
-            const auto frac_press = injmult.fracture_pressure;
-            const auto gradient = injmult.multiplier_gradient;
-            if (perf_pres > frac_press) {
-                multipler = 1. + (perf_pres - frac_press) * gradient;
+            const bool injmult_active = injmult.active();
+            if (injmult_active) {
+                const auto frac_press = injmult.fracture_pressure;
+                const auto gradient = injmult.multiplier_gradient;
+                if (perf_pres > frac_press) {
+                    multipler = 1. + (perf_pres - frac_press) * gradient;
+                }
             }
+            // else will be 1.0
             break;
         }
         case Well::InjMultMode::CIRR: {
             const auto& injmult = this->well_ecl_.getConnections()[perf_ecl_index].injmult();
-            const auto frac_press = injmult.fracture_pressure;
-            const auto gradient = injmult.multiplier_gradient;
-            if (perf_pres > frac_press) {
-                multipler = 1.0 + (perf_pres - frac_press) * gradient;
+            const bool injmult_active = injmult.active();
+            if (injmult_active) {
+                const auto frac_press = injmult.fracture_pressure;
+                const auto gradient = injmult.multiplier_gradient;
+                if (perf_pres > frac_press) {
+                    multipler = 1.0 + (perf_pres - frac_press) * gradient;
+                } else {
+                    multipler = 1.0;
+                }
+                multipler = std::max(multipler, this->prev_max_inj_multiplier_[perf_ecl_index]);
             } else {
-                multipler = 1.0;
+                // there is no active CIRR setup for this connection, it will use the previous multiplier to mimic
+                // keeping the existing fracturing open
+                multipler = this->prev_max_inj_multiplier_[perf_ecl_index];
             }
-            multipler = std::max(multipler, this->prev_max_inj_multiplier_[perf_ecl_index]);
-            // store the calculated multiplier value
-            // we only need to record the historical values for the CIRR mode at the moment
-            // it might change with more complicated setup in the future
-            this->inj_multiplier_[perf_ecl_index] = multipler;
             break;
         }
         default: {
@@ -260,6 +279,7 @@ double WellInterfaceGeneric::getInjMult(const int perf,
             OPM_DEFLOG_THROW(std::runtime_error, msg, deferred_logger);
         }
     }
+    this->inj_multiplier_[perf_ecl_index] = multipler;
     return multipler;
 }
 

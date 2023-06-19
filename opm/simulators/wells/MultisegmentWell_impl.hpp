@@ -1091,9 +1091,7 @@ namespace Opm
                       };
         WellInterface<TypeTag>::getMobility(ebosSimulator, perf, mob, obtain, deferred_logger);
 	
-        // apply WINJMULT if it is active
-        const auto perf_ecl_index = this->perforationData()[perf].ecl_index;
-        if (this->isInjector() && this->well_ecl_.getConnections()[perf_ecl_index].injmult().active()) {
+        if (this->isInjector() && this->well_ecl_.getInjMultMode() != Well::InjMultMode::NONE) {
             // from the reference results, it looks like MSW uses segment pressure instead of BHP here
             // Note: this is against the documented definition.
             // we can change this depending on what we want
