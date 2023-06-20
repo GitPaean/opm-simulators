@@ -1099,7 +1099,7 @@ namespace Opm
             const double perf_seg_press_diff = this->gravity() * this->segments_.density(seg).value()
                                                                * this->segments_.perforation_depth_diff(perf);
             const double perf_press = this->primary_variables_.getSegmentPressure(seg).value() + perf_seg_press_diff;
-            const double multiplier = this->getInjMult(perf, segment_pres, perf_press, deferred_logger);
+            const double multiplier = this->getInjMult(perf, segment_pres, perf_press);
             for (size_t i = 0; i < mob.size(); ++i) {
                 mob[i] *= multiplier;
             }

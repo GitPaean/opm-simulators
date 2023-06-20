@@ -191,10 +191,7 @@ public:
 
     // Note:: for multisegment wells, bhp is actually segment pressure in practice based on observation
     // it might change in the future
-    double getInjMult(const int perf,
-                      const double bhp,
-                      const double perf_pres,
-                      DeferredLogger& deferred_logger) const;
+    double getInjMult(const int perf, const double bhp, const double perf_pres) const;
 
     // whether a well is specified with a non-zero and valid VFP table number
     bool isVFPActive(DeferredLogger& deferred_logger) const;
@@ -361,9 +358,9 @@ protected:
     // recording the multiplier calculate from the keyword WINJMULT during the time step
     mutable std::vector<double> inj_multiplier_;
 
-    // the maximum injection multiplier achieved before this time step, it will be used in the
-    // multiplier calculation for keyword WINJMULT
-    std::vector<double> prev_max_inj_multiplier_;
+    // the injection multiplier from the previous running, it is mostly used for CIRR mode
+    // which intends to keep the fracturing open
+    std::vector<double> prev_inj_multiplier_;
 
     double well_efficiency_factor_;
     const VFPProperties* vfp_properties_;

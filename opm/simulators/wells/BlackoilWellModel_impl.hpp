@@ -315,10 +315,10 @@ namespace Opm {
         for (auto& well : well_container_) {
             if (well->isInjector()) {
                 auto& ws = this->wellState().well(well->indexOfWell());
-                if ((this->max_inj_multipliers_.count(well->name())) == 0 ) {
-                    this->max_inj_multipliers_[well->name()] = std::vector<double>(ws.perf_data.size(), 1.0);
+                if ((this->prev_inj_multipliers_.count(well->name())) == 0 ) {
+                    this->prev_inj_multipliers_[well->name()] = std::vector<double>(ws.perf_data.size(), 1.0);
                 }
-                well->initInjMult(this->max_inj_multipliers_.at(well->name()));
+                well->initInjMult(this->prev_inj_multipliers_.at(well->name()));
             }
         }
 
@@ -482,7 +482,7 @@ namespace Opm {
                 well->updateWaterThroughput(dt, this->wellState());
             }
             if (well->isInjector()) {
-                well->updateMaxInjMult(this->max_inj_multipliers_[well->name()]);
+                well->updateMaxInjMult(this->prev_inj_multipliers_[well->name()]);
             }
         }
         // report well switching
