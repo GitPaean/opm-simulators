@@ -1434,7 +1434,6 @@ namespace Opm
             well_state_copy.wellRates(this->index_of_well_)[phase]
                     = sign * ws.well_potentials[phase];
         }
-        well_copy.calculateExplicitQuantities(ebosSimulator, well_state_copy, deferred_logger);
 
         const double dt = ebosSimulator.timeStepSize();
         const bool converged = well_copy.iterateWellEqWithControl(ebosSimulator, dt, inj_controls, prod_controls, well_state_copy, group_state, deferred_logger);
@@ -1442,6 +1441,10 @@ namespace Opm
             const std::string msg = " well " + name() + " did not get converged during well potential calculations "
                                                         " potentials are computed based on unconverged solution";
             deferred_logger.debug(msg);
+        }
+        if (converged) {
+            well_copy.calculateExplicitQuantities(ebosSimulator, well_state_copy, deferred_logger);
+            const bool converged2 = well_copy.iterateWellEqWithControl(ebosSimulator, dt, inj_controls, prod_controls, well_state_copy, group_state, deferred_logger);
         }
         well_copy.updatePrimaryVariables(summary_state, well_state_copy, deferred_logger);
         well_copy.computeWellConnectionPressures(ebosSimulator, well_state_copy, deferred_logger);
