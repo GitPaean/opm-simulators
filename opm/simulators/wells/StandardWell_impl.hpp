@@ -1428,11 +1428,19 @@ namespace Opm
         ws.bhp = bhp;
 
         // initialized the well rates with the potentials i.e. the well rates based on bhp
+        // when the well potentials are valid
         const int np = this->number_of_phases_;
         const double sign = this->well_ecl_.isInjector() ? 1.0 : -1.0;
-        for (int phase = 0; phase < np; ++phase){
-            well_state_copy.wellRates(this->index_of_well_)[phase]
-                    = sign * ws.well_potentials[phase];
+        {
+            constexpr double epsilon = std::numeric_limits<double>::epsilon();
+            const bool valid_potential = std::any_of(ws.well_potentials.begin(), ws.well_potentials.begin(),
+                                                     [epsilon, sign](double value) {return sign * value > epsilon;});
+            if (valid_potential) {
+                for (int phase = 0; phase < np; ++phase) {
+                    well_state_copy.wellRates(this->index_of_well_)[phase]
+                            = sign * ws.well_potentials[phase];
+                }
+            }
         }
         well_copy.updatePrimaryVariables(summary_state, well_state_copy, deferred_logger);
         well_copy.initPrimaryVariablesEvaluation();
