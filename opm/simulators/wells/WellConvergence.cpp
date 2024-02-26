@@ -41,6 +41,7 @@ checkConvergenceControlEq(const WellState& well_state,
                           ConvergenceReport& report,
                           DeferredLogger& deferred_logger) const
 {
+    const bool output_for_well = this->well_.name() == "Y14CYH";
     double control_tolerance = 0.;
     using CR = ConvergenceReport;
     CR::WellFailure::Type ctrltype = CR::WellFailure::Type::Invalid;
@@ -107,6 +108,9 @@ checkConvergenceControlEq(const WellState& well_state,
             OPM_DEFLOG_THROW(std::runtime_error,
                              "Unknown well control control types for well " + well_.name(),
                              deferred_logger);
+        }
+        if (output_for_well) {
+            std::cout << " well " << this->well_.name() << " is under " << WellProducerCMode2String(ws.production_cmode) << " residual " << well_control_residual << std::endl;
         }
     }
 

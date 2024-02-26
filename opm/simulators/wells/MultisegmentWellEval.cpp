@@ -90,14 +90,21 @@ getWellConvergence(const WellState& well_state,
                    const bool well_is_stopped) const
 {
     assert(int(B_avg.size()) == baseif_.numComponents());
+    const bool output_for_well = this->baseif_.name() == "Y14CYH";
+    if (output_for_well) {
+        std::cout << " outputting the residual for the segmenst for well " << this->baseif_.name() << std::endl;
+    }
 
     // checking if any residual is NaN or too large. The two large one is only handled for the well flux
     std::vector<std::vector<double>> abs_residual(this->numberOfSegments(),
                                                   std::vector<double>(numWellEq, 0.0));
     for (int seg = 0; seg < this->numberOfSegments(); ++seg) {
+        std::cout << " seg " << seg;
         for (int eq_idx = 0; eq_idx < numWellEq; ++eq_idx) {
             abs_residual[seg][eq_idx] = std::abs(linSys_.residual()[seg][eq_idx]);
+            std::cout << " " << abs_residual[seg][eq_idx];
         }
+        std::cout << std::endl;
     }
 
     std::vector<double> maximum_residual(numWellEq, 0.0);

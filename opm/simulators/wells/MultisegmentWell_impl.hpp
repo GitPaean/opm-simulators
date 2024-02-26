@@ -1633,6 +1633,8 @@ namespace Opm
         this->operability_status_.resetOperability();
         this->operability_status_.solvable = true;
 
+        const bool output_for_well = this->name() == "Y14CYH";
+
         for (; it < max_iter_number; ++it, ++debug_cost_counter_) {
             its_since_last_switch++;
             if (allow_switching && its_since_last_switch >= min_its_after_switch){
@@ -1735,6 +1737,17 @@ namespace Opm
             }
             updateWellState(summary_state, dx_well, well_state, deferred_logger, relaxation_factor);
             initPrimaryVariablesEvaluation();
+        }
+
+        if (output_for_well && !converged) {
+            std::cout << " convergence history for unconverged well " << this->name() << std::endl;
+            for (size_t i = 0; i < residual_history.size(); ++i) {
+                std::cout << "iter " << i;
+                for (const auto& val : residual_history[i]) {
+                    std::cout << " " << val;
+                }
+                std::cout << std::endl;
+            }
         }
 
         if (converged) {
