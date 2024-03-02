@@ -32,6 +32,8 @@
 #include <numeric>
 #include <utility>
 #include <vector>
+#include <iostream>
+#include <cstdlib>
 
 Opm::ParallelPAvgDynamicSourceData::
 ParallelPAvgDynamicSourceData(const Parallel::Communication&  comm,
@@ -149,8 +151,29 @@ void Opm::ParallelPAvgDynamicSourceData::defineCommunication()
     // 4) Build translation mapping from source term element indices to
     //    storage indices.
     this->storageIndex_.resize(allIndices.size());
+    bool potential_invalid_write = false;
     auto storageIx = std::vector<double>::size_type{0};
     for (const auto& elemIndex : allIndices) {
+        if (elemIndex >= this->storageIndex_.size()) {
+            std::cout << " elemIndex is " << elemIndex << " storageIndex_.size() is " << this->storageIndex_.size() << " storageIx " << storageIx << std::endl;
+            potential_invalid_write = true;
+        }
         this->storageIndex_[elemIndex] = storageIx++;
     }
+
+    if (potential_invalid_write) {
+        std::cout << " potential_invalid_write happens, outputting allIndices now " << std::endl;
+        for (size_t i = 0; i < allIndices.size(); ++i) {
+            std::cout << " " << allIndices[i];
+            if ( (i + 1)%5 == 0) {
+                std::cout << std::endl;
+            }
+        }
+        std::cout << std::endl;
+        std::cout << " output this->locations_ " << std::endl;
+        for (size_t i = 0; i < this->locations_.size(); ++i) {
+            std::cout << " " << this->locations_[i].ix << " " << this->locations_[i].cell << std::endl;
+        }
+    }
+
 }
