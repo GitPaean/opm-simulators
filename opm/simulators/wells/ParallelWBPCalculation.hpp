@@ -122,7 +122,7 @@ public:
     /// Clients must call this function once all calculation objects have
     /// been created, and strictly before the first call to member function
     /// \c collectDynamicValues().
-    void defineCommunication();
+    void defineCommunication(const int id_p4 = -1000);
 
     /// Collect all on-rank source term value and distribute those on-rank
     /// values to all other MPI ranks.

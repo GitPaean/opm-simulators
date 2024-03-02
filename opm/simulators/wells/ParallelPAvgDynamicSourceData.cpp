@@ -116,14 +116,35 @@ Opm::ParallelPAvgDynamicSourceData::localSourceTerm(const std::size_t localIx)
 void Opm::ParallelPAvgDynamicSourceData::defineCommunication()
 {
     // 1) Determine origins/owning ranks for all source terms.
+    const bool output_50 = this->locations_.size() == 50;
     auto ixVec = std::vector<std::size_t>(this->locations_.size());
     std::transform(this->locations_.begin(), this->locations_.end(),
                    ixVec.begin(),
                    [](const auto& location) { return location.ix; });
 
     constexpr auto numItems = numSpanItems();
+    if (output_50) {
+        std::cout << " output ixVec " << std::endl;
+        for (size_t i = 0; i < ixVec.size(); ++i) {
+            std::cout << " " << ixVec[i];
+            if ((i+1) % 5 == 0) {
+                std::cout << std::endl;
+            }
+        }
+        std::cout << std::endl;
+    }
 
     const auto& [allIndices, allIxStart] = allGatherv(ixVec, this->comm_.get());
+    if (output_50) {
+        std::cout << " output allIndices " << std::endl;
+        for (size_t i = 0; i < allIndices.size(); ++i) {
+            std::cout << " " << allIndices[i];
+            if ((i + 1) % 5 == 0) {
+                std::cout << std::endl;
+            }
+        }
+        std::cout << std::endl;
+    }
 
     // -----------------------------------------------------------------------
 
@@ -174,6 +195,7 @@ void Opm::ParallelPAvgDynamicSourceData::defineCommunication()
         for (size_t i = 0; i < this->locations_.size(); ++i) {
             std::cout << " " << this->locations_[i].ix << " " << this->locations_[i].cell << std::endl;
         }
+        exit(100);
     }
 
 }

@@ -205,7 +205,7 @@ createCalculator(const Well&             well,
     return ix;
 }
 
-void Opm::ParallelWBPCalculation::defineCommunication()
+void Opm::ParallelWBPCalculation::defineCommunication(const int index_p4)
 {
     assert (this->calculators_.numCalculators() == this->wellConnSrc_.size());
 

@@ -1959,6 +1959,7 @@ namespace Opm {
         this->registerOpenWellsForWBPCalculation();
 
         auto wellID = std::size_t{0};
+        int index_p4 = -1000;
         for (const auto& well : this->wells_ecl_) {
             this->wbpCalcMap_[wellID].wbpCalcIdx_ = this->wbpCalculationService_
                 .createCalculator(well,
@@ -1966,6 +1967,7 @@ namespace Opm {
                                   this->conn_idx_map_[wellID].local(),
                                   this->makeWellSourceEvaluatorFactory(wellID));
 
+            if (well.name() == "P4") index_p4 = wellID;
             ++wellID;
         }
 
