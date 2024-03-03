@@ -101,6 +101,23 @@ finaliseConstruction(const std::vector<std::size_t>& sourceLocations,
 
         ix += 1;
     }
+    const bool output_50 = this->locations_.size() == 50;
+    if (output_50) {
+        std::cout << " outputting the locations_ construction process " << std::endl;
+        for (const auto& location : sourceLocations) {
+            const auto cell = localCellIdx(location);
+            std::cout << " location " << location << " cell " << cell << std::endl;
+        }
+        size_t count = 0;
+        std::cout << " outputting the one with cell > 0" << std::endl;
+        for (const auto& location : sourceLocations) {
+            if (const auto cell = localCellIdx(location); cell >= 0) {
+                std::cout << " location " << location << " cell " << cell << std::endl;
+            }
+            count++;
+        }
+        std::cout << " there are " << count << " cell >=0 " << std::endl;
+    }
 
     this->localSrc_.assign(numSpanItems() * this->locations_.size(), 0.0);
 
@@ -117,6 +134,12 @@ void Opm::ParallelPAvgDynamicSourceData::defineCommunication()
 {
     // 1) Determine origins/owning ranks for all source terms.
     const bool output_50 = this->locations_.size() == 50;
+    if (output_50) {
+        std::cout << " output this->locations " << std::endl;
+        for (size_t i = 0; i < this->locations_.size(); ++i) {
+            std::cout << " i " << i << " ix " << this->locations_[i].ix << " cell " << this->locations_[i].cell << std::endl;
+        }
+    }
     auto ixVec = std::vector<std::size_t>(this->locations_.size());
     std::transform(this->locations_.begin(), this->locations_.end(),
                    ixVec.begin(),
@@ -127,7 +150,7 @@ void Opm::ParallelPAvgDynamicSourceData::defineCommunication()
         std::cout << " output ixVec " << std::endl;
         for (size_t i = 0; i < ixVec.size(); ++i) {
             std::cout << " " << ixVec[i];
-            if ((i+1) % 5 == 0) {
+            if ((i+1) % 10 == 0) {
                 std::cout << std::endl;
             }
         }
@@ -139,7 +162,7 @@ void Opm::ParallelPAvgDynamicSourceData::defineCommunication()
         std::cout << " output allIndices " << std::endl;
         for (size_t i = 0; i < allIndices.size(); ++i) {
             std::cout << " " << allIndices[i];
-            if ((i + 1) % 5 == 0) {
+            if ((i + 1) % 10 == 0) {
                 std::cout << std::endl;
             }
         }
