@@ -180,6 +180,11 @@ createCalculator(const Well&             well,
 {
     assert (this->wellConnSrc_.size() == this->localConnSet_.size());
 
+    const bool output = well.name() == "P4";
+    if (output) {
+        std::cout << " in createCalculator well " << well.name() << " connection size " << well.getConnections().size() << std::endl;
+    }
+
     const auto ix = this->calculators_
         .setCalculator(well.seqIndex(), std::make_unique<ParallelPAvgCalculator>
                        (parallelWellInfo.communication(),

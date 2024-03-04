@@ -134,6 +134,7 @@ Opm::ParallelPAvgDynamicSourceData::localSourceTerm(const std::size_t localIx)
 
 void Opm::ParallelPAvgDynamicSourceData::defineCommunication()
 {
+    std::cout << "defineCommunication" << std::endl;
     // 1) Determine origins/owning ranks for all source terms.
     const bool output_50 = this->locations_.size() == 50;
     if (output_50) {
