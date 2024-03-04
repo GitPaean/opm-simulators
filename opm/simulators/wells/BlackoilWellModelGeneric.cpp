@@ -268,6 +268,12 @@ getLocalWells(const int timeStepIdx) const
 {
     auto w = schedule().getWells(timeStepIdx);
     w.erase(std::remove_if(w.begin(), w.end(), not_on_process_), w.end());
+    std::cout << " outputting in getLocalWells at report step " << timeStepIdx << std::endl;
+    for (const auto& well : w) {
+        if (well.name() == "P4") {
+            std::cout << " well P4 has connections " << well.getConnections().size() << std::endl;
+        }
+    }
     return w;
 }
 
