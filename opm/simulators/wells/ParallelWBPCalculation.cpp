@@ -332,7 +332,7 @@ void Opm::ParallelWBPCalculation::defineReservoirCommunication()
     auto u = std::unique(sourceCells.begin(), sourceCells.end());
 
     const std::vector<std::size_t> temp = {sourceCells.begin(), u};
-    const bool output_50 = true;
+    const bool output_50 = false;
     if (output_50) {
         std::cout << " outputing sourceCells for debugging, temp.size ==  " << temp.size() << std::endl;
         for (size_t i = 0; i < temp.size(); ++i) {
