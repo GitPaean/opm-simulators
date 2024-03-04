@@ -42,6 +42,7 @@ ParallelPAvgDynamicSourceData(const Parallel::Communication&  comm,
     : PAvgDynamicSourceData { sourceLocations }
     , comm_                 { comm }
 {
+    std::cout << " ParallelPAvgDynamicSourceData sourlocatoins.size() " << sourceLocations.size() << std::endl;
     this->finaliseConstruction(sourceLocations, std::move(localCellIdx));
 }
 
@@ -90,6 +91,7 @@ Opm::ParallelPAvgDynamicSourceData::
 finaliseConstruction(const std::vector<std::size_t>& sourceLocations,
                      GlobalToLocal                   localCellIdx)
 {
+    std::cout << " finaliseConstruction sourceLocations.size() " << sourceLocations.size() << std::endl;
     auto ix = std::size_t{0};
 
     this->locations_.clear();

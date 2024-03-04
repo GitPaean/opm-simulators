@@ -96,6 +96,7 @@ void
 Opm::ParallelWBPCalculation::SourceData::
 buildStructure(const std::vector<std::size_t>& sourceLocations)
 {
+    std::cout << " buildStructure sourceLocations.size() " << sourceLocations.size() << std::endl;
     if (this->srcData_ == nullptr) {
         this->srcData_ = std::make_unique<ParallelPAvgDynamicSourceData>
             (this->comm_, sourceLocations, this->localIdx_);
@@ -326,9 +327,9 @@ void Opm::ParallelWBPCalculation::defineReservoirCommunication()
     auto u = std::unique(sourceCells.begin(), sourceCells.end());
 
     const std::vector<std::size_t> temp = {sourceCells.begin(), u};
-    const bool output_50 = temp.size() == 50 || temp.size() == 65;
+    const bool output_50 = true;
     if (output_50) {
-        std::cout << " outputing sourceCells for debugging " << std::endl;
+        std::cout << " outputing sourceCells for debugging, temp.size ==  " << temp.size() << std::endl;
         for (size_t i = 0; i < temp.size(); ++i) {
             std::cout << " " << temp[i];
             if ((i + 1) % 10 == 0) {
