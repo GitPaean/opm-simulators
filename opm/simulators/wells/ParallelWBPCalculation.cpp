@@ -325,6 +325,17 @@ void Opm::ParallelWBPCalculation::defineReservoirCommunication()
     std::sort(sourceCells.begin(), sourceCells.end());
     auto u = std::unique(sourceCells.begin(), sourceCells.end());
 
+    const std::vector<std::size_t> temp = {sourceCells.begin(), u};
+    const bool output_50 = temp.size() == 50 || temp.size() == 65;
+    if (output_50) {
+        std::cout << " outputing sourceCells for debugging " << std::endl;
+        for (size_t i = 0; i < temp.size(); ++i) {
+            std::cout << " " << temp[i];
+            if ((i + 1) % 10 == 0) {
+                std::cout << std::endl;
+            }
+        }
+    }
     this->reservoirSrc_.buildStructure({sourceCells.begin(), u});
 }
 
