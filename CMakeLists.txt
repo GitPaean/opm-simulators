@@ -660,6 +660,17 @@ opm_add_test(flow_blackoil_polyhedralgrid
   flow/flow_blackoil_polyhedralgrid.cpp
   $<TARGET_OBJECTS:moduleVersion>)
 
+ add_library(flow_libcomp OBJECT flow/flow_model_comp.cpp)
+ opm_add_test(flow_comp
+  ONLY_COMPILE
+  ALWAYS_ENABLE
+  DEFAULT_ENABLE_IF ${FLOW_POLY_ONLY_DEFAULT_ENABLE_IF}
+  DEPENDS opmsimulators
+  LIBRARIES opmsimulators flow_libcomp
+  SOURCES
+  flow/flow_comp.cpp
+  $<TARGET_OBJECTS:moduleVersion>)
+
 opm_add_test(flow_distribute_z
   ONLY_COMPILE
   ALWAYS_ENABLE
