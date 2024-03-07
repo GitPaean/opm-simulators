@@ -26,49 +26,23 @@
 #include <opm/models/blackoil/blackoillocalresidualtpfa.hh>
 #include <opm/models/discretization/common/tpfalinearizer.hh>
 
+
+namespace Opm::Properties {
+    template<class TypeTag>
+    struct Linearizer<TypeTag, TTag::FlowProblemComp> { using type = TpfaLinearizer<TypeTag>; };
+
+    template<class TypeTag>
+    struct LocalResidual<TypeTag, TTag::FlowProblemComp> { using type = BlackOilLocalResidualTPFA<TypeTag>; };
+
+    template<class TypeTag>
+    struct EnableDiffusion<TypeTag, TTag::FlowProblemComp> { static constexpr bool value = false; };
+}
+
+
+
 namespace Opm {
-    namespace Properties {
 
-        template<class TypeTag>
-        struct Linearizer<TypeTag, TTag::FlowProblemComp> { using type = TpfaLinearizer<TypeTag>; };
-
-        template<class TypeTag>
-        struct LocalResidual<TypeTag, TTag::FlowProblemComp> { using type = BlackOilLocalResidualTPFA<TypeTag>; };
-
-        template<class TypeTag>
-        struct EnableDiffusion<TypeTag, TTag::FlowProblemComp> { static constexpr bool value = false; };
-
-    }
-}
-
-
-namespace Opm
-{
-std::unique_ptr<FlowMain<Properties::TTag::FlowProblemComp>>
-flowCompTpfaMainInit(int argc, char** argv, bool outputCout, bool outputFiles)
-{
-    // we always want to use the default locale, and thus spare us the trouble
-    // with incorrect locale settings.
-    resetLocale();
-
-    return std::make_unique<FlowMain<Properties::TTag::FlowProblemComp>>(
-        argc, argv, outputCout, outputFiles);
-}
-
-// ----------------- Main program -----------------
-int flowBlackoilTpfaMain(int argc, char** argv, bool outputCout, bool outputFiles)
-{
-    // we always want to use the default locale, and thus spare us the trouble
-    // with incorrect locale settings.
-    resetLocale();
-
-    FlowMain<Properties::TTag::FlowProblemComp>
-        mainfunc {argc, argv, outputCout, outputFiles};
-    return mainfunc.execute();
-}
-
-int
-flowCompTpfaMainStandalone(int argc, char** argv)
+int flowCompTpfaMainStandalone(int argc, char** argv)
 {
     using TypeTag = Properties::TTag::FlowProblemComp;
     auto mainObject = std::make_unique<Opm::Main>(argc, argv);
