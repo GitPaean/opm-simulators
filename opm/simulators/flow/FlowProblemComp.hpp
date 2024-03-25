@@ -184,7 +184,7 @@ class FlowProblemComp : public GetPropType<TypeTag, Properties::BaseProblem>
     using DispersionModule = BlackOilDispersionModule<TypeTag, enableDispersion>;
     using DiffusionModule = BlackOilDiffusionModule<TypeTag, enableDiffusion>;
 
-    using InitialFluidState = typename EquilInitializer<TypeTag>::ScalarFluidState;
+    using InitialFluidState = CompositionalFluidState<Scalar, FluidSystem>; // typename EquilInitializer<TypeTag>::ScalarFluidState;
 
     using Toolbox = MathToolbox<Evaluation>;
     using DimMatrix = Dune::FieldMatrix<Scalar, dimWorld, dimWorld>;
@@ -1288,9 +1288,58 @@ public:
     template <class Context>
     void initial(PrimaryVariables& values, const Context& context, unsigned spaceIdx, unsigned timeIdx) const
     {
+
+        const unsigned globalDofIdx = context.globalSpaceIndex(spaceIdx, timeIdx);
+        const auto& initial_fs = initialFluidStates_[globalDofIdx];
         Opm::CompositionalFluidState<Evaluation, FluidSystem> fs;
-        initialFluidState(fs, context, spaceIdx, timeIdx);
+        for (unsigned p = 0; p < numPhases; ++p) { // TODO: assuming the phaseidx continuous
+            ComponentVector evals;
+            auto& last_eval = evals[numComponents - 1];
+            last_eval = 1.;
+            for (unsigned c = 0; c < numComponents - 1; ++c) {
+                const auto val = initial_fs.moleFraction(p, c);
+                const Evaluation eval = Evaluation::createVariable(val, c+1);
+                evals[c] = eval;
+                last_eval -= eval;
+            }
+            for (unsigned c = 0; c < numComponents; ++c) {
+                fs.setMoleFraction(p, c, evals[c]);
+            }
+
+            // pressure
+            const auto p_val = initial_fs.pressure(p);
+            fs.setPressure(p, Evaluation::createVariable(p_val, 0));
+
+            const auto sat_val = initial_fs.saturation(p);
+            fs.setSaturation(p, sat_val);
+
+            const auto temp_val = initial_fs.temperature(p);
+            fs.setTemperature(temp_val);
+        }
+
+        {
+            typename FluidSystem::template ParameterCache<Evaluation> paramCache;
+            paramCache.updatePhase(fs, FluidSystem::oilPhaseIdx);
+            paramCache.updatePhase(fs, FluidSystem::gasPhaseIdx);
+            fs.setDensity(FluidSystem::oilPhaseIdx, FluidSystem::density(fs, paramCache, FluidSystem::oilPhaseIdx));
+            fs.setDensity(FluidSystem::gasPhaseIdx, FluidSystem::density(fs, paramCache, FluidSystem::gasPhaseIdx));
+            fs.setViscosity(FluidSystem::oilPhaseIdx, FluidSystem::viscosity(fs, paramCache, FluidSystem::oilPhaseIdx));
+            fs.setViscosity(FluidSystem::gasPhaseIdx, FluidSystem::viscosity(fs, paramCache, FluidSystem::gasPhaseIdx));
+        }
+
+        // Set initial K and L
+        for (unsigned compIdx = 0; compIdx < numComponents; ++compIdx) {
+            const Evaluation Ktmp = fs.wilsonK_(compIdx);
+            fs.setKvalue(compIdx, Ktmp);
+        }
+
+        const Evaluation& Ltmp = -1.0;
+        fs.setLvalue(Ltmp);
+
         values.assignNaive(fs);
+
+        // initialFluidState(fs, context, spaceIdx, timeIdx);
+        // values.assignNaive(initialFluidStates_[globalDofIdx]);
         /*
         unsigned globalDofIdx = context.globalSpaceIndex(spaceIdx, timeIdx);
 
@@ -2106,9 +2155,10 @@ protected:
     }
 
 
-    template <class FluidState, class Context>
+    /* template <class FluidState, class Context>
     void initialFluidState(FluidState& fs, const Context& context, unsigned spaceIdx, unsigned timeIdx) const
     {
+        // unsigned globalDofIdx = context.globalSpaceIndex(spaceIdx, timeIdx);
         // z0 = [0.5, 0.3, 0.2]
         // zi = [0.99, 0.01-1e-3, 1e-3]
         // p0 = 75e5
@@ -2153,7 +2203,7 @@ protected:
         fs.setSaturation(FluidSystem::oilPhaseIdx, sat[0]);
         fs.setSaturation(FluidSystem::gasPhaseIdx, sat[1]);
 
-        fs.setTemperature(/*temperature_*/ temperature0);
+        fs.setTemperature( temperature0);
 
         // ParameterCache paramCache;
         {
@@ -2174,7 +2224,7 @@ protected:
 
         const Evaluation& Ltmp = -1.0;
         fs.setLvalue(Ltmp);
-    }
+    } */
 
 
     void readInitialCondition_()
@@ -2431,10 +2481,14 @@ protected:
         std::vector<double> pressureData;
         std::vector<double> tempiData;
 
-        if (FluidSystem::phaseIsActive(waterPhaseIdx) && Indices::numPhases > 1)
+        if (waterPhaseIdx > 0 && Indices::numPhases > 1)
             waterSaturationData = fp.get_double("SWAT");
         else
             waterSaturationData.resize(numDof);
+
+        pressureData = fp.get_double("PRESSURE");
+
+        assert(waterPhaseIdx < 0);
 
         xmfData = fp.get_double("XMF");
         ymfData = fp.get_double("YMF");
@@ -2444,43 +2498,38 @@ protected:
             ; // TODO: throw?
         }
 
-        if (FluidSystem::phaseIsActive(gasPhaseIdx) && FluidSystem::phaseIsActive(oilPhaseIdx))
+        if (gasPhaseIdx > 0) // && FluidSystem::phaseIsActive(oilPhaseIdx))
             gasSaturationData = fp.get_double("SGAS");
         else
             gasSaturationData.resize(numDof);
 
         const std::size_t num_comps = 3;
 
-        /* for (std::size_t dofIdx = 0; dofIdx < numDof; ++dofIdx) {
+        for (std::size_t dofIdx = 0; dofIdx < numDof; ++dofIdx) {
             auto& dofFluidState = initialFluidStates_[dofIdx];
-            dofFluidState.setPvtRegionIndex(pvtRegionIndex(dofIdx));
+            // dofFluidState.setPvtRegionIndex(pvtRegionIndex(dofIdx));
 
             Scalar temperatureLoc = tempiData[dofIdx];
             assert(std::isfinite(temperatureLoc) && temperatureLoc > 0);
             dofFluidState.setTemperature(temperatureLoc);
 
-            if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)){
-                if (!FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx)){
-                    dofFluidState.setSaturation(FluidSystem::gasPhaseIdx,
-                                                1.0
-                                                - waterSaturationData[dofIdx]);
-                }
-                else
+            if (gasPhaseIdx > 0) {
                     dofFluidState.setSaturation(FluidSystem::gasPhaseIdx,
                                                 gasSaturationData[dofIdx]);
             }
-            if (FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx))
+            if (oilPhaseIdx > 0) {
                 dofFluidState.setSaturation(FluidSystem::oilPhaseIdx,
                                             1.0
                                             - waterSaturationData[dofIdx]
                                             - gasSaturationData[dofIdx]);
+            }
 
             //////
             // set phase pressures
             //////
             const Scalar pressure = pressureData[dofIdx]; // oil pressure (or gas pressure for water-gas system or water pressure for single phase)
 
-            // zero phase pressure for now
+            // zero capillary pressure for now
             const std::array<Scalar, numPhases> pc = {0};
             for (unsigned phaseIdx = 0; phaseIdx < numPhases; ++phaseIdx) {
                 if (!FluidSystem::phaseIsActive(phaseIdx))
@@ -2494,7 +2543,28 @@ protected:
                     //single (water) phase
                     dofFluidState.setPressure(phaseIdx, pressure);
             }
-        } */
+
+            for (unsigned compIdx = 0; compIdx < numComponents; ++compIdx) {
+                const std::size_t data_idx = compIdx * numDof + dofIdx;
+                const Scalar xmf = xmfData[data_idx];
+                const Scalar ymf = xmfData[data_idx];
+
+                dofFluidState.setMoleFraction(FluidSystem::oilPhaseIdx, compIdx, xmf);
+                dofFluidState.setMoleFraction(FluidSystem::gasPhaseIdx, compIdx, ymf);
+            }
+
+            // TODO: we will do the following in the later stage
+            // density and viscosity
+            /* {
+                typename FluidSystem::template ParameterCache<Evaluation> paramCache;
+                paramCache.updatePhase(dofFluidState, FluidSystem::oilPhaseIdx);
+                paramCache.updatePhase(dofFluidState, FluidSystem::gasPhaseIdx);
+                dofFluidState.setDensity(FluidSystem::oilPhaseIdx, FluidSystem::density(dofFluidState, paramCache, FluidSystem::oilPhaseIdx));
+                dofFluidState.setDensity(FluidSystem::gasPhaseIdx, FluidSystem::density(dofFluidState, paramCache, FluidSystem::gasPhaseIdx));
+                dofFluidState.setViscosity(FluidSystem::oilPhaseIdx, FluidSystem::viscosity(dofFluidState, paramCache, FluidSystem::oilPhaseIdx));
+                dofFluidState.setViscosity(FluidSystem::gasPhaseIdx, FluidSystem::viscosity(dofFluidState, paramCache, FluidSystem::gasPhaseIdx));
+            } */
+        }
 
         /* std::vector<double> waterSaturationData;
         std::vector<double> gasSaturationData;
