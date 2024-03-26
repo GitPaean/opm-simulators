@@ -69,7 +69,7 @@
 #include <opm/simulators/flow/EquilInitializer.hpp>
 #include <opm/simulators/flow/FIBlackoilModel.hpp>
 #include <opm/simulators/flow/FlowGenericProblem.hpp>
-#include <opm/simulators/flow/FlowProblemProperties.hpp>
+#include <opm/simulators/flow/FlowProblemCompProperties.hpp>
 #include <opm/simulators/flow/FlowThresholdPressure.hpp>
 #include <opm/simulators/flow/NewTranFluxModule.hpp>
 #include <opm/simulators/flow/OutputBlackoilModule.hpp>

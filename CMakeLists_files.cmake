@@ -439,6 +439,7 @@ list (APPEND PUBLIC_HEADER_FILES
   opm/simulators/flow/FlowProblem.hpp
   opm/simulators/flow/FlowProblemComp.hpp
   opm/simulators/flow/FlowProblemProperties.hpp
+  opm/simulators/flow/FlowProblemCompProperties.hpp
   opm/simulators/flow/FlowUtils.hpp
   opm/simulators/flow/FlowsData.hpp
   opm/simulators/flow/FlowThresholdPressure.hpp
