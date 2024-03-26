@@ -86,7 +86,7 @@ FlowGenericProblem(const EclipseState& eclState,
     : eclState_(eclState)
     , schedule_(schedule)
     , gridView_(gridView)
-      //, mixControls_(schedule)
+    , mixControls_(schedule)
     , lookUpData_(gridView)
 {
 }
@@ -107,7 +107,7 @@ serializationTestObject(const EclipseState& eclState,
     result.solventRsw_ = {18.0};
     result.polymer_ = PolymerSolutionContainer<Scalar>::serializationTestObject();
     result.micp_ = MICPSolutionContainer<Scalar>::serializationTestObject();
-    //result.mixControls_ = MixingRateControls<FluidSystem>::serializationTestObject(schedule);
+    result.mixControls_ = MixingRateControls<FluidSystem>::serializationTestObject(schedule);
 
     return result;
 }
@@ -497,7 +497,7 @@ beginTimeStep_(bool enableExperiments,
     }
 
     // update explicit quantities between timesteps.
-    // this->mixControls_.updateExplicitQuantities(episodeIdx, timeStepSize);
+    this->mixControls_.updateExplicitQuantities(episodeIdx, timeStepSize);
 }
 
 template<class GridView, class FluidSystem>
@@ -632,8 +632,8 @@ typename FlowGenericProblem<GridView,FluidSystem>::Scalar
 FlowGenericProblem<GridView,FluidSystem>::
 drsdtcon(unsigned elemIdx, int episodeIdx) const
 {
-    // return this->mixControls_.drsdtcon(elemIdx, episodeIdx,
-    //                                    this->pvtRegionIndex(elemIdx));
+    return this->mixControls_.drsdtcon(elemIdx, episodeIdx,
+                                       this->pvtRegionIndex(elemIdx));
 }
 
 template<class GridView, class FluidSystem>
@@ -782,8 +782,8 @@ operator==(const FlowGenericProblem& rhs) const
            this->solventSaturation_ == rhs.solventSaturation_ &&
            this->solventRsw_ == rhs.solventRsw_ &&
            this->polymer_ == rhs.polymer_ &&
-        this->micp_ == rhs.micp_;// &&
-        //this->mixControls_ == rhs.mixControls_;
+           this->micp_ == rhs.micp_ &&
+           this->mixControls_ == rhs.mixControls_;
 }
 
 } // namespace Opm
