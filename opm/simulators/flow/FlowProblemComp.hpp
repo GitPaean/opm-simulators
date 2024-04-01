@@ -1168,10 +1168,10 @@ public:
      * Reservoir simulation uses no-flow conditions as default for all boundaries.
      */
     template <class Context>
-    void boundary(BoundaryRateVector& values,
-                  const Context& context,
-                  unsigned spaceIdx,
-                  unsigned timeIdx) const
+    void boundary(BoundaryRateVector& /* values */,
+                  const Context& /* context */,
+                  unsigned /* spaceIdx */,
+                  unsigned /* timeIdx */) const
     {
         // OPM_TIMEBLOCK_LOCAL(eclProblemBoundary);
         // if (!context.intersection(spaceIdx).boundary())
@@ -1450,9 +1450,9 @@ public:
         addToSourceDense(rate, globalDofIdx, timeIdx);
     }
 
-    void addToSourceDense(RateVector& rate,
-                          unsigned globalDofIdx,
-                          unsigned timeIdx) const
+    void addToSourceDense(RateVector& /* rate */,
+                          unsigned /* globalDofIdx */,
+                          unsigned /* timeIdx */) const
     {
         // aquiferModel_.addToSource(rate, globalDofIdx, timeIdx);
 
@@ -2436,38 +2436,13 @@ protected:
         const auto& fp = eclState.fieldProps();
         const bool has_xmf = fp.has_double("XMF");
         const bool has_ymf = fp.has_double("YMF");
-        const bool has_oil = fp.has_double("SOIL"); // TODO: not sure it is needed
         const bool has_temp = fp.has_double("TEMPI");
         const bool has_pressure = fp.has_double("PRESSURE");
 
         const bool has_gas = fp.has_double("SGAS");
-        // make sure all required quantities are enables
-        /* if (Indices::numPhases > 1) {
-            if (FluidSystem::phaseIsActive(waterPhaseIdx) && !has_swat)
-                throw std::runtime_error("The ECL input file requires the presence of the SWAT keyword if "
-                                     "the water phase is active");
-            if (FluidSystem::phaseIsActive(gasPhaseIdx) && !has_sgas && FluidSystem::phaseIsActive(oilPhaseIdx))
-                throw std::runtime_error("The ECL input file requires the presence of the SGAS keyword if "
-                                     "the gas phase is active");
-        } */
         if (!has_pressure)
             throw std::runtime_error("The ECL input file requires the presence of the PRESSURE "
                                       "keyword if the model is initialized explicitly");
-        /* if (FluidSystem::enableDissolvedGas() && !has_rs)
-            throw std::runtime_error("The ECL input file requires the RS keyword to be present if"
-                                     " dissolved gas is enabled");
-        if (FluidSystem::enableVaporizedOil() && !has_rv)
-            throw std::runtime_error("The ECL input file requires the RV keyword to be present if"
-                                     " vaporized oil is enabled");
-        if (FluidSystem::enableVaporizedWater() && !has_rvw)
-            throw std::runtime_error("The ECL input file requires the RVW keyword to be present if"
-                                     " vaporized water is enabled");
-        if (enableBrine && !has_salt)
-            throw std::runtime_error("The ECL input file requires the SALT keyword to be present if"
-                                     " brine is enabled and the model is initialized explicitly");
-        if (enableSaltPrecipitation && !has_saltp)
-            throw std::runtime_error("The ECL input file requires the SALTP keyword to be present if"
-                                     " salt precipitation is enabled and the model is initialized explicitly"); */
 
         std::size_t numDof = this->model().numGridDof();
 
@@ -2503,7 +2478,7 @@ protected:
         else
             gasSaturationData.resize(numDof);
 
-        const std::size_t num_comps = 3;
+        constexpr std::size_t num_comps = 3;
 
         for (std::size_t dofIdx = 0; dofIdx < numDof; ++dofIdx) {
             auto& dofFluidState = initialFluidStates_[dofIdx];
@@ -2552,163 +2527,7 @@ protected:
                 dofFluidState.setMoleFraction(FluidSystem::oilPhaseIdx, compIdx, xmf);
                 dofFluidState.setMoleFraction(FluidSystem::gasPhaseIdx, compIdx, ymf);
             }
-
-            // TODO: we will do the following in the later stage
-            // density and viscosity
-            /* {
-                typename FluidSystem::template ParameterCache<Evaluation> paramCache;
-                paramCache.updatePhase(dofFluidState, FluidSystem::oilPhaseIdx);
-                paramCache.updatePhase(dofFluidState, FluidSystem::gasPhaseIdx);
-                dofFluidState.setDensity(FluidSystem::oilPhaseIdx, FluidSystem::density(dofFluidState, paramCache, FluidSystem::oilPhaseIdx));
-                dofFluidState.setDensity(FluidSystem::gasPhaseIdx, FluidSystem::density(dofFluidState, paramCache, FluidSystem::gasPhaseIdx));
-                dofFluidState.setViscosity(FluidSystem::oilPhaseIdx, FluidSystem::viscosity(dofFluidState, paramCache, FluidSystem::oilPhaseIdx));
-                dofFluidState.setViscosity(FluidSystem::gasPhaseIdx, FluidSystem::viscosity(dofFluidState, paramCache, FluidSystem::gasPhaseIdx));
-            } */
         }
-
-        /* std::vector<double> waterSaturationData;
-        std::vector<double> gasSaturationData;
-        std::vector<double> pressureData;
-        std::vector<double> rsData;
-        std::vector<double> rvData;
-        std::vector<double> rvwData;
-        std::vector<double> tempiData;
-        std::vector<double> saltData;
-        std::vector<double> saltpData;
-
-        if (FluidSystem::phaseIsActive(waterPhaseIdx) && Indices::numPhases > 1)
-            waterSaturationData = fp.get_double("SWAT");
-        else
-            waterSaturationData.resize(numDof);
-
-        if (FluidSystem::phaseIsActive(gasPhaseIdx) && FluidSystem::phaseIsActive(oilPhaseIdx))
-            gasSaturationData = fp.get_double("SGAS");
-        else
-            gasSaturationData.resize(numDof);
-
-        pressureData = fp.get_double("PRESSURE");
-        if (FluidSystem::enableDissolvedGas())
-            rsData = fp.get_double("RS");
-
-        if (FluidSystem::enableVaporizedOil())
-            rvData = fp.get_double("RV");
-
-        if (FluidSystem::enableVaporizedWater())
-            rvwData = fp.get_double("RVW");
-
-        // initial reservoir temperature
-        tempiData = fp.get_double("TEMPI");
-
-        // initial salt concentration data
-        if constexpr (enableBrine)
-            saltData = fp.get_double("SALT");
-
-         // initial precipitated salt saturation data
-         if constexpr (enableSaltPrecipitation)
-            saltpData = fp.get_double("SALTP");
-
-        // calculate the initial fluid states
-        for (std::size_t dofIdx = 0; dofIdx < numDof; ++dofIdx) {
-            auto& dofFluidState = initialFluidStates_[dofIdx];
-
-            dofFluidState.setPvtRegionIndex(pvtRegionIndex(dofIdx));
-
-            //////
-            // set temperature
-            //////
-            Scalar temperatureLoc = tempiData[dofIdx];
-            if (!std::isfinite(temperatureLoc) || temperatureLoc <= 0)
-                temperatureLoc = FluidSystem::surfaceTemperature;
-            dofFluidState.setTemperature(temperatureLoc);
-
-            //////
-            // set salt concentration
-            //////
-            if constexpr (enableBrine)
-                dofFluidState.setSaltConcentration(saltData[dofIdx]);
-
-            //////
-            // set precipitated salt saturation
-            //////
-            if constexpr (enableSaltPrecipitation)
-                dofFluidState.setSaltSaturation(saltpData[dofIdx]);
-
-            //////
-            // set saturations
-            //////
-            if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx))
-                dofFluidState.setSaturation(FluidSystem::waterPhaseIdx,
-                                            waterSaturationData[dofIdx]);
-
-            if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)){
-                if (!FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx)){
-                    dofFluidState.setSaturation(FluidSystem::gasPhaseIdx,
-                                            1.0
-                                            - waterSaturationData[dofIdx]);
-                }
-                else
-                    dofFluidState.setSaturation(FluidSystem::gasPhaseIdx,
-                                                gasSaturationData[dofIdx]);
-            }
-            if (FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx))
-                dofFluidState.setSaturation(FluidSystem::oilPhaseIdx,
-                                            1.0
-                                            - waterSaturationData[dofIdx]
-                                            - gasSaturationData[dofIdx]);
-
-            //////
-            // set phase pressures
-            //////
-            Scalar pressure = pressureData[dofIdx]; // oil pressure (or gas pressure for water-gas system or water pressure for single phase)
-
-            // this assumes that capillary pressures only depend on the phase saturations
-            // and possibly on temperature. (this is always the case for ECL problems.)
-            std::array<Scalar, numPhases> pc = {0};
-            const auto& matParams = materialLawParams(dofIdx);
-            MaterialLaw::capillaryPressures(pc, matParams, dofFluidState);
-            Valgrind::CheckDefined(pressure);
-            Valgrind::CheckDefined(pc);
-            for (unsigned phaseIdx = 0; phaseIdx < numPhases; ++phaseIdx) {
-                if (!FluidSystem::phaseIsActive(phaseIdx))
-                    continue;
-
-                if (Indices::oilEnabled)
-                    dofFluidState.setPressure(phaseIdx, pressure + (pc[phaseIdx] - pc[oilPhaseIdx]));
-                else if (Indices::gasEnabled)
-                    dofFluidState.setPressure(phaseIdx, pressure + (pc[phaseIdx] - pc[gasPhaseIdx]));
-                else if (Indices::waterEnabled)
-                    //single (water) phase
-                    dofFluidState.setPressure(phaseIdx, pressure);
-            }
-
-            if (FluidSystem::enableDissolvedGas())
-                dofFluidState.setRs(rsData[dofIdx]);
-            else if (Indices::gasEnabled && Indices::oilEnabled)
-                dofFluidState.setRs(0.0);
-
-            if (FluidSystem::enableVaporizedOil())
-                dofFluidState.setRv(rvData[dofIdx]);
-            else if (Indices::gasEnabled && Indices::oilEnabled)
-                dofFluidState.setRv(0.0);
-
-            if (FluidSystem::enableVaporizedWater())
-                dofFluidState.setRvw(rvwData[dofIdx]);
-
-            //////
-            // set invB_
-            //////
-            for (unsigned phaseIdx = 0; phaseIdx < numPhases; ++phaseIdx) {
-                if (!FluidSystem::phaseIsActive(phaseIdx))
-                    continue;
-
-                const auto& b = FluidSystem::inverseFormationVolumeFactor(dofFluidState, phaseIdx, pvtRegionIndex(dofIdx));
-                dofFluidState.setInvB(phaseIdx, b);
-
-                const auto& rho = FluidSystem::density(dofFluidState, phaseIdx, pvtRegionIndex(dofIdx));
-                dofFluidState.setDensity(phaseIdx, rho);
-
-            }
-        } */
     }
 
     // update the hysteresis parameters of the material laws for the whole grid
