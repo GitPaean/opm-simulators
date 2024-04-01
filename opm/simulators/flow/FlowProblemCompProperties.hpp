@@ -53,7 +53,7 @@
 
 namespace Opm {
 template <class TypeTag>
-class FlowProblem;
+class FlowProblemComp;
 }
 
 namespace Opm::Properties {
@@ -61,7 +61,7 @@ namespace Opm::Properties {
 namespace TTag {
 
 struct FlowBaseProblemComp {
-  using InheritsFrom = std::tuple<VtkTracer, OutputBlackOil, CpGridVanguard>;
+  using InheritsFrom = std::tuple<VtkTracer, /* OutputBlackOil, */ CpGridVanguard>;
 };
 }
 
@@ -145,13 +145,13 @@ struct ExplicitRockCompaction {
 // Set the problem property
 template<class TypeTag>
 struct Problem<TypeTag, TTag::FlowBaseProblemComp> {
-    using type = FlowProblem<TypeTag>;
+    using type = FlowProblemComp<TypeTag>;
 };
 
-template<class TypeTag>
+/* template<class TypeTag>
 struct Model<TypeTag, TTag::FlowBaseProblemComp> {
     using type = FIBlackOilModel<TypeTag>;
-};
+}; */
 template<class TypeTag>
 struct TracerModelDef<TypeTag, TTag::FlowBaseProblemComp> {
     using type = ::Opm::TracerModel<TypeTag>;
@@ -183,25 +183,6 @@ template<class TypeTag>
 struct GridView<TypeTag, TTag::FlowBaseProblemComp>
 {
     using type = typename GetPropType<TypeTag, Properties::Grid>::LeafGridView;
-};
-
-// Set the material law for fluid fluxes
-template<class TypeTag>
-struct MaterialLaw<TypeTag, TTag::FlowBaseProblemComp>
-{
-private:
-    using Scalar = GetPropType<TypeTag, Properties::Scalar>;
-    using FluidSystem = GetPropType<TypeTag, Properties::FluidSystem>;
-
-    using Traits = ThreePhaseMaterialTraits<Scalar,
-                                            /*wettingPhaseIdx=*/FluidSystem::waterPhaseIdx,
-                                            /*nonWettingPhaseIdx=*/FluidSystem::oilPhaseIdx,
-                                            /*gasPhaseIdx=*/FluidSystem::gasPhaseIdx>;
-
-public:
-    using EclMaterialLawManager = ::Opm::EclMaterialLawManager<Traits>;
-
-    using type = typename EclMaterialLawManager::MaterialLaw;
 };
 
 // Set the material law for energy storage in rock
@@ -438,12 +419,6 @@ struct EnableStorageCache<TypeTag, TTag::FlowBaseProblemComp> {
 template<class TypeTag>
 struct FluxModule<TypeTag, TTag::FlowBaseProblemComp> {
     using type = NewTranFluxModule<TypeTag>;
-};
-
-// Use the dummy gradient calculator in order not to do unnecessary work.
-template<class TypeTag>
-struct GradientCalculator<TypeTag, TTag::FlowBaseProblemComp> {
-    using type = DummyGradientCalculator<TypeTag>;
 };
 
 // The frequency of writing restart (*.ers) files. This is the number of time steps
