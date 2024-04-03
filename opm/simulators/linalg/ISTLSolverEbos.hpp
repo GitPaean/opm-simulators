@@ -310,7 +310,7 @@ std::unique_ptr<Matrix> blockJacobiAdjacency(const Grid& grid,
             prepare(M.istlMatrix(), b);
         }
 
-        void prepare(const Matrix& M, Vector& b)
+        virtual void prepare(const Matrix& M, Vector& b)
         {
             OPM_TIMEBLOCK(istlSolverEbosPrepare);
             const bool firstcall = (matrix_ == nullptr);
