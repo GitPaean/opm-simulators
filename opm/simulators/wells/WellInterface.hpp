@@ -196,6 +196,7 @@ public:
 
     virtual std::optional<double> computeBhpAtThpLimitProdWithAlq(
         const Simulator& simulator,
+        const WellState& well_state,
         const SummaryState& summary_state,
         const double alq_value,
         DeferredLogger& deferred_logger

@@ -132,6 +132,7 @@ computeBhpAtThpLimit_(double alq, bool debug_output) const
 {
     auto bhp_at_thp_limit = this->well_.computeBhpAtThpLimitProdWithAlq(
         this->simulator_,
+        this->well_state_,
         this->summary_state_,
         alq,
         this->deferred_logger_);

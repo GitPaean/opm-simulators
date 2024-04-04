@@ -192,6 +192,7 @@ std::optional<double>
 WellBhpThpCalculator::
 computeBhpAtThpLimitProd(const std::function<std::vector<double>(const double)>& frates,
                          const SummaryState& summary_state,
+                         const WellState& well_state,
                          const double maxPerfPress,
                          const double rho,
                          const double alq_value,
@@ -224,10 +225,10 @@ computeBhpAtThpLimitProd(const std::function<std::vector<double>(const double)>&
     const double vfp_ref_depth = table.getDatumDepth();
     const double dp = wellhelpers::computeHydrostaticCorrection(well_.refDepth(), vfp_ref_depth, rho, well_.gravity());
 
-    auto fbhp = [this, &controls, thp_limit, dp, alq_value](const std::vector<double>& rates) {
+    auto fbhp = [this, &controls, &well_state, thp_limit, dp, alq_value](const std::vector<double>& rates) {
         assert(rates.size() == 3);
-        const auto& wfr =  well_.vfpProperties()->getExplicitWFR(controls.vfp_table_number, well_.indexOfWell());
-        const auto& gfr = well_.vfpProperties()->getExplicitGFR(controls.vfp_table_number, well_.indexOfWell());
+        const auto& wfr =  well_.vfpProperties()->getExplicitWFR(controls.vfp_table_number, well_.indexOfWell(), well_state);
+        const auto& gfr = well_.vfpProperties()->getExplicitGFR(controls.vfp_table_number, well_.indexOfWell(), well_state);
         const bool use_vfpexp = well_.useVfpExplicit();
         const double bhp = well_.vfpProperties()->getProd()->bhp(controls.vfp_table_number,
                                                      rates[Water],
@@ -362,8 +363,8 @@ calculateBhpFromThp(const WellState& well_state,
     else if (well_.isProducer()) {
         const auto& controls = well.productionControls(summaryState);
         vfp_ref_depth = well_.vfpProperties()->getProd()->getTable(controls.vfp_table_number).getDatumDepth();
-        const auto& wfr =  well_.vfpProperties()->getExplicitWFR(controls.vfp_table_number, well_.indexOfWell());
-        const auto& gfr = well_.vfpProperties()->getExplicitGFR(controls.vfp_table_number, well_.indexOfWell());
+        const auto& wfr =  well_.vfpProperties()->getExplicitWFR(controls.vfp_table_number, well_.indexOfWell(), well_state);
+        const auto& gfr = well_.vfpProperties()->getExplicitGFR(controls.vfp_table_number, well_.indexOfWell(), well_state);
         const bool use_vfpexplicit = well_.useVfpExplicit();
 
         bhp_tab = well_.vfpProperties()->getProd()->bhp(controls.vfp_table_number,
@@ -400,8 +401,8 @@ calculateMinimumBhpFromThp(const WellState& well_state,
     const double thp_limit = well_.getTHPConstraint(summaryState);
     
     const auto& controls = well.productionControls(summaryState);
-    const auto& wfr =  well_.vfpProperties()->getExplicitWFR(controls.vfp_table_number, well_.indexOfWell());
-    const auto& gfr = well_.vfpProperties()->getExplicitGFR(controls.vfp_table_number, well_.indexOfWell());
+    const auto& wfr =  well_.vfpProperties()->getExplicitWFR(controls.vfp_table_number, well_.indexOfWell(), well_state);
+    const auto& gfr = well_.vfpProperties()->getExplicitGFR(controls.vfp_table_number, well_.indexOfWell(), well_state);
 
     const double bhp_min = well_.vfpProperties()->getProd()->minimumBHP(controls.vfp_table_number,
                                                                         thp_limit, wfr, gfr, 
@@ -885,8 +886,8 @@ isStableSolution(const WellState& well_state,
     const double thp = well_.getTHPConstraint(summaryState);
 
     const auto& controls = well.productionControls(summaryState);
-    const auto& wfr =  well_.vfpProperties()->getExplicitWFR(controls.vfp_table_number, well_.indexOfWell());
-    const auto& gfr = well_.vfpProperties()->getExplicitGFR(controls.vfp_table_number, well_.indexOfWell());
+    const auto& wfr =  well_.vfpProperties()->getExplicitWFR(controls.vfp_table_number, well_.indexOfWell(), well_state);
+    const auto& gfr = well_.vfpProperties()->getExplicitGFR(controls.vfp_table_number, well_.indexOfWell(), well_state);
 
     const auto& table = well_.vfpProperties()->getProd()->getTable(controls.vfp_table_number);
     const bool use_vfpexplicit = well_.useVfpExplicit();
@@ -919,8 +920,8 @@ estimateStableBhp(const WellState& well_state,
     double flo = detail::getFlo(table, aqua, liquid, vapour);
     double wfr, gfr;
     if (well_.useVfpExplicit() || -flo < table.getFloAxis().front()) {
-        wfr =  well_.vfpProperties()->getExplicitWFR(controls.vfp_table_number, well_.indexOfWell());
-        gfr = well_.vfpProperties()->getExplicitGFR(controls.vfp_table_number, well_.indexOfWell());
+        wfr =  well_.vfpProperties()->getExplicitWFR(controls.vfp_table_number, well_.indexOfWell(), well_state);
+        gfr = well_.vfpProperties()->getExplicitGFR(controls.vfp_table_number, well_.indexOfWell(), well_state);
     } else {
         wfr = detail::getWFR(table, aqua, liquid, vapour);  
         gfr = detail::getGFR(table, aqua, liquid, vapour);   

@@ -47,9 +47,7 @@ public:
      */
 
     VFPProperties(const std::vector<std::reference_wrapper<const VFPInjTable>>& inj_tables,
-                  const std::vector<std::reference_wrapper<const VFPProdTable>>& prod_tables,
-                  const WellState& well_state)
-                  :well_state_(well_state)
+                  const std::vector<std::reference_wrapper<const VFPProdTable>>& prod_tables)
     {
         for (const auto& vfpinj : inj_tables)
             this->m_inj.addTable( vfpinj );
@@ -72,9 +70,9 @@ public:
         return &m_prod;
     }
 
-    double getExplicitWFR(const int table_id, const std::size_t well_index) const {
-        const auto& rates = well_state_.well(well_index).prev_surface_rates;
-        const auto& pu = well_state_.phaseUsage();
+    double getExplicitWFR(const int table_id, const std::size_t well_index, const WellState& well_state) const {
+        const auto& rates = well_state.well(well_index).prev_surface_rates;
+        const auto& pu = well_state.phaseUsage();
         const auto& aqua = pu.phase_used[BlackoilPhases::Aqua]? rates[pu.phase_pos[BlackoilPhases::Aqua]]:0.0;
         const auto& liquid = pu.phase_used[BlackoilPhases::Liquid]? rates[pu.phase_pos[BlackoilPhases::Liquid]]:0.0;
         const auto& vapour = pu.phase_used[BlackoilPhases::Vapour]? rates[pu.phase_pos[BlackoilPhases::Vapour]]:0.0;
@@ -82,9 +80,9 @@ public:
         return detail::getWFR(table, aqua, liquid, vapour);
     }
 
-    double getExplicitGFR(const int table_id, const std::size_t well_index) const {
-        const auto& rates = well_state_.well(well_index).prev_surface_rates;
-        const auto& pu = well_state_.phaseUsage();
+    double getExplicitGFR(const int table_id, const std::size_t well_index, const WellState& well_state) const {
+        const auto& rates = well_state.well(well_index).prev_surface_rates;
+        const auto& pu = well_state.phaseUsage();
         const auto& aqua = pu.phase_used[BlackoilPhases::Aqua]? rates[pu.phase_pos[BlackoilPhases::Aqua]]:0.0;
         const auto& liquid = pu.phase_used[BlackoilPhases::Liquid]? rates[pu.phase_pos[BlackoilPhases::Liquid]]:0.0;
         const auto& vapour = pu.phase_used[BlackoilPhases::Vapour]? rates[pu.phase_pos[BlackoilPhases::Vapour]]:0.0;
@@ -95,7 +93,6 @@ public:
 private:
     VFPInjProperties m_inj;
     VFPProdProperties m_prod;
-    const WellState& well_state_;
 
 };
 

@@ -222,6 +222,7 @@ namespace Opm
 
         /* returns BHP */
         double computeWellRatesAndBhpWithThpAlqProd(const Simulator& simulator,
+                               const WellState& well_state,
                                const SummaryState& summary_state,
                                DeferredLogger& deferred_logger,
                                std::vector<double>& potentials,
@@ -229,6 +230,7 @@ namespace Opm
 
         void computeWellRatesWithThpAlqProd(
             const Simulator& simulator,
+            const WellState& well_state,
             const SummaryState& summary_state,
             DeferredLogger& deferred_logger,
             std::vector<double>& potentials,
@@ -236,6 +238,7 @@ namespace Opm
 
         std::optional<double> computeBhpAtThpLimitProdWithAlq(
             const Simulator& simulator,
+            const WellState& well_state,
             const SummaryState& summary_state,
             const double alq_value,
             DeferredLogger& deferred_logger) const override;

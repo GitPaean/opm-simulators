@@ -2023,6 +2023,7 @@ namespace Opm
     {
         return this->MultisegmentWell<TypeTag>::computeBhpAtThpLimitProdWithAlq(
                                                simulator,
+                                               well_state,
                                                summary_state,
                                                this->getALQ(well_state),
                                                deferred_logger);
@@ -2034,6 +2035,7 @@ namespace Opm
     std::optional<double>
     MultisegmentWell<TypeTag>::
     computeBhpAtThpLimitProdWithAlq(const Simulator& simulator,
+                                    const WellState& well_state,
                                     const SummaryState& summary_state,
                                     const double alq_value,
                                     DeferredLogger& deferred_logger) const
@@ -2053,6 +2055,7 @@ namespace Opm
         auto bhpAtLimit = WellBhpThpCalculator(*this).
                computeBhpAtThpLimitProd(frates,
                                         summary_state,
+                                        well_state,
                                         this->maxPerfPress(simulator),
                                         this->getRefDensity(),
                                         alq_value,
@@ -2074,6 +2077,7 @@ namespace Opm
        return WellBhpThpCalculator(*this).
               computeBhpAtThpLimitProd(fratesIter,
                                        summary_state,
+                                       well_state,
                                        this->maxPerfPress(simulator),
                                        this->getRefDensity(),
                                        alq_value,

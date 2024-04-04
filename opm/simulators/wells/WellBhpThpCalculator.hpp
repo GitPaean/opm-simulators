@@ -65,6 +65,7 @@ public:
     std::optional<double>
     computeBhpAtThpLimitProd(const std::function<std::vector<double>(const double)>& frates,
                              const SummaryState& summary_state,
+                             const WellState& well_state,
                              const double maxPerfPress,
                              const double rho,
                              const double alq_value,

@@ -260,12 +260,13 @@ namespace Opm {
             // purpose of RESV controls.
             this->rateConverter_->template defineState<ElementContext>(this->simulator_);
 
+            // TODO: without well state, this can be moved much earlier.
             // Update VFP properties.
             {
                 const auto& sched_state = this->schedule()[timeStepIdx];
 
                 this->vfp_properties_ = std::make_unique<VFPProperties>
-                    (sched_state.vfpinj(), sched_state.vfpprod(), this->wellState());
+                    (sched_state.vfpinj(), sched_state.vfpprod());
             }
         }
         OPM_END_PARALLEL_TRY_CATCH_LOG(local_deferredLogger,

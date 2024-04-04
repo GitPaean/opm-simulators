@@ -1574,7 +1574,7 @@ namespace Opm
             }
         } else {
             computeWellRatesWithThpAlqProd(
-                simulator, summary_state,
+                simulator, well_state, summary_state,
                 deferred_logger, potentials, this->getALQ(well_state)
             );
         }
@@ -1648,15 +1648,16 @@ namespace Opm
     template<typename TypeTag>
     double
     StandardWell<TypeTag>::
-    computeWellRatesAndBhpWithThpAlqProd(const Simulator &simulator,
-                               const SummaryState &summary_state,
-                               DeferredLogger &deferred_logger,
-                               std::vector<double> &potentials,
+    computeWellRatesAndBhpWithThpAlqProd(const Simulator& simulator,
+                               const WellState& well_state,
+                               const SummaryState& summary_state,
+                               DeferredLogger& deferred_logger,
+                               std::vector<double>& potentials,
                                double alq) const
     {
         double bhp;
         auto bhp_at_thp_limit = computeBhpAtThpLimitProdWithAlq(
-                              simulator, summary_state, alq, deferred_logger);
+                              simulator, well_state, summary_state, alq, deferred_logger);
         if (bhp_at_thp_limit) {
             const auto& controls = this->well_ecl_.productionControls(summary_state);
             bhp = std::max(*bhp_at_thp_limit, controls.bhp_limit);
@@ -1677,6 +1678,7 @@ namespace Opm
     void
     StandardWell<TypeTag>::
     computeWellRatesWithThpAlqProd(const Simulator& simulator,
+                               const WellState& well_state,
                                const SummaryState& summary_state,
                                DeferredLogger& deferred_logger,
                                std::vector<double>& potentials,
@@ -1684,6 +1686,7 @@ namespace Opm
     {
         /*double bhp =*/
         computeWellRatesAndBhpWithThpAlqProd(simulator,
+                                             well_state,
                                              summary_state,
                                              deferred_logger,
                                              potentials,
@@ -2160,6 +2163,7 @@ namespace Opm
                              DeferredLogger& deferred_logger) const
     {
         return computeBhpAtThpLimitProdWithAlq(simulator,
+                                               well_state,
                                                summary_state,
                                                this->getALQ(well_state),
                                                deferred_logger);
@@ -2169,6 +2173,7 @@ namespace Opm
     std::optional<double>
     StandardWell<TypeTag>::
     computeBhpAtThpLimitProdWithAlq(const Simulator& simulator,
+                                    const WellState& well_state,
                                     const SummaryState& summary_state,
                                     const double alq_value,
                                     DeferredLogger& deferred_logger) const
@@ -2196,6 +2201,7 @@ namespace Opm
         }
         auto bhpAtLimit = WellBhpThpCalculator(*this).computeBhpAtThpLimitProd(frates,
                                                                                summary_state,
+                                                                               well_state,
                                                                                max_pressure,
                                                                                this->connections_.rho(),
                                                                                alq_value,
@@ -2222,6 +2228,7 @@ namespace Opm
 
         bhpAtLimit = WellBhpThpCalculator(*this).computeBhpAtThpLimitProd(fratesIter,
                                                                           summary_state,
+                                                                          well_state,
                                                                           max_pressure,
                                                                           this->connections_.rho(),
                                                                           alq_value,
