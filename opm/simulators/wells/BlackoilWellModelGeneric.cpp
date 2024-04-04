@@ -1569,6 +1569,32 @@ void BlackoilWellModelGeneric::initInjMult() {
 }
 
 
+void BlackoilWellModelGeneric::checkVFPRequirement(const SummaryState& summary_state,
+                                                   DeferredLogger& deferred_logger) const
+{
+    std::string exc_msg;
+    auto exc_type = ExceptionType::NONE;
+    for (auto& well: well_container_generic_) {
+        std::string cur_exc_msg;
+        auto cur_exc_type = ExceptionType::NONE;
+        try {
+            if (well->wellHasTHPConstraints(summary_state) && !well->isVFPActive(deferred_logger)) {
+                std::string msg = fmt::format("Well {} must have a valid VFP table to handle non-zero THP constraint"
+                                              " or being part of a network", well->name());
+                throw std::invalid_argument(msg);
+            }
+        }
+        OPM_PARALLEL_CATCH_CLAUSE(cur_exc_type, cur_exc_msg);
+        if (cur_exc_type != ExceptionType::NONE) {
+            exc_msg += "\n" + cur_exc_msg;
+            exc_type = std::max(exc_type, cur_exc_type);
+        }
+    }
+    logAndCheckForExceptionsAndThrow(deferred_logger, exc_type, exc_msg,
+                                     terminal_output_, comm_);
+}
+
+
 void BlackoilWellModelGeneric::updateFiltrationParticleVolume(const double dt,
                                                               const std::size_t water_index)
 {

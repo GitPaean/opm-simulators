@@ -405,6 +405,7 @@ protected:
 
     void initInjMult();
 
+    void checkVFPRequirement(const SummaryState& summary_state, DeferredLogger& deferred_logger) const;
 
     void updateInjMult(DeferredLogger& deferred_logger);
     void updateInjFCMult(DeferredLogger& deferred_logger);

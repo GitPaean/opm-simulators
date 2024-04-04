@@ -461,6 +461,10 @@ namespace Opm {
             well->setGuideRate(&guideRate_);
         }
 
+        // checking whether a valid VFP table is needed, if yes, whether there is VFP table provided.
+        const auto& summaryState = simulator_.vanguard().summaryState();
+        this->checkVFPRequirement(summaryState, local_deferredLogger);
+
         this->updateInjFCMult(local_deferredLogger);
 
         // Close completions due to economic reasons
@@ -471,7 +475,7 @@ namespace Opm {
         // we need the inj_multiplier from the previous time step
         this->initInjMult();
 
-        const auto& summaryState = simulator_.vanguard().summaryState();
+
         if (alternative_well_rate_init_) {
             // Update the well rates of well_state_, if only single-phase rates, to
             // have proper multi-phase rates proportional to rates at bhp zero.
