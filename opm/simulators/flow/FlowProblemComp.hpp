@@ -674,17 +674,17 @@ public:
             }
         }
         }
-        bool isSubStep = !Parameters::get<TypeTag, Properties::EnableWriteAllSolutions>() &&
+        /* bool isSubStep = !Parameters::get<TypeTag, Properties::EnableWriteAllSolutions>() &&
                          !this->simulator().episodeWillBeOver();
-        /* // For CpGrid with LGRs, ecl/vtk output is not supported yet.
+        // For CpGrid with LGRs, ecl/vtk output is not supported yet.
         const auto& grid =  this->simulator().vanguard().gridView().grid();
         using GridType =  std::remove_cv_t< typename std::remove_reference<decltype(grid)>::type>;
         bool isCpGrid = std::is_same_v<GridType, Dune::CpGrid>;
         if ( !isCpGrid || (this->simulator().vanguard().gridView().grid().maxLevel()==0)) {
             eclWriter_->evalSummaryState(isSubStep);
-        } */
+        }
 
-        int episodeIdx = this->episodeIndex();
+        int episodeIdx = this->episodeIndex(); */
 
         // Re-ordering in case of Alugrid
         std::function<unsigned int(unsigned int)> gridToEquilGrid = [&simulator](unsigned int i) {
@@ -2443,12 +2443,15 @@ protected:
         const auto& vanguard = simulator.vanguard();
         const auto& eclState = vanguard.eclState();
         const auto& fp = eclState.fieldProps();
-        const bool has_xmf = fp.has_double("XMF");
-        const bool has_ymf = fp.has_double("YMF");
+        // const bool has_xmf = fp.has_double("XMF");
+        assert(fp.has_double("XMF"));
+        // const bool has_ymf = fp.has_double("YMF");
+        assert(fp.has_double("YMF"));
         const bool has_temp = fp.has_double("TEMPI");
         const bool has_pressure = fp.has_double("PRESSURE");
 
-        const bool has_gas = fp.has_double("SGAS");
+        // const bool has_gas = fp.has_double("SGAS");
+        assert(fp.has_double("SGAS"));
         if (!has_pressure)
             throw std::runtime_error("The ECL input file requires the presence of the PRESSURE "
                                       "keyword if the model is initialized explicitly");
@@ -2487,7 +2490,7 @@ protected:
         else
             gasSaturationData.resize(numDof);
 
-        constexpr std::size_t num_comps = 3;
+        // constexpr std::size_t num_comps = 3;
 
         for (std::size_t dofIdx = 0; dofIdx < numDof; ++dofIdx) {
             auto& dofFluidState = initialFluidStates_[dofIdx];
