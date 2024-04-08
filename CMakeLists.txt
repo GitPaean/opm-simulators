@@ -682,6 +682,16 @@ opm_add_test(ebos
   $<TARGET_OBJECTS:moduleVersion>
 )
 
+opm_add_test(ebos_comp
+  ONLY_COMPILE
+  ALWAYS_ENABLE
+  DEPENDS opmsimulators
+  LIBRARIES opmsimulators
+  SOURCES
+  flowexperimental/comp/ebos_comp.cpp
+  $<TARGET_OBJECTS:moduleVersion>
+)
+
 if(dune-alugrid_FOUND)
   if (NOT BUILD_FLOW_ALU_GRID)
     set(FLOW_ALUGRID_ONLY_DEFAULT_ENABLE_IF "FALSE")
