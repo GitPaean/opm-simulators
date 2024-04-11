@@ -25,8 +25,8 @@
  *
  * \brief The common settings for all ebos variants.
  */
-#ifndef EBOS_HH
-#define EBOS_HH
+#ifndef OPM_FLOWEXP_HPP
+#define OPM_FLOWEXP_HPP
 
 #include <opm/simulators/flow/FlowProblem.hpp>
 #include <opm/simulators/flow/FlowProblemProperties.hpp>

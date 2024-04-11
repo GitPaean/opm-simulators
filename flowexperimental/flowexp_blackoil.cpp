@@ -19,13 +19,11 @@
 #include "config.h"
 #include <opm/simulators/flow/FlowProblem.hpp>
 #include "eclnewtonmethod.hh"
-#include "ebos.hh"
+#include "flowexp.hpp"
 #include <opm/simulators/flow/Main.hpp>
 
 #include <opm/models/blackoil/blackoillocalresidualtpfa.hh>
 #include <opm/models/discretization/common/tpfalinearizer.hh>
-#include "blackoilintensivequantitiessimple.hh"
-#include "BlackOilModelFvNoCache.hpp"
 // the current code use eclnewtonmethod adding other conditions to proceed_ should do the trick for KA
 // adding linearshe sould be chaning the update_ function in the same class with condition that the error is reduced.
 // the trick is to be able to recalculate the residual from here.
@@ -49,14 +47,6 @@ struct EclFlowProblemEbos {
 };
 }
 
-template<class TypeTag>
-struct Model<TypeTag, TTag::EclFlowProblemEbos> {
-    using type = BlackOilModelFvNoCache<TypeTag>;
-};
-template<class TypeTag>
-struct IntensiveQuantities<TypeTag, TTag::EclFlowProblemEbos> {
-     using type = BlackOilIntensiveQuantitiesSimple<TypeTag>;
-};
 // Set the problem class
 template<class TypeTag>
 struct Problem<TypeTag, TTag::EclFlowProblemEbos> {
@@ -101,11 +91,11 @@ struct EclNewtonRelaxedTolerance<TypeTag, TTag::EclFlowProblemEbos> {
     static constexpr type value = 10*getPropValue<TypeTag, Properties::NewtonTolerance>();
 };
 
-//template<class TypeTag>
-//struct Linearizer<TypeTag, TTag::EclFlowProblemEbos> { using type = TpfaLinearizer<TypeTag>; };
+template<class TypeTag>
+struct Linearizer<TypeTag, TTag::EclFlowProblemEbos> { using type = TpfaLinearizer<TypeTag>; };
 
-// template<class TypeTag>
-// struct LocalResidual<TypeTag, TTag::EclFlowProblemEbos> { using type = BlackOilLocalResidualTPFA<TypeTag>; };
+template<class TypeTag>
+struct LocalResidual<TypeTag, TTag::EclFlowProblemEbos> { using type = BlackOilLocalResidualTPFA<TypeTag>; };
 
 template<class TypeTag>
 struct EnableDiffusion<TypeTag, TTag::EclFlowProblemEbos> { static constexpr bool value = false; };
