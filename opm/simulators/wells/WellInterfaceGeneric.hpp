@@ -207,8 +207,6 @@ public:
 
     bool isPressureControlled(const WellState& well_state) const;
 
-    bool stoppedOrZeroRateTargetIndividual(const SummaryState& summary_state,
-                                           const WellState& well_state) const;
 
     double wellEfficiencyFactor() const
     { return well_efficiency_factor_; }
@@ -237,6 +235,8 @@ protected:
 
     bool wellUnderZeroRateTargetIndividual(const SummaryState& summary_state,
                                            const WellState& well_state) const;
+
+
 
     std::pair<bool,bool>
     computeWellPotentials(std::vector<double>& well_potentials,

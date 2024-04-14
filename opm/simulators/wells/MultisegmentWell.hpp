@@ -94,7 +94,7 @@ namespace Opm
                                                DeferredLogger& deferred_logger) const override;
 
         /// check whether the well equations get converged for this well
-        virtual ConvergenceReport getWellConvergence(const SummaryState& summary_state,
+        virtual ConvergenceReport getWellConvergence(const Simulator& simulator,
                                                      const WellState& well_state,
                                                      const std::vector<double>& B_avg,
                                                      DeferredLogger& deferred_logger,
@@ -107,7 +107,7 @@ namespace Opm
 
         /// using the solution x to recover the solution xw for wells and applying
         /// xw to update Well State
-        void recoverWellSolutionAndUpdateWellState(const SummaryState& summary_state,
+        void recoverWellSolutionAndUpdateWellState(const Simulator& simulator,
                                                    const BVector& x,
                                                    WellState& well_state,
                                                    DeferredLogger& deferred_logger) override;
@@ -118,11 +118,11 @@ namespace Opm
                                            std::vector<double>& well_potentials,
                                            DeferredLogger& deferred_logger) override;
 
-        void updatePrimaryVariables(const SummaryState& summary_state,
+        void updatePrimaryVariables(const Simulator& simulator,
                                     const WellState& well_state,
                                     DeferredLogger& deferred_logger) override;
 
-        virtual void solveEqAndUpdateWellState(const SummaryState& summary_state,
+        virtual void solveEqAndUpdateWellState(const Simulator& simulator,
                                                WellState& well_state,
                                                DeferredLogger& deferred_logger) override; // const?
 
@@ -174,7 +174,7 @@ namespace Opm
         mutable int debug_cost_counter_ = 0;
 
         // updating the well_state based on well solution dwells
-        void updateWellState(const SummaryState& summary_state,
+        void updateWellState(const Simulator& simulator,
                              const BVectorWell& dwells,
                              WellState& well_state,
                              DeferredLogger& deferred_logger,
