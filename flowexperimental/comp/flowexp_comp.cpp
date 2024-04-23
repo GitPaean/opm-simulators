@@ -19,7 +19,7 @@
 #include "config.h"
 #include <opm/models/utils/start.hh>
 #include <opm/simulators/flow/FlowProblemComp.hpp>
-#include "../eclnewtonmethod.hh"
+#include "../FlowExpNewtonMethod.hpp"
 #include "ebosComp.hh"
 // #include <opm/simulators/flow/Main.hpp>
 // #include <opm/models/blackoil/blackoillocalresidualtpfa.hh>
@@ -469,8 +469,8 @@ struct ExpliciteRockCompaction<TypeTag, TTag::CO2PTEcfvProblem> { static constex
 
 template<class TypeTag>
 struct EnableEclOutput<TypeTag, TTag::CO2PTEcfvProblem> { static constexpr bool value = false; };
-// template<class TypeTag>
-// struct EnableTerminalOutput<TypeTag, TTag::CO2PTEcfvProblem> { static constexpr bool value = false; };
+template<class TypeTag>
+struct EnableTerminalOutput<TypeTag, TTag::CO2PTEcfvProblem> { static constexpr bool value = false; };
 
 
 
@@ -589,8 +589,6 @@ template<class TypeTag>
 struct CellsZ<TypeTag, TTag::CO2PTEcfvProblem> { static constexpr int value = 1; };
 template<class TypeTag>
 struct InitialTimeStepSize<TypeTag, TTag::CO2PTEcfvProblem> { static constexpr double value = 24*60*60; };
-template<class TypeTag>
-struct ProdCell<TypeTag, TTag::CO2PTEcfvProblem> { static constexpr int value = 1; };
 
 } // namespace Opm::Properties
 

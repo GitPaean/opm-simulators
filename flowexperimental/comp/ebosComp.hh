@@ -37,7 +37,7 @@
 #include <opm/simulators/aquifers/BlackoilAquiferModel.hpp>
 #include <opm/simulators/linalg/ISTLSolver.hpp>
 #include <opm/simulators/timestepping/EclTimeSteppingParams.hpp>
-// #include <opm/simulators/wells/BlackoilWellModel.hpp>
+#include <opm/simulators/wells/BlackoilWellModel.hpp>
 
 namespace Opm {
 template <class TypeTag>
@@ -86,10 +86,10 @@ struct MatrixAddWellContributions<TypeTag, TTag::EbosTypeTag> {
     static constexpr bool value = true;
 };
 
-/* template<class TypeTag>
+template<class TypeTag>
 struct EnableTerminalOutput<TypeTag, TTag::EbosTypeTag> {
     static constexpr bool value = false;
-}; */
+};
 
 // flow's well model only works with surface volumes
 template<class TypeTag>
@@ -210,7 +210,7 @@ public:
         ParentType::registerParameters();
 
         BlackoilModelParameters<TypeTag>::registerParameters();
-        // Parameters::registerParam<TypeTag, Properties::EnableTerminalOutput>("Do *NOT* use!");
+        Parameters::registerParam<TypeTag, Properties::EnableTerminalOutput>("Do *NOT* use!");
         Parameters::hideParam<TypeTag, Properties::DbhpMaxRel>();
         Parameters::hideParam<TypeTag, Properties::DwellFractionMax>();
         Parameters::hideParam<TypeTag, Properties::MaxResidualAllowed>();
@@ -234,7 +234,7 @@ public:
         Parameters::hideParam<TypeTag, Properties::UpdateEquationsScaling>();
         Parameters::hideParam<TypeTag, Properties::UseUpdateStabilization>();
         Parameters::hideParam<TypeTag, Properties::MatrixAddWellContributions>();
-        // Parameters::hideParam<TypeTag, Properties::EnableTerminalOutput>();
+        Parameters::hideParam<TypeTag, Properties::EnableTerminalOutput>();
     }
 
     // inherit the constructors

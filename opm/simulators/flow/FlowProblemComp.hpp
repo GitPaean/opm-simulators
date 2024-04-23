@@ -95,11 +95,6 @@
 #include <string>
 #include <vector>
 
-namespace Opm::Properties {
-template <class TypeTag, class MyTypeTag>
-    struct ProdCell { static constexpr int value = 1;};
-}
-
 namespace Opm {
 
 /*!
@@ -213,9 +208,7 @@ public:
     static void registerParameters()
     {
         ParentType::registerParameters();
-        Parameters::registerParam<TypeTag, Properties::ProdCell>
-            ("ProdCell");
-        //EclWriterType::registerParameters();
+        // EclWriterType::registerParameters();
 #if HAVE_DAMARIS
         DamarisWriterType::registerParameters();
 #endif
