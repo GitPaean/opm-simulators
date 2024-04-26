@@ -39,6 +39,7 @@
 #include <opm/simulators/timestepping/EclTimeSteppingParams.hpp>
 #include <opm/simulators/wells/BlackoilWellModel.hpp>
 
+#include <opm/common/utility/OutputTypeTag.hpp>
 namespace Opm {
 template <class TypeTag>
 class EbosProblemComp;
@@ -192,8 +193,8 @@ namespace Opm {
 template <class TypeTag>
 class EbosProblemComp : public FlowProblemComp<TypeTag> //, public FvBaseProblem<TypeTag>
 {
-    typedef FlowProblemComp<TypeTag> ParentType;
-    using BaseType = GetPropType<TypeTag, Properties::BaseProblem>;
+    typedef FlowProblemComp<TypeTag> ParentType; // FlowProblemComp
+    using BaseType = GetPropType<TypeTag, Properties::BaseProblem>; // multiphase problem
 public:
     void writeOutput(bool verbose = true)
     {
@@ -207,7 +208,10 @@ public:
 
     static void registerParameters()
     {
+        outputTypeTagInfo<ParentType>();
+        outputTypeTagInfo<BaseType>();
         ParentType::registerParameters();
+        BaseType::registerParameters();
 
         BlackoilModelParameters<TypeTag>::registerParameters();
         Parameters::registerParam<TypeTag, Properties::EnableTerminalOutput>("Do *NOT* use!");

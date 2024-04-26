@@ -297,6 +297,7 @@ public:
 };
 #endif
 
+#if 1
     template<class TypeTag>
     struct MaterialLaw<TypeTag, TTag::CO2PTEcfvProblem>
     {
@@ -316,7 +317,32 @@ public:
 
         using type = typename EclMaterialLawManager::MaterialLaw;
     };
-    template<class TypeTag>
+#endif
+#if 0
+    template <class TypeTag>
+    struct MaterialLaw<TypeTag, TTag::CO2PTEcfvProblem> {
+    private:
+        using FluidSystem = GetPropType<TypeTag, Properties::FluidSystem>;
+        enum { oilPhaseIdx = FluidSystem::oilPhaseIdx };
+        enum { gasPhaseIdx = FluidSystem::gasPhaseIdx };
+
+        using Scalar = GetPropType<TypeTag, Properties::Scalar>;
+        using Traits = Opm::TwoPhaseMaterialTraits<Scalar,
+                //  /*wettingPhaseIdx=*/FluidSystem::waterPhaseIdx, // TODO
+                /*nonWettingPhaseIdx=*/FluidSystem::oilPhaseIdx,
+                /*gasPhaseIdx=*/FluidSystem::gasPhaseIdx>;
+
+        // define the material law which is parameterized by effective saturation
+        using EffMaterialLaw = Opm::NullMaterial<Traits>;
+        //using EffMaterialLaw = Opm::BrooksCorey<Traits>;
+
+    public:
+        using EclMaterialLawManager = ::Opm::EclMaterialLawManager<Traits>;
+        using type = EffMaterialLaw;
+    };
+#endif
+
+template<class TypeTag>
 struct SolidEnergyLaw<TypeTag, TTag::CO2PTEcfvProblem>
 {
 private:

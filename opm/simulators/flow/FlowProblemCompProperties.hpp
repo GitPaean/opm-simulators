@@ -256,7 +256,7 @@ struct EnableDispersion<TypeTag, TTag::FlowBaseProblemComp> {
 // only write the solutions for the report steps to disk
 template<class TypeTag>
 struct EnableWriteAllSolutions<TypeTag, TTag::FlowBaseProblemComp> {
-    static constexpr bool value = false;
+    static constexpr bool value = true;
 };
 
 // disable API tracking
@@ -297,7 +297,7 @@ struct NewtonTolerance<TypeTag, TTag::FlowBaseProblemComp> {
 // Disable the VTK output by default for this problem ...
 template<class TypeTag>
 struct EnableVtkOutput<TypeTag, TTag::FlowBaseProblemComp> {
-    static constexpr bool value = false;
+    static constexpr bool value = true;
 };
 
 // ... but enable the ECL output by default

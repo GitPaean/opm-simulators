@@ -208,7 +208,7 @@ public:
     static void registerParameters()
     {
         ParentType::registerParameters();
-        // EclWriterType::registerParameters();
+//        EclWriterType::registerParameters();
 #if HAVE_DAMARIS
         DamarisWriterType::registerParameters();
 #endif
@@ -1140,7 +1140,7 @@ public:
         // use the initial temperature of the DOF if temperature is not a primary
         // variable
         unsigned globalDofIdx = context.globalSpaceIndex(spaceIdx, timeIdx);
-        return Scalar(280);//initialFluidStates_[globalDofIdx].temperature(/*phaseIdx=*/0);
+        return initialFluidStates_[globalDofIdx].temperature(/*phaseIdx=*/0);
     }
 
 
