@@ -208,7 +208,7 @@ public:
 
     const TransmissibilityType& globalTransmissibility() const
     {
-        assert( globalTrans_ != nullptr );
+//        assert( globalTrans_ != nullptr );
         return *globalTrans_;
     }
 
@@ -246,6 +246,7 @@ public:
 #if HAVE_MPI
         this->distributeFieldProps_(this->eclState());
 #endif
+        this->releaseGlobalTransmissibilities();
     }
 
     unsigned int gridEquilIdxToGridIdx(unsigned int elemIndex) const {

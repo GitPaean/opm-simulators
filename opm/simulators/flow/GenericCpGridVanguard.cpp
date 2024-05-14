@@ -186,6 +186,7 @@ doLoadBalance_(const Dune::EdgeWeightMethod             edgeWeightsMethod,
             if (loadBalancerSet == 0 || partitionJacobiBlocks) {
                 faceTrans = this->extractFaceTrans(gridView);
             }
+            this->releaseGlobalTransmissibilities();
         }
 
         const auto wells = ((mpiSize > 1) || partitionJacobiBlocks)

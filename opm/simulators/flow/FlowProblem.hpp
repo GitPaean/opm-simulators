@@ -305,7 +305,7 @@ public:
         DiffusionModule::initFromState(vanguard.eclState());
 
         // create the ECL writer
-        eclWriter_ = std::make_unique<EclWriterType>(simulator);
+//        eclWriter_ = std::make_unique<EclWriterType>(simulator);
 #if HAVE_DAMARIS
         // create Damaris writer
         damarisWriter_ = std::make_unique<DamarisWriterType>(simulator);
@@ -673,9 +673,9 @@ public:
         const auto& grid =  this->simulator().vanguard().gridView().grid();
         using GridType =  std::remove_cv_t< typename std::remove_reference<decltype(grid)>::type>;
         bool isCpGrid = std::is_same_v<GridType, Dune::CpGrid>;
-        if ( !isCpGrid || (this->simulator().vanguard().gridView().grid().maxLevel()==0)) {
+        /* if ( !isCpGrid || (this->simulator().vanguard().gridView().grid().maxLevel()==0)) {
             eclWriter_->evalSummaryState(isSubStep);
-        }
+        } */
 
         int episodeIdx = this->episodeIndex();
 
@@ -1354,9 +1354,11 @@ public:
 
         aquiferModel_.initialSolutionApplied();
 
+#if 0
         if (this->simulator().episodeIndex() == 0) {
             eclWriter_->writeInitialFIPReport();
         }
+#endif
     }
 
     /*!

@@ -271,6 +271,7 @@ EclGenericWriter<Grid,EquilGrid,GridView,ElementMapper,Scalar>::
 computeTrans_(const std::unordered_map<int,int>& cartesianToActive,
               const std::function<unsigned int(unsigned int)>& map) const
 {
+    if (!globalTrans_) return data::Solution{};
     const auto& cartMapper = *equilCartMapper_;
     const auto& cartDims = cartMapper.cartesianDimensions();
 
@@ -675,7 +676,7 @@ const typename EclGenericWriter<Grid,EquilGrid,GridView,ElementMapper,Scalar>::T
 EclGenericWriter<Grid,EquilGrid,GridView,ElementMapper,Scalar>::
 globalTrans() const
 {
-    assert (globalTrans_);
+//    assert (globalTrans_);
     return *globalTrans_;
 }
 

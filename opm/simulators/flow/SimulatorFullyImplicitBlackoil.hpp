@@ -413,7 +413,7 @@ public:
             auto stepReport = adaptiveTimeStepping_->step(timer, *solver_, event, nullptr, tuningUpdater);
             report_ += stepReport;
             //Pass simulation report to eclwriter for summary output
-            simulator_.problem().setSimulationReport(report_);
+            // simulator_.problem().setSimulationReport(report_);
         } else {
             // solve for complete report step
             auto stepReport = solver_->step(timer);

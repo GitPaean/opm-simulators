@@ -198,6 +198,7 @@ protected:
 
     virtual void allocTrans() = 0;
     virtual double getTransmissibility(unsigned I, unsigned J) const = 0;
+    virtual void releaseGlobalTransmissibilities() = 0;
 
     // removing some connection located in inactive grid cells
     void doFilterConnections_(Schedule& schedule);

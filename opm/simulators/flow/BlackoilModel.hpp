@@ -509,7 +509,7 @@ namespace Opm {
             Dune::Timer perfTimer;
             perfTimer.start();
             simulator_.problem().endTimeStep();
-            simulator_.problem().setConvData(rst_conv_.getData());
+            // simulator_.problem().setConvData(rst_conv_.getData());
             report.pre_post_time += perfTimer.stop();
             return report;
         }
@@ -704,7 +704,7 @@ namespace Opm {
             {
                 OPM_TIMEBLOCK(invalidateAndUpdateIntensiveQuantities);
                 simulator_.model().invalidateAndUpdateIntensiveQuantities(/*timeIdx=*/0);
-                simulator_.problem().eclWriter()->mutableOutputModule().invalidateLocalData();
+ //               simulator_.problem().eclWriter()->mutableOutputModule().invalidateLocalData();
             }
         }
 

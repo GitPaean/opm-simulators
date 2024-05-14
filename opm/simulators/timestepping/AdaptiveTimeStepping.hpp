@@ -462,7 +462,7 @@ std::set<std::string> consistentlyFailingWells(const std::vector<StepReport>& sr
                 }
 
                 //Pass substep to eclwriter for summary output
-                simulator.problem().setSubStepReport(substepReport);
+                // simulator.problem().setSubStepReport(substepReport);
 
                 report += substepReport;
 
