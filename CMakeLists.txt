@@ -56,7 +56,8 @@ if (OPM_ENABLE_PYTHON)
   # We need to be compatible with older CMake versions
   # that do not offer FindPython3
   # e.g. Ubuntu LTS 18.04 uses cmake 3.10
-  if(${CMAKE_VERSION} VERSION_LESS "3.12.0")
+# if(${CMAKE_VERSION} VERSION_LESS "3.12.0")
+  if(${CMAKE_VERSION} VERSION_LESS "3.23.0")
     find_package(PythonInterp REQUIRED)
     if(PYTHON_VERSION_MAJOR LESS 3)
       message(SEND_ERROR "OPM requires version 3 of Python but only version ${PYTHON_VERSION_STRING} was found")
