@@ -373,8 +373,10 @@ public:
                 return simulator.vanguard().gridEquilIdxToGridIdx(i);
             };
             eclWriter_->extractOutputTransAndNNC(equilGridToGrid);
-            simulator.vanguard().releaseGlobalTransmissibilities();
         }
+        simulator.vanguard().releaseGlobalTransmissibilities();
+
+
 
         const auto& eclState = simulator.vanguard().eclState();
         const auto& schedule = simulator.vanguard().schedule();
@@ -409,6 +411,11 @@ public:
 
         this->initFluidSystem_();
 
+        // write the static output files (EGRID, INIT)
+        if (enableEclOutput_) {
+            eclWriter_->writeInit();
+        }
+
         // deal with DRSDT
         this->mixControls_.init(this->model().numGridDof(),
                                 this->episodeIndex(),
@@ -432,9 +439,6 @@ public:
         readMaterialParameters_();
         readThermalParameters_();
 
-        if (enableEclOutput_) {
-            eclWriter_->writeInit();
-        }
 
         if (!transmissiblity_updated) {
             processTransmissibilities();
