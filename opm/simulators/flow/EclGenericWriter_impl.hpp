@@ -224,6 +224,7 @@ EclGenericWriter(const Schedule& schedule,
             (this->eclState_,
              UgGridHelpers::createEclipseGrid(*equilGrid, eclState_.getInputGrid()),
              this->schedule_, summaryConfig, "", enableEsmry);
+      //  this->eclIO_->clearZcorn();
     }
 
     // create output thread if enabled and rank is I/O rank
@@ -258,6 +259,8 @@ writeInit()
                              integerVectors,
                              this->outputNnc_);
         this->outputTrans_.reset();
+
+        eclIO_->clearZcorn();
     }
 }
 template<class Grid, class EquilGrid, class GridView, class ElementMapper, class Scalar>
