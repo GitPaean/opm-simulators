@@ -1448,10 +1448,7 @@ namespace Opm
             const auto& summaryState = simulator.vanguard().summaryState();
             return this->wellUnderZeroRateTargetIndividual(summaryState, well_state);
         } else {
-            const auto& summaryState = simulator.vanguard().summaryState();
-            const auto& group_state = simulator.problem().wellModel().groupState();
-            const auto& schedule = simulator.vanguard().schedule();
-            return this->wellUnderZeroRateTargetGroup(summaryState, schedule, well_state, group_state, deferred_logger);
+            return this->wellUnderZeroGroupRateTarget(simulator, well_state, deferred_logger, isGroupControlled);
         }
     }
 
@@ -1459,10 +1456,11 @@ namespace Opm
     bool
     WellInterface<TypeTag>::wellUnderZeroGroupRateTarget(const Simulator& simulator,
                                                          const WellState<Scalar>& well_state,
-                                                         DeferredLogger& deferred_logger) const
+                                                         DeferredLogger& deferred_logger,
+                                                         const std::optional<bool> group_control) const
     {
         // Check if well is under zero rate target from group
-        const bool isGroupControlled = this->wellUnderGroupControl(well_state.well(this->index_of_well_));
+        const bool isGroupControlled = group_control.value_or(this->wellUnderGroupControl(well_state.well(this->index_of_well_)));
         if (isGroupControlled) {
             const auto& summaryState = simulator.vanguard().summaryState();
             const auto& group_state = simulator.problem().wellModel().groupState();
