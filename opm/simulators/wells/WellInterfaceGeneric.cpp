@@ -623,6 +623,16 @@ wellUnderZeroRateTargetIndividual(const SummaryState& summary_state,
 }
 
 template<class Scalar>
+bool WellInterfaceGeneric<Scalar>::
+wellUnderGroupControl(const SingleWellState<Scalar>& ws) const
+{
+    // Check if well is under zero rate control, either directly or from group
+    const bool isGroupControlled = (this->isInjector() && ws.injection_cmode == Well::InjectorCMode::GRUP) ||
+        (this->isProducer() && ws.production_cmode == Well::ProducerCMode::GRUP);
+    return isGroupControlled;
+}
+
+template<class Scalar>
 void WellInterfaceGeneric<Scalar>::resetWellOperability()
 {
     this->operability_status_.resetOperability();

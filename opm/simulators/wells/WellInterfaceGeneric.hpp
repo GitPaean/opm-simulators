@@ -201,6 +201,8 @@ protected:
     bool wellUnderZeroRateTargetIndividual(const SummaryState& summary_state,
                                            const WellState<Scalar>& well_state) const;
 
+    bool wellUnderGroupControl(const SingleWellState<Scalar>& ws) const;
+
     std::pair<bool,bool>
     computeWellPotentials(std::vector<Scalar>& well_potentials,
                           const WellState<Scalar>& well_state);

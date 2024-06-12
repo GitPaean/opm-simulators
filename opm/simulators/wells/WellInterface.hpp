@@ -229,7 +229,7 @@ public:
                                  const WellState<Scalar>& well_state,
                                  DeferredLogger& deferred_logger) const;
 
-    bool wellUnderZeroRateTargetGroup1(const Simulator& simulator,
+    bool wellUnderZeroGroupRateTarget(const Simulator& simulator,
                                       const WellState<Scalar>& well_state,
                                       DeferredLogger& deferred_logger) const;
 

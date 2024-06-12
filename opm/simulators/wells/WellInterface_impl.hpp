@@ -431,7 +431,7 @@ namespace Opm
             for (int p = 0; p < np; ++p) {
                 ws.well_potentials[p] = std::max(Scalar{0.0}, potentials[p]);
             }
-            const bool under_zero_target = this->wellUnderZeroRateTargetGroup1(simulator, well_state_copy, deferred_logger);
+            const bool under_zero_target = this->wellUnderZeroGroupRateTarget(simulator, well_state_copy, deferred_logger);
             this->updateWellTestState(well_state_copy.well(this->indexOfWell()),
                                      simulation_time,
                                       /*writeMessageToOPMLog=*/ false,
@@ -1442,9 +1442,7 @@ namespace Opm
                             DeferredLogger& deferred_logger) const
     {
         // Check if well is under zero rate control, either directly or from group
-        const auto& ws = well_state.well(this->index_of_well_);
-        const bool isGroupControlled = (this->isInjector() && ws.injection_cmode == Well::InjectorCMode::GRUP) ||
-                                       (this->isProducer() && ws.production_cmode == Well::ProducerCMode::GRUP);
+        const bool isGroupControlled = this->wellUnderGroupControl(well_state.well(this->index_of_well_));
         if (!isGroupControlled) {
             // well is not under group control, check "individual" version
             const auto& summaryState = simulator.vanguard().summaryState();
@@ -1459,14 +1457,12 @@ namespace Opm
 
     template <typename TypeTag>
     bool
-    WellInterface<TypeTag>::wellUnderZeroRateTargetGroup1(const Simulator& simulator,
+    WellInterface<TypeTag>::wellUnderZeroGroupRateTarget(const Simulator& simulator,
                                                          const WellState<Scalar>& well_state,
                                                          DeferredLogger& deferred_logger) const
     {
         // Check if well is under zero rate target from group
-        const auto& ws = well_state.well(this->index_of_well_);
-        const bool isGroupControlled = (this->isInjector() && ws.injection_cmode == Well::InjectorCMode::GRUP)
-            || (this->isProducer() && ws.production_cmode == Well::ProducerCMode::GRUP);
+        const bool isGroupControlled = this->wellUnderGroupControl(well_state.well(this->index_of_well_));
         if (isGroupControlled) {
             const auto& summaryState = simulator.vanguard().summaryState();
             const auto& group_state = simulator.problem().wellModel().groupState();
