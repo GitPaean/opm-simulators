@@ -304,7 +304,6 @@ updateWellTestState(const SingleWellState<Scalar>& ws,
 {
     // updating well test state based on Economic limits for operable wells
     if (this->isOperableAndSolvable()) {
-//        const auto& ws = well_state.well(this->name());
         WellTest(*this).updateWellTestStateEconomic(ws, simulationTime, writeMessageToOPMLog, wellTestState,
                                                     zero_group_target, deferred_logger);
     } else {
