@@ -431,10 +431,11 @@ namespace Opm
             for (int p = 0; p < np; ++p) {
                 ws.well_potentials[p] = std::max(Scalar{0.0}, potentials[p]);
             }
+            const bool under_zero_target = this->wellUnderZeroRateTargetGroup1(simulator, well_state_copy, deferred_logger);
             this->updateWellTestState(well_state_copy.well(this->indexOfWell()),
                                      simulation_time,
                                       /*writeMessageToOPMLog=*/ false,
-                                      false,
+                                      under_zero_target,
                                       welltest_state_temp,
                                       deferred_logger);
             this->closeCompletions(welltest_state_temp);
