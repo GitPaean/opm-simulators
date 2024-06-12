@@ -298,12 +298,15 @@ void WellInterfaceGeneric<Scalar>::
 updateWellTestState(const SingleWellState<Scalar>& ws,
                     const double& simulationTime,
                     const bool& writeMessageToOPMLog,
+                    const bool zero_group_target,
                     WellTestState& wellTestState,
                     DeferredLogger& deferred_logger) const
 {
     // updating well test state based on Economic limits for operable wells
     if (this->isOperableAndSolvable()) {
-        WellTest(*this).updateWellTestStateEconomic(ws, simulationTime, writeMessageToOPMLog, wellTestState, deferred_logger);
+//        const auto& ws = well_state.well(this->name());
+        WellTest(*this).updateWellTestStateEconomic(ws, simulationTime, writeMessageToOPMLog, wellTestState,
+                                                    zero_group_target, deferred_logger);
     } else {
         // updating well test state based on physical (THP/BHP) limits.
         WellTest(*this).updateWellTestStatePhysical(simulationTime, writeMessageToOPMLog, wellTestState, deferred_logger);

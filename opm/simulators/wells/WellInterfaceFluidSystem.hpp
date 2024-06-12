@@ -66,6 +66,13 @@ public:
         return rateConverter_;
     }
 
+    /* void updateWellTestState(const WellState<Scalar>& well_state,
+                             const double& simulationTime,
+                             const bool& writeMessageToOPMLog,
+                             const bool zero_group_target,
+                             WellTestState& wellTestState,
+                             DeferredLogger& deferred_logger) const; */
+
 protected:
     WellInterfaceFluidSystem(const Well& well,
                              const ParallelWellInfo<Scalar>& parallel_well_info,

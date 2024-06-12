@@ -39,6 +39,7 @@
 #include <opm/simulators/wells/WellGroupControls.hpp>
 #include <opm/simulators/wells/WellGroupHelpers.hpp>
 #include <opm/simulators/wells/WellState.hpp>
+// #include <opm/simulators/wells/WellTest.hpp>
 
 namespace Opm
 {
@@ -60,6 +61,29 @@ WellInterfaceFluidSystem(const Well& well,
     , rateConverter_(rate_converter)
 {
 }
+
+/* template<class FluidSystem>
+void
+WellInterfaceFluidSystem<FluidSystem>::
+updateWellTestState(const WellState<Scalar>& well_state,
+                    const double& simulationTime,
+                    const bool& writeMessageToOPMLog,
+                    const bool zero_group_target,
+                    WellTestState& wellTestState,
+                    DeferredLogger& deferred_logger) const
+{
+    // updating well test state based on Economic limits for operable wells
+    if (this->isOperableAndSolvable()) {
+        const auto& ws = well_state.well(this->name());
+        WellTest(*this).updateWellTestStateEconomic(ws, simulationTime, writeMessageToOPMLog, wellTestState,
+                                                    zero_group_target, deferred_logger);
+    } else {
+        // updating well test state based on physical (THP/BHP) limits.
+        WellTest(*this).updateWellTestStatePhysical(simulationTime, writeMessageToOPMLog, wellTestState, deferred_logger);
+    }
+
+    // TODO: well can be shut/closed due to other reasons
+} */
 
 template <typename FluidSystem>
 void

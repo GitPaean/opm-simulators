@@ -168,6 +168,7 @@ public:
     void updateWellTestState(const SingleWellState<Scalar>& ws,
                              const double& simulationTime,
                              const bool& writeMessageToOPMLog,
+                             const bool zero_group_target,
                              WellTestState& wellTestState,
                              DeferredLogger& deferred_logger) const;
 

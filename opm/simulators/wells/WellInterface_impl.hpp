@@ -434,6 +434,7 @@ namespace Opm
             this->updateWellTestState(well_state_copy.well(this->indexOfWell()),
                                      simulation_time,
                                       /*writeMessageToOPMLog=*/ false,
+                                      false,
                                       welltest_state_temp,
                                       deferred_logger);
             this->closeCompletions(welltest_state_temp);
@@ -1453,6 +1454,25 @@ namespace Opm
             const auto& schedule = simulator.vanguard().schedule();
             return this->wellUnderZeroRateTargetGroup(summaryState, schedule, well_state, group_state, deferred_logger);
         }
+    }
+
+    template <typename TypeTag>
+    bool
+    WellInterface<TypeTag>::wellUnderZeroRateTargetGroup1(const Simulator& simulator,
+                                                         const WellState<Scalar>& well_state,
+                                                         DeferredLogger& deferred_logger) const
+    {
+        // Check if well is under zero rate target from group
+        const auto& ws = well_state.well(this->index_of_well_);
+        const bool isGroupControlled = (this->isInjector() && ws.injection_cmode == Well::InjectorCMode::GRUP)
+            || (this->isProducer() && ws.production_cmode == Well::ProducerCMode::GRUP);
+        if (isGroupControlled) {
+            const auto& summaryState = simulator.vanguard().summaryState();
+            const auto& group_state = simulator.problem().wellModel().groupState();
+            const auto& schedule = simulator.vanguard().schedule();
+            return this->wellUnderZeroRateTargetGroup(summaryState, schedule, well_state, group_state, deferred_logger);
+        }
+        return false;
     }
 
     template<typename TypeTag>
