@@ -1304,8 +1304,12 @@ namespace Opm {
 
                 Scalar min_thp, max_thp;
                 std::array<Scalar, 2> range_initial;
+                std::optional<Scalar> autochoke_thp;
+                if (auto iter = this->well_group_thp_calc_.find(nodeName); iter != this->well_group_thp_calc_.end()) {
+                    autochoke_thp = this->well_group_thp_calc_.at(nodeName);
+                }
                 //Find an initial bracket
-                if (!this->well_group_thp_calc_.has_value()){
+                if (!autochoke_thp.has_value()){
                     // Retrieve the terminal pressure of the associated root of the manifold group
                     std::string node_name =  nodeName;
                     while (!network.node(node_name).terminal_pressure().has_value()) {
@@ -1330,12 +1334,10 @@ namespace Opm {
                 const Scalar nodal_pressure = it->second;
                 Scalar well_group_thp = nodal_pressure;
 
-                if (!this->well_group_thp_calc_.has_value() || this->well_group_thp_calc_ > nodal_pressure) {
+                if (!autochoke_thp.has_value() || autochoke_thp.value() > nodal_pressure) {
                     // The bracket is based on the initial bracket or on a range based on a previous calculated common group thp
-                    std::array<Scalar, 2> range;
-                    this->well_group_thp_calc_.has_value() ? 
-                        range =  {0.9 * this->well_group_thp_calc_.value(), 1.1 * this->well_group_thp_calc_.value()} : 
-                        range = range_initial;
+                    std::array<Scalar, 2> range = autochoke_thp.has_value() ?
+                        std::array<Scalar, 2>{0.9 * autochoke_thp.value(), 1.1 * autochoke_thp.value()} : range_initial;
 
                     Scalar low, high;
                     std::optional<Scalar> approximate_solution;
@@ -1344,24 +1346,27 @@ namespace Opm {
                     const bool finding_bracket = WellBhpThpCalculator<Scalar>::bruteForceBracketCommonTHP(mismatch, range, low, high, approximate_solution, tolerance1, local_deferredLogger);
 
                     if (approximate_solution.has_value()) {
-                        this->well_group_thp_calc_ = *approximate_solution;
-                        local_deferredLogger.debug("Approximate common THP value found: "  + std::to_string(this->well_group_thp_calc_.value()));
+                        autochoke_thp = *approximate_solution;
+                        local_deferredLogger.debug("Approximate common THP value found: "  + std::to_string(autochoke_thp.value()));
                     } else if (finding_bracket) {
                         const Scalar tolerance2 = thp_tolerance;
                         const int max_iteration_solve = 100;
                         int iteration = 0;
-                        this->well_group_thp_calc_= RegulaFalsiBisection<ThrowOnError>::
+                        autochoke_thp = RegulaFalsiBisection<ThrowOnError>::
                                          solve(mismatch, low, high, max_iteration_solve, tolerance2, iteration);
                         local_deferredLogger.debug(" bracket = [" + std::to_string(low) + ", " + std::to_string(high) + "], " +
                                                    "iteration = " + std::to_string(iteration));
-                        local_deferredLogger.debug("Common THP value = " + std::to_string(this->well_group_thp_calc_.value()));
+                        local_deferredLogger.debug("Common THP value = " + std::to_string(autochoke_thp.value()));
                     } else {
-                        this->well_group_thp_calc_ = {};
+                        autochoke_thp.reset();
                         local_deferredLogger.debug("Common THP solve failed due to bracketing failure");
                     }
                 }
-                this->well_group_thp_calc_.has_value() ?
-                well_group_thp = std::max(this->well_group_thp_calc_.value(), nodal_pressure) : well_group_thp = nodal_pressure;
+
+                if (autochoke_thp.has_value()) {
+                    well_group_thp_calc_[nodeName] = autochoke_thp.value();
+                    well_group_thp = std::max(autochoke_thp.value(), nodal_pressure);
+                }
 
                 for (auto& well : this->well_container_) {
                     std::string well_name = well->name();
