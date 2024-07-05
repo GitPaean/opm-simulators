@@ -299,8 +299,129 @@ computePropertiesForPressures(const WellState<Scalar>& well_state,
     const int nperf = well_.numPerfs();
     const PhaseUsage& pu = well_.phaseUsage();
     props.b_perf.resize(nperf * well_.numComponents());
+    props.q_out_perf.resize(nperf * well_.numComponents());
     props.surf_dens_perf.resize(nperf * well_.numComponents());
     const auto& ws = well_state.well(well_.indexOfWell());
+    const auto num_comp = well_.numComponents();
+
+    auto& q_out_perf = props.q_out_perf;
+    {
+        std::vector<Scalar> perfRates(props.b_perf.size(),0.0);
+        // const auto& ws = well_state.well(well_.indexOfWell());
+        const auto& perf_data = ws.perf_data;
+        const auto& perf_rates_state = perf_data.phase_rates;
+
+
+        for (int perf = 0; perf < nperf; ++perf) {
+            for (int comp = 0; comp < num_comp; ++comp) {
+                perfRates[perf * well_.numComponents() + comp] =  perf_rates_state[perf * num_comp + well_.modelCompIdxToFlowCompIdx(comp)];
+            }
+        }
+
+        if constexpr (Indices::enableSolvent) {
+            const auto& solvent_perf_rates_state = perf_data.solvent_rates;
+            for (int perf = 0; perf < nperf; ++perf) {
+                perfRates[perf * well_.numComponents() + Indices::contiSolventEqIdx] = solvent_perf_rates_state[perf];
+            }
+        }
+
+        bool all_zero = std::all_of(perfRates.begin(), perfRates.end(),
+                                    [](Scalar val) { return val == 0.0; });
+        const auto& comm = well_.parallelWellInfo().communication();
+        if (comm.size() > 1)
+        {
+            all_zero =  (comm.min(all_zero ? 1 : 0) == 1);
+        }
+        std::cout << " all_zero " << all_zero << std::endl;
+
+        /* if (all_zero && well_.isProducer()) {
+            Scalar total_tw = 0;
+            for (int perf = 0; perf < nperf; ++perf) {
+                total_tw += well_.wellIndex()[perf];
+            }
+            if (comm.size() > 1)
+            {
+                total_tw = comm.sum(total_tw);
+            }
+            // for producers where all perforations have zero rates we
+            // approximate the perforation mixture ration using the (invB * mobility) ratio,
+            // and weight the perforation rates using the well transmissibility.
+            for (int perf = 0; perf < nperf; ++perf) {
+                const int cell_idx = well_.cells()[perf];
+                const Scalar well_tw_fraction = well_.wellIndex()[perf] / total_tw;
+                Scalar total_mobility = 0.0;
+                Scalar total_invB = 0.;
+                for (int p = 0; p < num_comp; ++p) {
+                    int modelPhaseIdx = well_.flowPhaseToModelPhaseIdx(p);
+                    total_mobility += invB(cell_idx, modelPhaseIdx) * mobility(cell_idx, modelPhaseIdx);
+                    total_invB += invB(cell_idx, modelPhaseIdx);
+                }
+                if constexpr (Indices::enableSolvent) {
+                    total_mobility += solventInverseFormationVolumeFactor(cell_idx) * solventMobility(cell_idx);
+                    total_invB += solventInverseFormationVolumeFactor(cell_idx);
+                }
+                const bool non_zero_total_mobility = total_mobility > std::numeric_limits<Scalar>::min();
+                assert(total_invB > std::numeric_limits<Scalar>::min());
+                // for the perforation having zero mobility for all the phases, we use a small value to generate a small
+                // perforation rates for those perforations, at the same time, we can use the rates to recover the mixing
+                // ratios for those perforations.
+                constexpr Scalar small_value = 1.e-10;
+                for (int p = 0; p < num_comp; ++p) {
+                    const int modelPhaseIdx = well_.flowPhaseToModelPhaseIdx(p);
+                    const auto mob_ratio = non_zero_total_mobility
+                                           ? mobility(cell_idx, modelPhaseIdx) / total_mobility
+                                           : small_value / total_invB;
+                    perfRates[perf * well_.numComponents() + p] = well_tw_fraction * invB(cell_idx, modelPhaseIdx) * mob_ratio;
+                }
+                if constexpr (Indices::enableSolvent) {
+                    const auto mob_ratio = non_zero_total_mobility
+                                           ? solventMobility(cell_idx) / total_mobility
+                                           : small_value / total_invB;
+                    perfRates[perf * well_.numComponents() + Indices::contiSolventEqIdx] =
+                            well_tw_fraction * solventInverseFormationVolumeFactor(cell_idx) * mob_ratio;
+                }
+            }
+        } */
+
+        // Verify that we have consistent input.
+        // const int num_comp = well_.numComponents();
+
+        // 1. Compute the flow (in surface volume units for each
+        //    component) exiting up the wellbore from each perforation,
+        //    taking into account flow from lower in the well, and
+        //    in/out-flow at each perforation.
+        // std::vector<Scalar> q_out_perf((nperf)*num_comp, 0.0);
+
+        // Step 1 depends on the order of the perforations. Hence we need to
+        // do the modifications globally.
+        // Create and get the global perforation information and do this sequentially
+        // on each process
+        const auto& perfComponentRates = perfRates;
+
+        const auto& factory = well_.parallelWellInfo().getGlobalPerfContainerFactory();
+        auto global_q_out_perf = factory.createGlobal(q_out_perf, num_comp);
+        auto global_perf_comp_rates = factory.createGlobal(perfComponentRates, num_comp);
+
+        // TODO: investigate whether we should use the following techniques to calcuate the composition of flows in the wellbore
+        // Iterate over well perforations from bottom to top.
+        for (int perf = factory.numGlobalPerfs() - 1; perf >= 0; --perf) {
+            for (int component = 0; component < num_comp; ++component) {
+                auto index = perf * num_comp + component;
+                if (perf == factory.numGlobalPerfs() - 1) {
+                    // This is the bottom perforation. No flow from below.
+                    global_q_out_perf[index] = 0.0;
+                } else {
+                    // Set equal to flow from below.
+                    global_q_out_perf[index] = global_q_out_perf[index + num_comp];
+                }
+                // Subtract outflow through perforation.
+                global_q_out_perf[index] -= global_perf_comp_rates[index];
+            }
+        }
+
+        // Copy the data back to local view
+        factory.copyGlobalToLocal(global_q_out_perf, q_out_perf, num_comp);
+    }
 
     static constexpr int Water = BlackoilPhases::Aqua;
     static constexpr int Oil = BlackoilPhases::Liquid;
@@ -326,8 +447,89 @@ computePropertiesForPressures(const WellState<Scalar>& well_state,
     auto p_above =  well_.parallelWellInfo().communicateAboveValues(ws.bhp,
                                                                     perf_press.data(),
                                                                     nperf);
+    std::vector<Scalar> mix(num_comp,0.0);
+    std::vector<Scalar> x(num_comp);
 
     for (int perf = 0; perf < nperf; ++perf) {
+
+        // Find component mix.
+        const Scalar tot_surf_rate = std::accumulate(q_out_perf.begin() + num_comp*perf,
+                                                     q_out_perf.begin() + num_comp*(perf+1), 0.0);
+
+        if (tot_surf_rate != 0.0) {
+            for (int component = 0; component < num_comp; ++component) {
+                mix[component] = std::fabs(q_out_perf[perf*num_comp + component]/tot_surf_rate);
+            }
+        } else if (num_comp == 1) {
+            mix[num_comp-1] = 1.0;
+        } else {
+            std::fill(mix.begin(), mix.end(), 0.0);
+            // No flow => use well specified fractions for mix.
+            if (well_.isInjector()) {
+                switch (well_.wellEcl().injectorType()) {
+                    case InjectorType::WATER:
+                        mix[FluidSystem::waterCompIdx] = 1.0;
+                        break;
+                    case InjectorType::GAS:
+                        mix[FluidSystem::gasCompIdx] = 1.0;
+                        break;
+                    case InjectorType::OIL:
+                        mix[FluidSystem::oilCompIdx] = 1.0;
+                        break;
+                    case InjectorType::MULTI:
+                        // Not supported.
+                        // deferred_logger.warning("MULTI_PHASE_INJECTOR_NOT_SUPPORTED",
+                        //                         "Multi phase injectors are not supported, requested for well " + name());
+                        break;
+                }
+            } else {
+                assert(well_.isProducer());
+                // For the frist perforation without flow we use the preferred phase to decide the mix initialization.
+                if (perf == 0) { //
+                    switch (well_.wellEcl().getPreferredPhase()) {
+                        case Phase::OIL:
+                            mix[FluidSystem::oilCompIdx] = 1.0;
+                            break;
+                        case Phase::GAS:
+                            mix[FluidSystem::gasCompIdx] = 1.0;
+                            break;
+                        case Phase::WATER:
+                            mix[FluidSystem::waterCompIdx] = 1.0;
+                            break;
+                        default:
+                            // No others supported.
+                            break;
+                    }
+                    // For the rest of the perforation without flow we use mix from the above perforation.
+                } else {
+                    mix = x;
+                }
+
+            }
+        }
+        // Compute volume ratio.
+        const double temp = mix[0];
+        mix[0] = mix[1];
+        mix[1] = temp;
+        x = mix;
+
+        std::vector<double> x_rates(num_comp, 0.);
+        {
+            const double total_rates = ws.surface_rates[0] + ws.surface_rates[1] + ws.surface_rates[2];
+            x_rates[0] = total_rates == 0. ? 0 : ws.surface_rates[0]/total_rates;
+            x_rates[1] = total_rates == 0. ? 0 : ws.surface_rates[1]/total_rates;
+            x_rates[2] = total_rates == 0. ? 0 : ws.surface_rates[2]/total_rates;
+            std::cout << " perf " << perf << std::endl
+            << " x_rates "
+                      << x_rates[0] << " "
+                      << x_rates[1] << " "
+                      << x_rates[2] << std::endl
+                      << " mix "
+                    << mix[0] << " "
+                    << mix[1] << " "
+                    << mix[2] << std::endl;
+        }
+
         const int cell_idx = well_.cells()[perf];
 
         const Scalar p_avg = (perf_press[perf] + p_above[perf])/2;
@@ -341,10 +543,10 @@ computePropertiesForPressures(const WellState<Scalar>& well_state,
             if (FluidSystem::enableDissolvedGasInWater()) {
                 // TODO support mutual solubility in water and oil
                 assert(!FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx));
-                const Scalar waterrate = std::abs(ws.surface_rates[pu.phase_pos[Water]]);
+                const Scalar waterrate = std::abs(mix[pu.phase_pos[Water]]);
                 props.rswmax_perf[perf] = FluidSystem::waterPvt().saturatedGasDissolutionFactor(region_idx, temperature, p_avg, saltConcentration);
                 if (waterrate > 0) {
-                    const Scalar gasrate = std::abs(ws.surface_rates[pu.phase_pos[Gas]]) - (Indices::enableSolvent ? ws.sum_solvent_rates() : 0.0);
+                    const Scalar gasrate = std::abs(mix[pu.phase_pos[Gas]]) - (Indices::enableSolvent ? ws.sum_solvent_rates() : 0.0);
                     if (gasrate > 0) {
                         rsw = gasrate / waterrate;
                     }
@@ -360,10 +562,10 @@ computePropertiesForPressures(const WellState<Scalar>& well_state,
             Scalar rvw = 0.0;
             Scalar rv = 0.0;
             if (oilPresent) {
-                const Scalar oilrate = std::abs(ws.surface_rates[pu.phase_pos[Oil]]); //in order to handle negative rates in producers
+                const Scalar oilrate = std::abs(mix[pu.phase_pos[Oil]]); //in order to handle negative rates in producers
                 props.rvmax_perf[perf] = FluidSystem::gasPvt().saturatedOilVaporizationFactor(region_idx, temperature, p_avg);
                 if (oilrate > 0) {
-                    const Scalar gasrate = std::abs(ws.surface_rates[pu.phase_pos[Gas]]) - (Indices::enableSolvent ? ws.sum_solvent_rates() : 0.0);
+                    const Scalar gasrate = std::abs(mix[pu.phase_pos[Gas]]) - (Indices::enableSolvent ? ws.sum_solvent_rates() : 0.0);
                     if (gasrate > 0) {
                         rv = oilrate / gasrate;
                     }
@@ -371,10 +573,10 @@ computePropertiesForPressures(const WellState<Scalar>& well_state,
                 }
             }
             if (waterPresent) {
-                const Scalar waterrate = std::abs(ws.surface_rates[pu.phase_pos[Water]]); //in order to handle negative rates in producers
+                const Scalar waterrate = std::abs(mix[pu.phase_pos[Water]]); //in order to handle negative rates in producers
                 props.rvwmax_perf[perf] = FluidSystem::gasPvt().saturatedWaterVaporizationFactor(region_idx, temperature, p_avg);
                 if (waterrate > 0) {
-                    const Scalar gasrate = std::abs(ws.surface_rates[pu.phase_pos[Gas]]) - (Indices::enableSolvent ? ws.sum_solvent_rates() : 0.0);
+                    const Scalar gasrate = std::abs(mix[pu.phase_pos[Gas]]) - (Indices::enableSolvent ? ws.sum_solvent_rates() : 0.0);
                     if (gasrate > 0) {
                         rvw = waterrate / gasrate;
                     }
@@ -390,9 +592,9 @@ computePropertiesForPressures(const WellState<Scalar>& well_state,
             Scalar rs = 0.0;
             if (gasPresent) {
                 props.rsmax_perf[perf] = FluidSystem::oilPvt().saturatedGasDissolutionFactor(region_idx, temperature, p_avg);
-                const Scalar gasrate = std::abs(ws.surface_rates[pu.phase_pos[Gas]]) - (Indices::enableSolvent ? ws.sum_solvent_rates() : 0.0);
+                const Scalar gasrate = std::abs(mix[pu.phase_pos[Gas]]) - (Indices::enableSolvent ? ws.sum_solvent_rates() : 0.0);
                 if (gasrate > 0) {
-                    const Scalar oilrate = std::abs(ws.surface_rates[pu.phase_pos[Oil]]);
+                    const Scalar oilrate = std::abs(mix[pu.phase_pos[Oil]]);
                     if (oilrate > 0) {
                         rs = gasrate / oilrate;
                     }

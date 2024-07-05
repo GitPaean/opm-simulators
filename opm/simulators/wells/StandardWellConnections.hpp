@@ -47,6 +47,7 @@ public:
     struct Properties
     {
         std::vector<Scalar> b_perf;
+        std::vector<Scalar> q_out_perf;
         std::vector<Scalar> rsmax_perf;
         std::vector<Scalar> rvmax_perf;
         std::vector<Scalar> rvwmax_perf;
