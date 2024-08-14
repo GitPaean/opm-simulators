@@ -23,14 +23,11 @@
 /*!
  * \file
  *
- * \copydoc Opm::FlowProblem
+ * \copydoc Opm::FlowBaseProblem
  */
-#ifndef OPM_FLOW_PROBLEM_PROPERTIES_HPP
-#define OPM_FLOW_PROBLEM_PROPERTIES_HPP
+#ifndef OPM_FLOW_BASE_PROBLEM_PROPERTIES_HPP
+#define OPM_FLOW_BASE_PROBLEM_PROPERTIES_HPP
 
-#include <opm/input/eclipse/Parser/ParserKeywords/E.hpp>
-
-#include <opm/material/fluidmatrixinteractions/EclMaterialLawManager.hpp>
 #include <opm/material/thermal/EclThermalLawManager.hpp>
 
 #include <opm/models/discretization/ecfv/ecfvdiscretization.hh>
@@ -41,9 +38,6 @@
 #include <opm/simulators/flow/DummyGradientCalculator.hpp>
 #include <opm/simulators/flow/EclWriter.hpp>
 #include <opm/simulators/flow/FlowProblemParameters.hpp>
-#include <opm/simulators/flow/FIBlackoilModel.hpp>
-#include <opm/simulators/flow/NewTranFluxModule.hpp>
-#include <opm/simulators/flow/OutputBlackoilModule.hpp>
 #include <opm/simulators/flow/VtkTracerModule.hpp>
 
 #if HAVE_DAMARIS
@@ -52,17 +46,12 @@
 
 #include <tuple>
 
-namespace Opm {
-template <class TypeTag>
-class FlowProblem;
-}
-
 namespace Opm::Properties {
 
 namespace TTag {
 
 struct FlowBaseProblem {
-    using InheritsFrom = std::tuple<VtkTracer, OutputBlackOil, CpGridVanguard>;
+    using InheritsFrom = std::tuple<VtkTracer, CpGridVanguard>;
 };
 
 }
@@ -85,14 +74,6 @@ struct EnableThermalFluxBoundaries { using type = UndefinedProperty; };
 template<class TypeTag, class MyTypeTag>
 struct WellModel { using type = UndefinedProperty; };
 
-// Set the problem property
-template<class TypeTag>
-struct Problem<TypeTag, TTag::FlowBaseProblem>
-{ using type = FlowProblem<TypeTag>; };
-
-template<class TypeTag>
-struct Model<TypeTag, TTag::FlowBaseProblem>
-{ using type = FIBlackOilModel<TypeTag>; };
 
 // Select the element centered finite volume method as spatial discretization
 template<class TypeTag>
@@ -119,24 +100,6 @@ template<class TypeTag>
 struct GridView<TypeTag, TTag::FlowBaseProblem>
 { using type = typename GetPropType<TypeTag, Properties::Grid>::LeafGridView; };
 
-// Set the material law for fluid fluxes
-template<class TypeTag>
-struct MaterialLaw<TypeTag, TTag::FlowBaseProblem>
-{
-private:
-    using Scalar = GetPropType<TypeTag, Properties::Scalar>;
-    using FluidSystem = GetPropType<TypeTag, Properties::FluidSystem>;
-
-    using Traits = ThreePhaseMaterialTraits<Scalar,
-                                            /*wettingPhaseIdx=*/FluidSystem::waterPhaseIdx,
-                                            /*nonWettingPhaseIdx=*/FluidSystem::oilPhaseIdx,
-                                            /*gasPhaseIdx=*/FluidSystem::gasPhaseIdx>;
-
-public:
-    using EclMaterialLawManager = ::Opm::EclMaterialLawManager<Traits>;
-
-    using type = typename EclMaterialLawManager::MaterialLaw;
-};
 
 // Set the material law for energy storage in rock
 template<class TypeTag>
@@ -208,15 +171,6 @@ template<class TypeTag>
 struct EnableApiTracking<TypeTag, TTag::FlowBaseProblem>
 { static constexpr bool value = false; };
 
-// Use the "velocity module" which uses the Eclipse "NEWTRAN" transmissibilities
-template<class TypeTag>
-struct FluxModule<TypeTag, TTag::FlowBaseProblem>
-{ using type = NewTranFluxModule<TypeTag>; };
-
-// Use the dummy gradient calculator in order not to do unnecessary work.
-template<class TypeTag>
-struct GradientCalculator<TypeTag, TTag::FlowBaseProblem>
-{ using type = DummyGradientCalculator<TypeTag>; };
 
 // store temperature (but do not conserve energy, as long as EnableEnergy is false)
 template<class TypeTag>
@@ -410,4 +364,4 @@ struct RestartWritingInterval<TypeTag, Properties::TTag::FlowBaseProblem>
 
 } // namespace Opm::Parameters
 
-#endif // OPM_FLOW_PROBLEM_PROPERTIES_HPP
+#endif // OPM_FLOW_BASE_PROBLEM_PROPERTIES_HPP
