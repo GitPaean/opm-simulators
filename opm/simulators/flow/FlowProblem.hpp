@@ -57,7 +57,7 @@
 #include <opm/simulators/flow/EclWriter.hpp>
 #include <opm/simulators/flow/EquilInitializer.hpp>
 #include <opm/simulators/flow/FlowGenericProblem.hpp>
-#include <opm/simulators/flow/FlowProblemProperties.hpp>
+#include <opm/simulators/flow/FlowProblemBlackoilProperties.hpp>
 #include <opm/simulators/flow/FlowThresholdPressure.hpp>
 #include <opm/simulators/flow/TracerModel.hpp>
 #include <opm/simulators/flow/Transmissibility.hpp>
