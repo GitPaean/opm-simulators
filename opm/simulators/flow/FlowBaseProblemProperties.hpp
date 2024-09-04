@@ -38,6 +38,7 @@
 #include <opm/simulators/flow/CpGridVanguard.hpp>
 #include <opm/simulators/flow/DummyGradientCalculator.hpp>
 #include <opm/simulators/flow/EclWriter.hpp>
+#include <opm/simulators/flow/TracerModel.hpp>
 #include <opm/simulators/flow/FlowProblemParameters.hpp>
 
 #if HAVE_DAMARIS
@@ -93,8 +94,6 @@ struct TracerModel {  using type = UndefinedProperty; };
 template <class TypeTag>
 struct TracerModel<TypeTag, TTag::FlowBaseProblem>
 { using type =  ::Opm::TracerModel<TypeTag>; };
-
-
 
 // Select the element centered finite volume method as spatial discretization
 template<class TypeTag>
