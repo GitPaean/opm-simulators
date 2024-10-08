@@ -590,6 +590,9 @@ assignToSolution(data::Solution& sol)
         DataEntry{"UREA",     UnitSystem::measure::density,            cUrea_},
     };
 
+    // basically, for compositional, we can not use std::array for this.  We need to generate the ZMF1, ZMF2, and so on
+    // and also, we need to map these values.
+
     for (const auto& array : baseSolutionArrays) {
         doInsert(array, data::TargetType::RESTART_SOLUTION);
     }
@@ -1447,6 +1450,9 @@ doAllocBuffers(const unsigned bufferSize,
         overburdenPressure_.resize(bufferSize, 0.0);
     }
 
+    if (rstKeywords["ZMF"] > 0) {
+    }
+
     //Warn for any unhandled keyword
     if (log) {
         for (auto& keyValue: rstKeywords) {
@@ -1718,7 +1724,15 @@ INSTANTIATE_TYPE(double)
 INSTANTIATE_TYPE(float)
 #endif
 
-template<class T> using FS2 = GenericOilGasFluidSystem<T, 3>;
-template class GenericOutputBlackoilModule<FS2<double>>;
+#define INSTANTIATE_FS(NUM) \
+    template<class T> using FS##NUM = GenericOilGasFluidSystem<T, NUM>; \
+    template class GenericOutputBlackoilModule<FS##NUM<double>>;
+
+INSTANTIATE_FS(2)
+INSTANTIATE_FS(3)
+INSTANTIATE_FS(4)
+INSTANTIATE_FS(5)
+INSTANTIATE_FS(6)
+INSTANTIATE_FS(7)
 
 } // namespace Opm
