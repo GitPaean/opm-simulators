@@ -658,7 +658,7 @@ public:
         // volumes at the restart time instead of the start of the base run.
         // Nevertheless, this is how Flow has "always" done it.
         //
-        // See GenericOutputBlackoilModule::accumulateRegionSums() for
+        // See GenericOutputCompositionalModule::accumulateRegionSums() for
         // additional comments.
         auto inplace = this->outputModule_
             ->calc_inplace(miscSummaryData, regionData,
@@ -834,6 +834,7 @@ private:
     }
 
     Simulator& simulator_;
+    // TODO: OutputCompositionalModule needs to be part of the TypeTag
     std::unique_ptr<OutputCompositionalModule<TypeTag> > outputModule_;
     Scalar restartTimeStepSize_;
     int rank_ ;

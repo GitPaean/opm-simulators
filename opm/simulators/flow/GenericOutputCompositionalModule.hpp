@@ -21,7 +21,7 @@
 */
 /*!
  * \file
- * \copydoc Opm::OutputBlackOilModule
+ * \copydoc Opm::OutputCompositionalModule
  */
 #ifndef OPM_GENERIC_OUTPUT_BLACK_OIL_MODULE_HPP
 #define OPM_GENERIC_OUTPUT_BLACK_OIL_MODULE_HPP
@@ -58,12 +58,12 @@ class SummaryConfigNode;
 class SummaryState;
 
 template<class FluidSystem>
-class GenericOutputBlackoilModule {
+class GenericOutputCompositionalModule {
 public:
     using Scalar = typename FluidSystem::Scalar;
 
     // Virtual destructor for safer inheritance.
-    virtual ~GenericOutputBlackoilModule();
+    virtual ~GenericOutputCompositionalModule();
 
      Scalar* getPRESSURE_ptr(void) {
         return (this->fluidPressure_.data()) ;
@@ -319,34 +319,34 @@ protected:
     enum { waterCompIdx = FluidSystem::waterCompIdx };
     using Dir = FaceDir::DirEnum;
 
-    GenericOutputBlackoilModule(const EclipseState& eclState,
-                                const Schedule& schedule,
-                                const SummaryConfig& summaryConfig,
-                                const SummaryState& summaryState,
-                                const std::string& moduleVersionName,
-                                bool enableEnergy,
-                                bool enableTemperature,
-                                bool enableMech,
-                                bool enableSolvent,
-                                bool enablePolymer,
-                                bool enableFoam,
-                                bool enableBrine,
-                                bool enableSaltPrecipitation,
-                                bool enableExtbo,
-                                bool enableMICP);
+    GenericOutputCompositionalModule(const EclipseState& eclState,
+                                     const Schedule& schedule,
+                                     const SummaryConfig& summaryConfig,
+                                     const SummaryState& summaryState,
+                                     const std::string& moduleVersionName,
+                                     bool enableEnergy,
+                                     bool enableTemperature,
+                                     bool enableMech,
+                                     bool enableSolvent,
+                                     bool enablePolymer,
+                                     bool enableFoam,
+                                     bool enableBrine,
+                                     bool enableSaltPrecipitation,
+                                     bool enableExtbo,
+                                     bool enableMICP);
 
     void doAllocBuffers(unsigned bufferSize,
                         unsigned reportStepNum,
                         const bool substep,
                         const bool log,
                         const bool isRestart,
-                        const bool vapparsActive,
-                        const bool enablePCHysteresis,
-                        const bool enableNonWettingHysteresis,
-                        const bool enableWettingHysteresis,
-                        unsigned numTracers,
-                        const std::vector<bool>& enableSolTracers,
-                        unsigned numOutputNnc);
+                        const bool vapparsActive = false,
+                        const bool enablePCHysteresis = false,
+                        const bool enableNonWettingHysteresis =false,
+                        const bool enableWettingHysteresis = false,
+                        unsigned numTracers = 0,
+                        const std::vector<bool>& enableSolTracers = {},
+                        unsigned numOutputNnc = 0);
 
     void makeRegionSum(Inplace& inplace,
                        const std::string& region_name,
@@ -534,6 +534,8 @@ protected:
     std::array<ScalarBuffer, numPhases> density_;
     std::array<ScalarBuffer, numPhases> viscosity_;
     std::array<ScalarBuffer, numPhases> relativePermeability_;
+
+    std::array<ScalarBuffer, numComponents> moleFractions_;
 
     std::vector<ScalarBuffer> freeTracerConcentrations_;
     std::vector<ScalarBuffer> solTracerConcentrations_;
