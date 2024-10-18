@@ -28,7 +28,7 @@
 #include <opm/models/nonlinear/newtonmethodparams.hpp>
 #include <opm/models/utils/parametersystem.hpp>
 
-#include <opm/simulators/flow/EclWriter.hpp>
+// #include <opm/simulators/flow/EclWriter.hpp>
 
 #if HAVE_DAMARIS
 #include <opm/simulators/flow/DamarisParameters.hpp>

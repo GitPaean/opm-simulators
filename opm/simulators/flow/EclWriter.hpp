@@ -41,7 +41,6 @@
 #include <opm/simulators/flow/countGlobalCells.hpp>
 #include <opm/simulators/flow/EclGenericWriter.hpp>
 #include <opm/simulators/flow/FlowBaseVanguard.hpp>
-#include <opm/simulators/flow/OutputCompositionalModule.hpp>
 #include <opm/simulators/timestepping/SimulatorTimer.hpp>
 #include <opm/simulators/utils/DeferredLoggingErrorHelpers.hpp>
 #include <opm/simulators/utils/ParallelRestart.hpp>
@@ -101,7 +100,8 @@ namespace Opm {
  * - This class requires to use the black oil model with the element
  *   centered finite volume discretization.
  */
-template <class TypeTag>
+ // TODO: OutputModule defaulted to be OutputBlackoilModule
+template <class TypeTag, class OutputModule>
 class EclWriter : public EclGenericWriter<GetPropType<TypeTag, Properties::Grid>,
                                           GetPropType<TypeTag, Properties::EquilGrid>,
                                           GetPropType<TypeTag, Properties::GridView>,
@@ -120,7 +120,7 @@ class EclWriter : public EclGenericWriter<GetPropType<TypeTag, Properties::Grid>
     using ElementMapper = GetPropType<TypeTag, Properties::ElementMapper>;
     using ElementIterator = typename GridView::template Codim<0>::Iterator;
     using BaseType = EclGenericWriter<Grid,EquilGrid,GridView,ElementMapper,Scalar>;
-    
+
     typedef Dune::MultipleCodimMultipleGeomTypeMapper< GridView > VertexMapper;
 
     enum { enableEnergy = getPropValue<TypeTag, Properties::EnableEnergy>() };
@@ -132,7 +132,7 @@ public:
 
     static void registerParameters()
     {
-        OutputCompositionalModule<TypeTag>::registerParameters();
+        OutputModule::registerParameters();
 
         Parameters::Register<Parameters::EnableAsyncEclOutput>
             ("Write the ECL-formated results in a non-blocking way "
@@ -169,13 +169,13 @@ public:
 
             eclBroadcast(this->simulator_.vanguard().grid().comm(), smryCfg);
 
-            this->outputModule_ = std::make_unique<OutputCompositionalModule<TypeTag>>
+            this->outputModule_ = std::make_unique<OutputModule>
                 (simulator, smryCfg, this->collectOnIORank_);
         }
         else
 #endif
         {
-            this->outputModule_ = std::make_unique<OutputCompositionalModule<TypeTag>>
+            this->outputModule_ = std::make_unique<OutputModule>
                 (simulator, this->eclIO_->finalSummaryConfig(), this->collectOnIORank_);
         }
 
@@ -658,10 +658,10 @@ public:
         }
     }
 
-    const OutputCompositionalModule<TypeTag>& outputModule() const
+    const OutputModule& outputModule() const
     { return *outputModule_; }
 
-    OutputCompositionalModule<TypeTag>& mutableOutputModule() const
+    OutputModule& mutableOutputModule() const
     { return *outputModule_; }
 
     Scalar restartTimeStepSize() const
@@ -823,8 +823,8 @@ private:
     }
 
     Simulator& simulator_;
-    // TODO: OutputCompositionalModule needs to be part of the TypeTag
-    std::unique_ptr<OutputCompositionalModule<TypeTag> > outputModule_;
+    // TODO: OutputModule needs to be part of the TypeTag
+    std::unique_ptr<OutputModule> outputModule_;
     Scalar restartTimeStepSize_;
     int rank_ ;
     Inplace inplace_;

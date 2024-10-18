@@ -61,6 +61,11 @@ struct TracerModel<TypeTag, TTag::FlowBaseProblemComp> {
     using type = ::Opm::TracerModel<TypeTag>;
 };
 
+//template<class TypeTag>
+//struct OutputModule<TypeTag, TTag::FlowBaseProblemComp> {
+//    using type = ::Opm::OutputCompositionalModule<TypeTag>;
+//};
+
 // Set the material law for fluid fluxes
 template<class TypeTag>
 struct MaterialLaw<TypeTag, TTag::FlowBaseProblemComp>

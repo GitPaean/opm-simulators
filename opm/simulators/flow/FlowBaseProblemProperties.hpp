@@ -37,7 +37,7 @@
 #include <opm/simulators/flow/BaseAquiferModel.hpp>
 #include <opm/simulators/flow/CpGridVanguard.hpp>
 #include <opm/simulators/flow/DummyGradientCalculator.hpp>
-#include <opm/simulators/flow/EclWriter.hpp>
+// #include <opm/simulators/flow/EclWriter.hpp>
 #include <opm/simulators/flow/FlowProblemParameters.hpp>
 #include <opm/simulators/flow/TracerModel.hpp>
 
@@ -81,6 +81,8 @@ struct EnableThermalFluxBoundaries { using type = UndefinedProperty; };
 template<class TypeTag, class MyTypeTag>
 struct WellModel { using type = UndefinedProperty; };
 
+
+
 // Tracer might be moved to the blackoil side
 // The class that deals with the tracer
 template<class TypeTag, class MyTypeTag>
@@ -94,6 +96,7 @@ struct TracerModel<TypeTag, TTag::FlowBaseProblem>
 template<class TypeTag>
 struct SpatialDiscretizationSplice<TypeTag, TTag::FlowBaseProblem>
 { using type = TTag::EcfvDiscretization; };
+
 
 // use automatic differentiation to linearize the system of PDEs
 template<class TypeTag>
