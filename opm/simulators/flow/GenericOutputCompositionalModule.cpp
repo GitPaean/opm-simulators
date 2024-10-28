@@ -21,12 +21,14 @@
 */
 
 #include <config.h>
-#include <opm/simulators/flow/GenericOutputBlackoilModule.hpp>
+#include <opm/simulators/flow/GenericOutputCompositionalModule.hpp>
 
 #include <opm/common/OpmLog/OpmLog.hpp>
 
-#include <opm/material/fluidsystems/BlackOilFluidSystem.hpp>
-#include <opm/material/fluidsystems/BlackOilDefaultIndexTraits.hpp>
+// #include <opm/material/fluidsystems/BlackOilFluidSystem.hpp>
+// #include <opm/material/fluidsystems/BlackOilDefaultIndexTraits.hpp>
+
+#include <opm/material/fluidsystems/GenericOilGasFluidSystem.hpp>
 
 #include <opm/grid/common/CommunicationUtils.hpp>
 
@@ -186,8 +188,8 @@ std::string EclString(const Opm::Inplace::Phase phase)
 namespace Opm {
 
 template<class FluidSystem>
-GenericOutputBlackoilModule<FluidSystem>::
-GenericOutputBlackoilModule(const EclipseState& eclState,
+GenericOutputCompositionalModule<FluidSystem>::
+GenericOutputCompositionalModule(const EclipseState& eclState,
                             const Schedule& schedule,
                             const SummaryConfig& summaryConfig,
                             const SummaryState& summaryState,
@@ -201,7 +203,8 @@ GenericOutputBlackoilModule(const EclipseState& eclState,
                             bool enableBrine,
                             bool enableSaltPrecipitation,
                             bool enableExtbo,
-                            bool enableMICP)
+                            bool enableMICP,
+                            bool isCompositional)
     : eclState_(eclState)
     , schedule_(schedule)
     , summaryState_(summaryState)
@@ -220,6 +223,7 @@ GenericOutputBlackoilModule(const EclipseState& eclState,
     , enableSaltPrecipitation_(enableSaltPrecipitation)
     , enableExtbo_(enableExtbo)
     , enableMICP_(enableMICP)
+    , isCompositional_(isCompositional)
     , local_data_valid_(false)
 {
     const auto& fp = eclState_.fieldProps();
@@ -269,11 +273,11 @@ GenericOutputBlackoilModule(const EclipseState& eclState,
 }
 
 template<class FluidSystem>
-GenericOutputBlackoilModule<FluidSystem>::
-~GenericOutputBlackoilModule() = default;
+GenericOutputCompositionalModule<FluidSystem>::
+~GenericOutputCompositionalModule() = default;
 
 template<class FluidSystem>
-void GenericOutputBlackoilModule<FluidSystem>::
+void GenericOutputCompositionalModule<FluidSystem>::
 outputTimeStamp(const std::string& lbl,
                 const double elapsed,
                 const int rstep,
@@ -283,7 +287,7 @@ outputTimeStamp(const std::string& lbl,
 }
 
 template<class FluidSystem>
-void GenericOutputBlackoilModule<FluidSystem>::
+void GenericOutputCompositionalModule<FluidSystem>::
 prepareDensityAccumulation()
 {
     if (this->regionAvgDensity_.has_value()) {
@@ -292,7 +296,7 @@ prepareDensityAccumulation()
 }
 
 template<class FluidSystem>
-void GenericOutputBlackoilModule<FluidSystem>::
+void GenericOutputCompositionalModule<FluidSystem>::
 accumulateDensityParallel()
 {
     if (this->regionAvgDensity_.has_value()) {
@@ -301,28 +305,28 @@ accumulateDensityParallel()
 }
 
 template<class FluidSystem>
-void GenericOutputBlackoilModule<FluidSystem>::
+void GenericOutputCompositionalModule<FluidSystem>::
 outputCumLog(std::size_t reportStepNum)
 {
     this->logOutput_.cumulative(reportStepNum);
 }
 
 template<class FluidSystem>
-void GenericOutputBlackoilModule<FluidSystem>::
+void GenericOutputCompositionalModule<FluidSystem>::
 outputProdLog(std::size_t reportStepNum)
 {
     this->logOutput_.production(reportStepNum);
 }
 
 template<class FluidSystem>
-void GenericOutputBlackoilModule<FluidSystem>::
+void GenericOutputCompositionalModule<FluidSystem>::
 outputInjLog(std::size_t reportStepNum)
 {
     this->logOutput_.injection(reportStepNum);
 }
 
 template<class FluidSystem>
-Inplace GenericOutputBlackoilModule<FluidSystem>::
+Inplace GenericOutputCompositionalModule<FluidSystem>::
 calc_inplace(std::map<std::string, double>& miscSummaryData,
              std::map<std::string, std::vector<double>>& regionData,
              const Parallel::Communication& comm)
@@ -341,7 +345,7 @@ calc_inplace(std::map<std::string, double>& miscSummaryData,
 }
 
 template<class FluidSystem>
-void GenericOutputBlackoilModule<FluidSystem>::
+void GenericOutputCompositionalModule<FluidSystem>::
 outputFipAndResvLog(const Inplace& inplace,
                          const std::size_t reportStepNum,
                          double elapsed,
@@ -392,7 +396,7 @@ outputFipAndResvLog(const Inplace& inplace,
 }
 
 template<class FluidSystem>
-void GenericOutputBlackoilModule<FluidSystem>::
+void GenericOutputCompositionalModule<FluidSystem>::
 accumulateRftDataParallel(const Parallel::Communication& comm) {
     if (comm.size() > 1) {
         collectRftMapOnRoot(oilConnectionPressures_, comm);
@@ -402,7 +406,7 @@ accumulateRftDataParallel(const Parallel::Communication& comm) {
 }
 
 template<class FluidSystem>
-void GenericOutputBlackoilModule<FluidSystem>::
+void GenericOutputCompositionalModule<FluidSystem>::
 collectRftMapOnRoot(std::map<std::size_t, Scalar>& local_map, const Parallel::Communication& comm) {
 
     std::vector<std::pair<int, Scalar>> pairs(local_map.begin(), local_map.end());
@@ -428,7 +432,7 @@ collectRftMapOnRoot(std::map<std::size_t, Scalar>& local_map, const Parallel::Co
 
 
 template<class FluidSystem>
-void GenericOutputBlackoilModule<FluidSystem>::
+void GenericOutputCompositionalModule<FluidSystem>::
 addRftDataToWells(data::Wells& wellDatas, std::size_t reportStepNum)
 {
     const auto& rft_config = schedule_[reportStepNum].rft_config();
@@ -478,7 +482,7 @@ addRftDataToWells(data::Wells& wellDatas, std::size_t reportStepNum)
 }
 
 template<class FluidSystem>
-void GenericOutputBlackoilModule<FluidSystem>::
+void GenericOutputCompositionalModule<FluidSystem>::
 assignToSolution(data::Solution& sol)
 {
     using DataEntry =
@@ -624,6 +628,38 @@ assignToSolution(data::Solution& sol)
         DataEntry{"UREA",     UnitSystem::measure::density,            cUrea_},
     };
 
+    // basically, for compositional, we can not use std::array for this.  We need to generate the ZMF1, ZMF2, and so on
+    // and also, we need to map these values.
+    // TODO: the following should go to a function
+    if (this->isCompositional_) {
+        auto compositionalEntries = std::vector<DataEntry>{};
+        {
+            // ZMF
+            for (int i = 0; i < numComponents; ++i) {
+                const std::string name = "ZMF" + std::to_string(i + 1);  // Generate ZMF1, ZMF2, ...
+                compositionalEntries.emplace_back(name, UnitSystem::measure::identity, moleFractions_[i]);
+            }
+
+            // XMF
+            for (int i = 0; i < numComponents; ++i) {
+                const std::string name = "XMF" + std::to_string(i + 1);  // Generate XMF1, XMF2, ...
+                compositionalEntries.emplace_back(name, UnitSystem::measure::identity,
+                                                  phaseMoleFractions_[oilPhaseIdx][i]);
+            }
+
+            // YMF
+            for (int i = 0; i < numComponents; ++i) {
+                const std::string name = "YMF" + std::to_string(i + 1);  // Generate YMF1, YMF2, ...
+                compositionalEntries.emplace_back(name, UnitSystem::measure::identity,
+                                                  phaseMoleFractions_[gasPhaseIdx][i]);
+            }
+        }
+
+        for (const auto& array: compositionalEntries) {
+            doInsert(array, data::TargetType::RESTART_SOLUTION);
+        }
+    }
+
     for (const auto& array : baseSolutionArrays) {
         doInsert(array, data::TargetType::RESTART_SOLUTION);
     }
@@ -659,6 +695,15 @@ assignToSolution(data::Solution& sol)
                    std::move(this->saturation_[gasPhaseIdx]),
                    data::TargetType::RESTART_SOLUTION);
     }
+
+    if (this->isCompositional_ && FluidSystem::phaseIsActive(oilPhaseIdx) &&
+        ! this->saturation_[oilPhaseIdx].empty())
+    {
+        sol.insert("SOIL", UnitSystem::measure::identity,
+                   std::move(this->saturation_[oilPhaseIdx]),
+                   data::TargetType::RESTART_SOLUTION);
+    }
+
 
     if ((eclState_.runspec().co2Storage() || eclState_.runspec().h2Storage()) && !rsw_.empty()) {
         auto mfrac = std::vector<double>(this->rsw_.size(), 0.0);
@@ -807,7 +852,7 @@ assignToSolution(data::Solution& sol)
 }
 
 template<class FluidSystem>
-void GenericOutputBlackoilModule<FluidSystem>::
+void GenericOutputCompositionalModule<FluidSystem>::
 setRestart(const data::Solution& sol,
            unsigned elemIdx,
            unsigned globalDofIndex)
@@ -883,8 +928,8 @@ setRestart(const data::Solution& sol,
 }
 
 template<class FluidSystem>
-typename GenericOutputBlackoilModule<FluidSystem>::ScalarBuffer
-GenericOutputBlackoilModule<FluidSystem>::
+typename GenericOutputCompositionalModule<FluidSystem>::ScalarBuffer
+GenericOutputCompositionalModule<FluidSystem>::
 regionSum(const ScalarBuffer& property,
           const std::vector<int>& regionId,
           std::size_t maxNumberOfRegions,
@@ -918,7 +963,7 @@ regionSum(const ScalarBuffer& property,
     }
 
 template<class FluidSystem>
-void GenericOutputBlackoilModule<FluidSystem>::
+void GenericOutputCompositionalModule<FluidSystem>::
 doAllocBuffers(const unsigned bufferSize,
                const unsigned reportStepNum,
                const bool     substep,
@@ -1481,6 +1526,30 @@ doAllocBuffers(const unsigned bufferSize,
         overburdenPressure_.resize(bufferSize, 0.0);
     }
 
+    if (this->isCompositional_) {
+        if (rstKeywords["ZMF"] > 0) {
+            rstKeywords["ZMF"] = 0;
+            for (int i = 0; i < numComponents; ++i) {
+                moleFractions_[i].resize(bufferSize, 0.0);
+            }
+        }
+
+        if (rstKeywords["XMF"] > 0 && FluidSystem::phaseIsActive(oilPhaseIdx)) {
+            rstKeywords["XMF"] = 0;
+            for (int i = 0; i < numComponents; ++i) {
+                phaseMoleFractions_[oilPhaseIdx][i].resize(bufferSize, 0.0);
+            }
+        }
+
+        if (rstKeywords["YMF"] > 0 && FluidSystem::phaseIsActive(gasPhaseIdx)) {
+            rstKeywords["YMF"] = 0;
+            for (int i = 0; i < numComponents; ++i) {
+                phaseMoleFractions_[gasPhaseIdx][i].resize(bufferSize, 0.0);
+            }
+        }
+    }
+
+
     //Warn for any unhandled keyword
     if (log) {
         for (auto& keyValue: rstKeywords) {
@@ -1507,7 +1576,7 @@ doAllocBuffers(const unsigned bufferSize,
 }
 
 template<class FluidSystem>
-bool GenericOutputBlackoilModule<FluidSystem>::
+bool GenericOutputCompositionalModule<FluidSystem>::
 isOutputCreationDirective_(const std::string& keyword)
 {
     return (keyword == "BASIC") || (keyword == "FREQ")
@@ -1516,7 +1585,7 @@ isOutputCreationDirective_(const std::string& keyword)
 }
 
 template<class FluidSystem>
-void GenericOutputBlackoilModule<FluidSystem>::
+void GenericOutputCompositionalModule<FluidSystem>::
 outputErrorLog(const Parallel::Communication& comm) const
 {
     const auto root = 0;
@@ -1534,7 +1603,7 @@ outputErrorLog(const Parallel::Communication& comm) const
 }
 
 template<class FluidSystem>
-int GenericOutputBlackoilModule<FluidSystem>::
+int GenericOutputCompositionalModule<FluidSystem>::
 regionMax(const std::vector<int>& region,
           const Parallel::Communication& comm)
 {
@@ -1543,7 +1612,7 @@ regionMax(const std::vector<int>& region,
 }
 
 template<class FluidSystem>
-void GenericOutputBlackoilModule<FluidSystem>::
+void GenericOutputCompositionalModule<FluidSystem>::
 update(Inplace& inplace,
        const std::string& region_name,
        const Inplace::Phase phase,
@@ -1560,7 +1629,7 @@ update(Inplace& inplace,
 }
 
 template<class FluidSystem>
-void GenericOutputBlackoilModule<FluidSystem>::
+void GenericOutputCompositionalModule<FluidSystem>::
 makeRegionSum(Inplace& inplace,
               const std::string& region_name,
               const Parallel::Communication& comm) const
@@ -1598,7 +1667,7 @@ makeRegionSum(Inplace& inplace,
 }
 
 template<class FluidSystem>
-Inplace GenericOutputBlackoilModule<FluidSystem>::
+Inplace GenericOutputCompositionalModule<FluidSystem>::
 accumulateRegionSums(const Parallel::Communication& comm)
 {
     Inplace inplace;
@@ -1620,15 +1689,15 @@ accumulateRegionSums(const Parallel::Communication& comm)
 }
 
 template<class FluidSystem>
-typename GenericOutputBlackoilModule<FluidSystem>::Scalar
-GenericOutputBlackoilModule<FluidSystem>::
+typename GenericOutputCompositionalModule<FluidSystem>::Scalar
+GenericOutputCompositionalModule<FluidSystem>::
 sum(const ScalarBuffer& v)
 {
     return std::accumulate(v.begin(), v.end(), Scalar{0});
 }
 
 template<class FluidSystem>
-void GenericOutputBlackoilModule<FluidSystem>::
+void GenericOutputCompositionalModule<FluidSystem>::
 updateSummaryRegionValues(const Inplace& inplace,
                           std::map<std::string, double>& miscSummaryData,
                           std::map<std::string, std::vector<double>>& regionData) const
@@ -1711,7 +1780,7 @@ updateSummaryRegionValues(const Inplace& inplace,
 }
 
 template<class FluidSystem>
-void GenericOutputBlackoilModule<FluidSystem>::
+void GenericOutputCompositionalModule<FluidSystem>::
 setupBlockData(std::function<bool(int)> isCartIdxOnThisRank)
 {
     for (const auto& node : summaryConfig_) {
@@ -1727,7 +1796,7 @@ setupBlockData(std::function<bool(int)> isCartIdxOnThisRank)
 }
 
 template<class FluidSystem>
-void GenericOutputBlackoilModule<FluidSystem>::
+void GenericOutputCompositionalModule<FluidSystem>::
 assignGlobalFieldsToSolution(data::Solution& sol)
 {
     if (!this->cnvData_.empty()) {
@@ -1741,15 +1810,29 @@ assignGlobalFieldsToSolution(data::Solution& sol)
     }
 }
 
-template<class T> using FS = BlackOilFluidSystem<T,BlackOilDefaultIndexTraits>;
+//template<class T> using FS = BlackOilFluidSystem<T,BlackOilDefaultIndexTraits>;
 
-#define INSTANTIATE_TYPE(T) \
-    template class GenericOutputBlackoilModule<FS<T>>;
+//#define INSTANTIATE_TYPE(T) \
+//    template class GenericOutputCompositionalModule<FS<T>>;
+//
+//INSTANTIATE_TYPE(double)
+//
+//#if FLOW_INSTANTIATE_FLOAT
+//INSTANTIATE_TYPE(float)
+//#endif
 
-INSTANTIATE_TYPE(double)
+// TODO: incoporate cmake argument -DOPM_COMPILE_COMPONENTS here
+// so we do not need to instatinate all of them
 
-#if FLOW_INSTANTIATE_FLOAT
-INSTANTIATE_TYPE(float)
-#endif
+#define INSTANTIATE_COMP(NUM) \
+    template<class T> using FS##NUM = GenericOilGasFluidSystem<T, NUM>; \
+    template class GenericOutputCompositionalModule<FS##NUM<double>>;
+
+INSTANTIATE_COMP(2)
+INSTANTIATE_COMP(3)
+INSTANTIATE_COMP(4)
+INSTANTIATE_COMP(5)
+INSTANTIATE_COMP(6)
+INSTANTIATE_COMP(7)
 
 } // namespace Opm
