@@ -549,7 +549,7 @@ namespace Opm {
                 well->setPrevSurfaceRates(this->wellState(), this->prevWellState());
             }
         }
-
+#if 0
         // calculate the well potentials
         try {
             this->updateWellPotentials(reportStepIdx,
@@ -560,6 +560,7 @@ namespace Opm {
             const std::string msg = "A zero well potential is returned for output purposes. ";
             local_deferredLogger.warning("WELL_POTENTIAL_CALCULATION_FAILED", msg);
         }
+#endif
 
         //update guide rates
         const auto& comm = simulator_.vanguard().grid().comm();
