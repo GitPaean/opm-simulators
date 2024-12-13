@@ -1114,6 +1114,7 @@ list (APPEND EXAMPLE_SOURCE_FILES
   examples/co2injection_pvs_ni_ecfv.cpp
   examples/co2injection_pvs_ni_vcfv.cpp
   examples/co2_ptflash_ecfv.cpp
+  examples/co2_ptflash_ecfv_validation.cpp
   examples/co2injection_pvs_vcfv.cpp
   examples/cuvette_pvs.cpp
   examples/diffusion_flash.cpp

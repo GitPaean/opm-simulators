@@ -43,6 +43,7 @@ set(PLAIN_TGT
   co2injection_ncp_ni_ecfv
   co2injection_pvs_ni_ecfv
   co2_ptflash_ecfv
+  co2_ptflash_ecfv_validation
   cuvette_pvs
   diffusion_flash
   diffusion_ncp
