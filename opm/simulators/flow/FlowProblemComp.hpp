@@ -357,8 +357,15 @@ public:
             paramCache.updatePhase(fs, FluidSystem::gasPhaseIdx);
             fs.setDensity(FluidSystem::oilPhaseIdx, FluidSystem::density(fs, paramCache, FluidSystem::oilPhaseIdx));
             fs.setDensity(FluidSystem::gasPhaseIdx, FluidSystem::density(fs, paramCache, FluidSystem::gasPhaseIdx));
-            fs.setViscosity(FluidSystem::oilPhaseIdx, FluidSystem::viscosity(fs, paramCache, FluidSystem::oilPhaseIdx));
+            const Scalar R = Opm::Constants<Scalar>::R;
+            const auto Z_L = (paramCache.molarVolume(FluidSystem::oilPhaseIdx) * fs.pressure(FluidSystem::oilPhaseIdx) ) /
+                       (R * fs.temperature(FluidSystem::oilPhaseIdx));
+            const auto Z_V = (paramCache.molarVolume(FluidSystem::gasPhaseIdx) * fs.pressure(FluidSystem::gasPhaseIdx) ) /
+                       (R * fs.temperature(FluidSystem::gasPhaseIdx));
+            fs.setCompressFactor(FluidSystem::oilPhaseIdx, Z_L);
+            fs.setCompressFactor(FluidSystem::gasPhaseIdx, Z_V);
             fs.setViscosity(FluidSystem::gasPhaseIdx, FluidSystem::viscosity(fs, paramCache, FluidSystem::gasPhaseIdx));
+            fs.setViscosity(FluidSystem::oilPhaseIdx, FluidSystem::viscosity(fs, paramCache, FluidSystem::oilPhaseIdx));
         }
 
         // determine the component fractions
