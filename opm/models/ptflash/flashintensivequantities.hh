@@ -249,9 +249,13 @@ public:
         const MaterialLawParams& materialParams = problem.materialLawParams(elemCtx, dofIdx, timeIdx);
 
         // calculate relative permeability
-        MaterialLaw::relativePermeabilities(relativePermeability_,
-                                            materialParams, fluidState_);
-        Opm::Valgrind::CheckDefined(relativePermeability_);
+        // MaterialLaw::relativePermeabilities(relativePermeability_,
+        //                                     materialParams, fluidState_);
+        // Opm::Valgrind::CheckDefined(relativePermeability_);
+        //
+        const auto& s_gas = fluidState_.saturation(FluidSystem::gasPhaseIdx);
+        relativePermeability_[FluidSystem::gasPhaseIdx] = s_gas;
+        relativePermeability_[FluidSystem::oilPhaseIdx] = 1 - s_gas;
 
         // set the phase viscosity and density
         for (unsigned phaseIdx = 0; phaseIdx < numPhases; ++phaseIdx) {
@@ -263,6 +267,8 @@ public:
 
             mobility_[phaseIdx] = relativePermeability_[phaseIdx] / mu;
             Opm::Valgrind::CheckDefined(mobility_[phaseIdx]);
+            std::cout << " rel perm " << relativePermeability_[phaseIdx] << std::endl;
+            std::cout << " saturation " << fluidState_.saturation(phaseIdx) << std::endl;
 
             const Evaluation& rho = FluidSystem::density(fluidState_, paramCache, phaseIdx);
             fluidState_.setDensity(phaseIdx, rho);
