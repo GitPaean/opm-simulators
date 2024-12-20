@@ -22,6 +22,8 @@
 
 #include <cstddef>
 #include <vector>
+#include <string>
+#include <sstream>
 
 namespace Opm {
 class WellSegments;
@@ -103,6 +105,21 @@ public:
     std::vector<Scalar> pressure_drop_friction;
     std::vector<Scalar> pressure_drop_hydrostatic;
     std::vector<Scalar> pressure_drop_accel;
+
+    std::string toString(int num_phases) const
+    {
+        std::ostringstream oss;
+        for (int s = 0; s < size(); ++s) {
+            oss << "Segment " << s << ": ";
+            oss << "Pressure: " << pressure[s] << "  ";
+            oss << "Rates: ";
+            for (int p = 0; p < num_phases; ++p) {
+                oss << rates[s * num_phases + p]  << " ";
+            }
+            oss << " \n ";
+        }
+        return oss.str();
+    }
 
 private:
     std::vector<int>    m_segment_number;

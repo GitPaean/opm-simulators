@@ -22,6 +22,8 @@
 #ifndef OPM_MULTISEGMENTWELL_PRIMARY_VARIABLES_HEADER_INCLUDED
 #define OPM_MULTISEGMENTWELL_PRIMARY_VARIABLES_HEADER_INCLUDED
 
+#include "opm/material/common/MathToolbox.hpp"
+
 #include <opm/material/densead/Evaluation.hpp>
 
 #include <opm/simulators/wells/MultisegmentWellEquations.hpp>
@@ -31,6 +33,7 @@
 #include <array>
 #include <cstddef>
 #include <vector>
+#include <boost/spirit/home/qi/char/char_class.hpp>
 
 namespace Opm
 {
@@ -64,8 +67,8 @@ public:
     // In the implementation, one should use has_wfrac_variable
     // rather than has_water to check if you should do something
     // with the variable at the WFrac location, similar for GFrac.
-    static constexpr bool has_wfrac_variable = has_water && Indices::numPhases > 1;
-    static constexpr bool has_gfrac_variable = has_gas && has_oil;
+    static constexpr bool has_wfrac_variable = Indices::waterEnabled && Indices::oilEnabled;
+    static constexpr bool has_gfrac_variable = Indices::gasEnabled && Indices::numPhases > 1;
 
     static constexpr int WQTotal = 0;
     static constexpr int WFrac = has_wfrac_variable ? 1 : -1000;
@@ -154,6 +157,40 @@ public:
 
     //! output the segments with pressure close to lower pressure limit for debugging purpose
     void outputLowLimitPressureSegments(DeferredLogger& deferred_logger) const;
+
+    bool isFinite() const
+    {
+        bool is_finite = true;
+        for (std::size_t seg = 0; seg < value_.size(); ++seg) {
+            for (int eq_idx = 0; eq_idx < numWellEq; ++eq_idx) {
+                is_finite = is_finite && std::isfinite(value_[seg][eq_idx]);
+                is_finite = is_finite && std::isfinite(evaluation_[seg][eq_idx].value());
+                for (std::size_t der_idx = 0; der_idx < Indices::numEq; ++der_idx) {
+                    is_finite = is_finite && std::isfinite(evaluation_[seg][eq_idx].derivative(der_idx));
+                }
+            }
+        }
+        return is_finite;
+    }
+
+    void output() const {
+        std::cout << " value_ " << std::endl;
+        for (std::size_t seg = 0; seg < value_.size(); ++seg) {
+            std::cout << "segment " << seg << " : ";
+            for (int eq_idx = 0; eq_idx < numWellEq; ++eq_idx) {
+                std::cout << value_[seg][eq_idx] << " ";
+            }
+            std::cout << std::endl;
+        }
+        std::cout << " evaluation_ " << std::endl;
+        for (std::size_t seg = 0; seg < evaluation_.size(); ++seg) {
+            std::cout << "segment " << seg << " : ";
+            for (int eq_idx = 0; eq_idx < numWellEq; ++eq_idx) {
+                std::cout << evaluation_[seg][eq_idx] << " ";
+            }
+            std::cout << std::endl;
+        }
+    }
 
 private:
     //! \brief Handle non-reasonable fractions due to numerical overshoot.

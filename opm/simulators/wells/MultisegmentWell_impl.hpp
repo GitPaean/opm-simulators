@@ -712,6 +712,8 @@ namespace Opm
 
         {
             auto& ws = well_state.well(this->index_of_well_);
+            std::cout << " well state after update " << std::endl;
+            std::cout << ws.toString() << std::endl;
             this->segments_.copyPhaseDensities(ws.pu, ws.segments);
         }
 
@@ -914,6 +916,7 @@ namespace Opm
 
         // producing perforations
         if (drawdown > 0.0) {
+            // std::cout << " perf " << perf << " drawdown " << drawdown << " producing " << std::endl;
             // Do nothing if crossflow is not allowed
             if (!allow_cf && this->isInjector()) {
                 return;
@@ -934,6 +937,7 @@ namespace Opm
                 cq_s[oilCompIdx] += rv * cq_s_gas;
             }
         } else { // injecting perforations
+            std::cout << " perf " << perf << " drawdown " << drawdown << " injecting " << std::endl;
             // Do nothing if crossflow is not allowed
             if (!allow_cf && this->isProducer()) {
                 return;

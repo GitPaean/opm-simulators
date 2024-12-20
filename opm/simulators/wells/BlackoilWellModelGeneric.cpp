@@ -1667,7 +1667,8 @@ updateWellPotentials(const int reportStepIdx,
         const bool needPotentialsForGuideRates = well->underPredictionMode() && (!onlyAfterEvent || event);
         const bool needPotentialsForOutput = !onlyAfterEvent && (needed_for_summary || write_restart_file);
         const bool compute_potential = needPotentialsForOutput || needPotentialsForGuideRates;
-        if (compute_potential)
+        // if (compute_potential)
+        if (false)
         {
             this->computePotentials(widx, well_state_copy, exc_msg, exc_type, deferred_logger);
         }

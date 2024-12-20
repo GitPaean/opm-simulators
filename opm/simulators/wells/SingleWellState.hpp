@@ -22,6 +22,8 @@
 
 #include <functional>
 #include <vector>
+#include <string>
+#include <sstream>
 
 #include <opm/input/eclipse/Schedule/Well/WellEnums.hpp>
 #include <opm/input/eclipse/Schedule/Events.hpp>
@@ -142,6 +144,19 @@ public:
 
     Scalar sum_filtrate_rate() const;
     Scalar sum_filtrate_total() const;
+    std::string toString() const
+    {
+        std::ostringstream oss;
+        oss << "SingleWellState(" << name << ")";
+        oss << " bhp " << bhp  << " surface rates : ";
+        const int np = surface_rates.size();
+        for (int p = 0; p < np; ++p) {
+            oss << surface_rates[p] << " ";
+        }
+        oss << " \n ";
+        oss << segments.toString(np);
+        return oss.str();
+    }
 
 private:
     Scalar sum_connection_rates(const std::vector<Scalar>& connection_rates) const;
