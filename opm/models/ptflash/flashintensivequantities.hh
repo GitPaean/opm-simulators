@@ -250,7 +250,7 @@ public:
 
         // set the phase viscosity and density
         for (unsigned phaseIdx = 0; phaseIdx < numPhases; ++phaseIdx) {
-            paramCache.updatePhase(fluidState_, phaseIdx);
+            // paramCache.updatePhase(fluidState_, phaseIdx);
 
             const Evaluation& mu = FluidSystem::viscosity(fluidState_, paramCache, phaseIdx);
 
