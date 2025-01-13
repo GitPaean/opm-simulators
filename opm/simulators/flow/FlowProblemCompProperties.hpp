@@ -76,15 +76,20 @@ private:
 
     // TODO: We should be able to use FluidSystem here and using Indices to handle the active phases
     // some more development is needed
-    using Traits = ThreePhaseMaterialTraits<Scalar,
-                                            /*wettingPhaseIdx=*/ 0,
-                                            /*nonWettingPhaseIdx=*/ 1,
-                                            /*gasPhaseIdx=*/ 2>;
-
+    // using Traits = ThreePhaseMaterialTraits<Scalar,
+    //                                         /*wettingPhaseIdx=*/ 0,
+    //                                         /*nonWettingPhaseIdx=*/ 1,
+    //                                         /*gasPhaseIdx=*/ 2>;
+    // using Traits = NullMaterialTraits<Scalar, FluidSystem::numPhases>;
+    using Traits = Opm::TwoPhaseMaterialTraits<Scalar,
+                   //  /*wettingPhaseIdx=*/FluidSystem::waterPhaseIdx, // TODO
+                       /*nonWettingPhaseIdx=*/FluidSystem::oilPhaseIdx,
+                       /*gasPhaseIdx=*/FluidSystem::gasPhaseIdx>;
 public:
     using EclMaterialLawManager = ::Opm::EclMaterialLawManager<Traits>;
 
-    using type = typename EclMaterialLawManager::MaterialLaw;
+    // using type = typename EclMaterialLawManager::MaterialLaw;
+    using type = NullMaterial<Traits>;
 };
 
 // Enable diffusion
