@@ -145,6 +145,8 @@ public:
      */
     static void registerParameters()
     {
+        // \Note: to register the parameter ForceDisableFluidInPlaceOutput
+        BaseType::registerParameters();
     }
 
     /*!
