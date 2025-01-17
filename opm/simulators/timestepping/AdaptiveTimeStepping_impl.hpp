@@ -243,6 +243,14 @@ step(const SimulatorTimer& simulatorTimer,
                 restarts = 0;
             }
 
+            // Further restrict time step size if we are in
+            // prediction mode with THP constraints.
+            if (solver.model().wellModel().hasTHPConstraints()) {
+                const double maxPredictionTHPTimestep = 16.0 * unit::day;
+                dtEstimate = std::min(dtEstimate, maxPredictionTHPTimestep);
+            }
+            assert(dtEstimate > 0);
+
             if (timestepVerbose_) {
                 std::ostringstream ss;
                 substepReport.reportStep(ss);
