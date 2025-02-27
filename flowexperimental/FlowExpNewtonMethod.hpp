@@ -141,7 +141,18 @@ public:
             return (this->error_ < relaxedTolerance_ && errorSum_ < sumTolerance_) ;
         }
 
-        return this->error_ <= this->tolerance() && errorSum_ <= sumTolerance_;
+        return this->error_ <= this->tolerance() && errorSum_ <= sumTolerance_ && auxModelConverged();
+    }
+
+    bool auxModelConverged() const
+    {
+        bool converged = true;
+        const auto& model = this->model();
+        for (unsigned i = 0; i < model.numAuxiliaryModules(); ++i) {
+            auto& auxMod = *model.auxiliaryModule(i);
+            converged = converged && auxMod.converged();
+        }
+        return converged;
     }
 
     void preSolve_(const SolutionVector&,
