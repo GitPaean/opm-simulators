@@ -32,13 +32,12 @@ CompWellState(const PhaseUsage& phase_usage,
 
 template <typename Scalar>
 void CompWellState<Scalar>::
-init(const Schedule& schedule,
-     const std::vector<Well>& wells_ecl,
+init(const std::vector<Well>& wells_ecl,
      const std::vector<Scalar>& cell_pressures,
      const std::vector<std::vector<Scalar>>& cell_mole_fractions,
      const std::vector<std::vector<CompConnectionData<Scalar> > >& well_connection_data,
      const SummaryState& summary_state,
-     const CompWellState* prev_well_state)
+     const CompWellState* /*prev_well_state*/)
 {
     this->base_init(wells_ecl, cell_pressures, cell_mole_fractions, well_connection_data, summary_state);
 
@@ -92,7 +91,6 @@ initSingleInjector(const Well& well,
     auto& ws = this->wells_.add(well.name(),
                                 SingleCompWellState<Scalar>(well.name(),
                                     this->comp_config_,
-                                    this->phase_usage_,
                                     conn_data,
                                     false) );
     ws.update_injector_targets(well, summary_state);
@@ -109,7 +107,6 @@ initSingleProducer(const Well& well,
     auto& ws = this->wells_.add(well.name(),
                                 SingleCompWellState<Scalar>(well.name(),
                                     this->comp_config_,
-                                    this->phase_usage_,
                                     conn_data,
                                     true) );
     ws.update_producer_targets(well, cell_mole_fractions, summary_state);
