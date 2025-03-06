@@ -68,6 +68,9 @@ public:
     //! Index of the pressure
     static constexpr int pressure0Idx = PVOffset;
 
+    // to make ISTLSolver.hpp happy
+    static constexpr int pressureSwitchIdx = pressure0Idx;
+
     //! Index of the molefraction of the first component
     static constexpr int z0Idx = pressure0Idx + 1;
 

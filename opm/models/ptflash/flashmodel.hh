@@ -191,6 +191,7 @@ class FlashModel
 {
     using ParentType = MultiPhaseBaseModel<TypeTag>;
 
+public:
     using Scalar = GetPropType<TypeTag, Properties::Scalar>;
     using FluidSystem = GetPropType<TypeTag, Properties::FluidSystem>;
     using Simulator = GetPropType<TypeTag, Properties::Simulator>;
@@ -204,7 +205,6 @@ class FlashModel
 
     using EnergyModule = Opm::EnergyModule<TypeTag, enableEnergy>;
 
-public:
     explicit FlashModel(Simulator& simulator)
         : ParentType(simulator)
     {}

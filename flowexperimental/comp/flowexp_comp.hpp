@@ -28,7 +28,8 @@
 #include <opm/simulators/flow/FlowProblemComp.hpp>
 #include <opm/simulators/flow/FlowProblemCompProperties.hpp>
 
-#include <opm/simulators/linalg/parallelbicgstabbackend.hh>
+// #include <opm/simulators/linalg/parallelbicgstabbackend.hh>
+#include <opm/simulators/linalg/ISTLSolver.hpp>
 
 #include <flowexperimental/comp/EmptyModel.hpp>
 #include <flowexperimental/comp/wells/CompositionalWellModel.hpp>
@@ -259,6 +260,22 @@ struct EnableExtbo<TypeTag, TTag::FlowExpCompProblem<NumComp, EnableWater>> {
 template<class TypeTag, int NumComp, bool EnableWater>
 struct EnableMICP<TypeTag, TTag::FlowExpCompProblem<NumComp, EnableWater>> {
     static constexpr bool value = false;
+};
+
+// use flow's linear solver backend for now
+template<class TypeTag, int NumComp, bool EnableWater>
+struct LinearSolverSplice<TypeTag, TTag::FlowExpCompProblem<NumComp, EnableWater>> {
+    using type = TTag::FlowIstlSolver;
+};
+
+template<int NumComp, bool EnableWater>
+struct LinearSolverBackend<TTag::FlowExpCompProblem<NumComp, EnableWater>, TTag::FlowIstlSolverParams> {
+    using type = ISTLSolver<TTag::FlowExpCompProblem<NumComp, EnableWater>>;
+};
+
+template<class TypeTag, int NumComp, bool EnableWater>
+struct LinearSolverBackend<TypeTag, TTag::FlowExpCompProblem<NumComp, EnableWater>> {
+    using type = ISTLSolver<TypeTag>;
 };
 
 // disable thermal flux boundaries by default

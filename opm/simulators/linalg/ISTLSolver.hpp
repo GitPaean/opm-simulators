@@ -622,18 +622,18 @@ std::unique_ptr<Matrix> blockJacobiAdjacency(const Grid& grid,
                                                              ThreadManager::threadId());
                             return weights;
                         };
-                } else if  (weightsType == "trueimpesanalytic" ) {
-                    weightsCalculator =
-                        [this, pressIndex]
-                        {
-                            Vector weights(rhs_->size());
-                            ElementContext elemCtx(simulator_);
-                            Amg::getTrueImpesWeightsAnalytic(pressIndex, weights,
-                                                             simulator_.vanguard().gridView(),
-                                                             elemCtx, simulator_.model(),
-                                                             ThreadManager::threadId());
-                            return weights;
-                        };
+//                } else if  (weightsType == "trueimpesanalytic" ) {
+//                    weightsCalculator =
+//                        [this, pressIndex]
+//                        {
+//                            Vector weights(rhs_->size());
+//                            ElementContext elemCtx(simulator_);
+//                            Amg::getTrueImpesWeightsAnalytic(pressIndex, weights,
+//                                                             simulator_.vanguard().gridView(),
+//                                                             elemCtx, simulator_.model(),
+//                                                             ThreadManager::threadId());
+//                            return weights;
+//                        };
                 } else {
                     OPM_THROW(std::invalid_argument,
                               "Weights type " + weightsType +
