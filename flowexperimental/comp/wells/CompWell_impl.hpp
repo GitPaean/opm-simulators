@@ -465,7 +465,8 @@ assembleWellEq(const Simulator& simulator,
     // there will be num_comp mass balance equations for each component and one for the well control equations
     // for the mass balance equations, it will be the sum of the connection rates for each component,
     // add minus the production rate for each component, will equal to the mass change for each component
-    this->well_equations_.output();
+
+    // this->well_equations_.output();
 }
 
 template <typename TypeTag>

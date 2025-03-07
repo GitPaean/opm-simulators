@@ -215,14 +215,14 @@ updateNewton(const BVectorWell& dwells, const bool producer) {
     value_[1] = mole_fractions[0] / sum_mole_fraction;
     value_[2] = mole_fractions[1] / sum_mole_fraction;
 
-//    std::cout << " the values after processing the fractions ";
-//    for (const auto& val : value_) {
-//        std::cout << val << " ";
-//    }
-//    std::cout << std::endl;
-//    if (producer) {
-//        std::cout << " producer " << std::endl;
-//    }
+    std::cout << " the values after processing the fractions ";
+    for (const auto& val : value_) {
+        std::cout << val << " ";
+    }
+    std::cout << std::endl;
+    if (producer) {
+        std::cout << " producer " << std::endl;
+    }
     updateEvaluation();
 }
 
