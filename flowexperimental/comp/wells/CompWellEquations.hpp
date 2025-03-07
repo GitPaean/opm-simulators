@@ -59,6 +59,20 @@ public:
 
     void clear();
 
+    void output() const {
+        std::cout << "D matrix" << std::endl;
+        std::cout << duneD_[0][0] << std::endl;
+        std::cout << "invD matrix" << std::endl;
+        std::cout << invDuneD_[0][0] << std::endl;
+        std::cout << "B matrix" << std::endl;
+        std::cout << duneB_[0][0] << std::endl;
+        std::cout << "C matrix " << std::endl;
+        std::cout << duneC_[0][0] << std::endl;
+        std::cout << " residual " << std::endl;
+        std::cout << resWell_[0] << std::endl;
+        std::cout << std::endl;
+    }
+
     DiagMatWell& D()
     {
         return duneD_;
@@ -89,6 +103,8 @@ public:
     void invert();
 
     void apply(BVector& r) const;
+
+    void apply(const BVector& x, BVector& Ax) const;
 
     void recoverSolutionWell(const BVector& x, BVectorWell& xw) const;
 

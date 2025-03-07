@@ -502,15 +502,15 @@ std::unique_ptr<Matrix> blockJacobiAdjacency(const Grid& grid,
             OPM_TIMEBLOCK(flexibleSolverPrepare);
             if (shouldCreateSolver()) {
                 if (!useWellConn_) {
-                    if (isNlddLocalSolver()) {
-                        auto wellOp = std::make_unique<DomainWellModelAsLinearOperator<WellModel, Vector, Vector>>(simulator_.problem().wellModel());
-                        wellOp->setDomainIndex(domainIndex_);
-                        flexibleSolver_[activeSolverNum_].wellOperator_ = std::move(wellOp);
-                    }
-                    else {
+//                    if (isNlddLocalSolver()) {
+//                        auto wellOp = std::make_unique<DomainWellModelAsLinearOperator<WellModel, Vector, Vector>>(simulator_.problem().wellModel());
+//                        wellOp->setDomainIndex(domainIndex_);
+//                        flexibleSolver_[activeSolverNum_].wellOperator_ = std::move(wellOp);
+//                    }
+//                    else {
                         auto wellOp = std::make_unique<WellModelOperator>(simulator_.problem().wellModel());
                         flexibleSolver_[activeSolverNum_].wellOperator_ = std::move(wellOp);
-                    }
+//                    }
                 }
                 std::function<Vector()> weightCalculator = this->getWeightsCalculator(prm_[activeSolverNum_], getMatrix(), pressureIndex);
                 OPM_TIMEBLOCK(flexibleSolverCreate);

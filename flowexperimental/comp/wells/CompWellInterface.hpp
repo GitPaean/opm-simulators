@@ -74,6 +74,8 @@ public:
 
     virtual void apply(BVector& r) const = 0;
 
+    virtual void apply(const BVector& x, BVector& Ax) const = 0;
+
     /// using the solution x to recover the solution xw for wells and applying
     /// xw to update Well State
     virtual void recoverWellSolutionAndUpdateWellState(const BVector& x,

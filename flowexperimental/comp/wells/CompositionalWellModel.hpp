@@ -128,6 +128,7 @@ public:
     bool getWellConvergence() const;
 
     // the following functions are not used while added to avoid modifying WellConnectionAuxiliaryModule.hpp
+    bool empty() const { return well_container_.empty(); }
     std::size_t compressedIndexForInterior(std::size_t cartesian_cell_idx) const;
     std::vector<int> getCellsForConnections(const Well& well) const;
 private:

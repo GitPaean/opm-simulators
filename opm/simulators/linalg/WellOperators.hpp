@@ -122,19 +122,19 @@ public:
                                   const X& weights,
                                   const bool use_well_weights) const override
     {
-        OPM_TIMEBLOCK(addWellPressureEquations);
-        wellMod_.addWellPressureEquations(jacobian, weights, use_well_weights);
+//        OPM_TIMEBLOCK(addWellPressureEquations);
+//        wellMod_.addWellPressureEquations(jacobian, weights, use_well_weights);
     }
 
     void addWellPressureEquationsStruct(PressureMatrix& jacobian) const override
     {
-        OPM_TIMEBLOCK(addWellPressureEquationsStruct);
-        wellMod_.addWellPressureEquationsStruct(jacobian);
+//        OPM_TIMEBLOCK(addWellPressureEquationsStruct);
+//        wellMod_.addWellPressureEquationsStruct(jacobian);
     }
 
     int getNumberOfExtraEquations() const override
     {
-        return wellMod_.numLocalWellsEnd();
+//        return wellMod_.numLocalWellsEnd();
     }
 
 protected:

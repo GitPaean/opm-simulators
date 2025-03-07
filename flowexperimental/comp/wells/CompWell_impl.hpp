@@ -209,7 +209,7 @@ CompWell<TypeTag>::
 updateSurfaceQuantities(const Simulator& simulator)
 {
     const auto& surface_cond = simulator.vanguard().eclState().getTableManager().stCond();
-    std::cout << " well surface condition temperature " << surface_cond.temperature << " pressure " << surface_cond.pressure << std::endl;
+    // std::cout << " well surface condition temperature " << surface_cond.temperature << " pressure " << surface_cond.pressure << std::endl;
     if (this->well_ecl_.isInjector()) { // we look for well stream for injection composition
         const auto& inj_composition = this->well_ecl_.getInjectionProperties().gasInjComposition();
         using FluidStateScalar = CompositionalFluidState<Scalar, FluidSystem>;
@@ -278,8 +278,8 @@ updateSurfaceQuantities(const Simulator& simulator)
         this->surface_conditions_.surface_densities_[FluidSystem::gasPhaseIdx] = density_gas;
         this->surface_conditions_.volume_fractions_[FluidSystem::oilPhaseIdx] = So;
         this->surface_conditions_.volume_fractions_[FluidSystem::gasPhaseIdx] = Sg;
-        std::cout << " oil surface density " << density_oil << " gas surface density " << density_gas
-                  << " oil volume fraction " << So << " gas volume fraction " << Sg << std::endl;
+//        std::cout << " oil surface density " << density_oil << " gas surface density " << density_gas
+//                  << " oil volume fraction " << So << " gas volume fraction " << Sg << std::endl;
         // TODO: it shows it is liquid, which is not correct
     } else { // the composition will be from the wellbore
         // here, it will use the composition from the wellbore and the pressure and temperature from the surface condition
@@ -368,12 +368,12 @@ calculateSingleConnectionRate(const Simulator& simulator,
 
     const EvalWell cell_pressure = PrimaryVariables::extendEval(fluid_state.pressure(FluidSystem::oilPhaseIdx));
     const EvalWell drawdown = cell_pressure - bhp;
-    if (output) {
-        std::cout << " incoming mole fractoins " << std::endl;
-        for (unsigned comp_idx = 0; comp_idx < FluidSystem::numComponents; ++comp_idx) {
-            std::cout << fluid_state.moleFraction(comp_idx) << " " << std::endl;
-        }
-    }
+//    if (output) {
+//        std::cout << " incoming mole fractoins " << std::endl;
+//        for (unsigned comp_idx = 0; comp_idx < FluidSystem::numComponents; ++comp_idx) {
+//            std::cout << fluid_state.moleFraction(comp_idx) << " " << std::endl;
+//        }
+//    }
 
     if (drawdown > 0.) { // producing connection
         std::vector<EvalWell> cq_v(np);
@@ -465,7 +465,7 @@ assembleWellEq(const Simulator& simulator,
     // there will be num_comp mass balance equations for each component and one for the well control equations
     // for the mass balance equations, it will be the sum of the connection rates for each component,
     // add minus the production rate for each component, will equal to the mass change for each component
-
+    this->well_equations_.output();
 }
 
 template <typename TypeTag>
@@ -604,11 +604,11 @@ iterateWellEq(const Simulator& simulator,
         converged = this->getConvergence();
 
         if (converged) {
-            std::cout << " the well " << this->well_ecl_.name() << " has converged after " << it << " iterations" << std::endl;
-            std::cout << " the residuals ";
-            for (const auto& val : this->well_equations_.residual()[0]) {
-                std::cout << val << " ";
-            }
+//            std::cout << " the well " << this->well_ecl_.name() << " has converged after " << it << " iterations" << std::endl;
+//            std::cout << " the residuals ";
+//            for (const auto& val : this->well_equations_.residual()[0]) {
+//                std::cout << val << " ";
+//            }
             break;
         }
 
@@ -640,6 +640,14 @@ CompWell<TypeTag>::
 apply(BVector& r) const
 {
     this->well_equations_.apply(r);
+}
+
+template<typename TypeTag>
+void
+CompWell<TypeTag>::
+apply(const BVector& x, BVector& Ax) const
+{
+    this->well_equations_.apply(x, Ax);
 }
 
 template <typename TypeTag>

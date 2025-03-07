@@ -83,10 +83,16 @@ main(int argc, char** argv)
     using TypeTag = Opm::Properties::TTag::FlowExpCompProblem<0, true>;
     Opm::registerEclTimeSteppingParameters<double>();
 
+    Opm::Parameters::Register<Opm::Parameters::MatrixAddWellContributions>
+            ("Explicitly specify the influences of wells between cells in "
+             "the Jacobian and preconditioner matrices");
+
     // At the moment, this is probably as optimal as can be.
     // We only read the RUNSPEC of the Deck file to get the numComp,
     // and for this we need to first read the CLI arguments.
     Opm::setupParameters_<TypeTag>(argc, const_cast<const char**>(argv), true);
+
+    Opm::Parameters::SetDefault<Opm::Parameters::MatrixAddWellContributions>(false);
 
     auto inputFilename
         = Opm::FlowGenericVanguard::canonicalDeckPath(Opm::Parameters::Get<Opm::Parameters::EclDeckFileName>());
