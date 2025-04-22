@@ -164,6 +164,9 @@ struct ConvergenceMonitoringDecayFactor { static constexpr Scalar value = 0.75; 
 template<class Scalar>
 struct NupcolGroupRateTolerance { static constexpr Scalar value = 0.001; };
 
+template <class Scalar>
+struct InitializeWellStateEveryReportStep { static constexpr bool value = true; };
+
 } // namespace Opm::Parameters
 
 namespace Opm {
@@ -352,6 +355,9 @@ public:
     // Relative tolerance of group rates (VREP, REIN)
     // If violated the nupcol wellstate is updated
     Scalar nupcol_group_rate_tolerance_;
+
+    // It indicates whether we want to updateWellStateWithTarget for each report step
+    bool initialize_wellstate_every_reportstep_;
 
     /// Construct from user parameters or defaults.
     BlackoilModelParameters();
