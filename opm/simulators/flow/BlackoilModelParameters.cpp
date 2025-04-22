@@ -110,6 +110,7 @@ BlackoilModelParameters<Scalar>::BlackoilModelParameters()
     monitor_params_.decay_factor_ = Parameters::Get<Parameters::ConvergenceMonitoringDecayFactor<Scalar>>();
 
     nupcol_group_rate_tolerance_ = Parameters::Get<Parameters::NupcolGroupRateTolerance<Scalar>>();
+    initialize_wellstate_every_reportstep_ = Parameters::Get<Parameters::InitializeWellStateEveryReportStep<Scalar>>();
 }
 
 template<class Scalar>

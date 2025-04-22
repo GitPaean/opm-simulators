@@ -501,7 +501,7 @@ namespace Opm {
                         + ScheduleEvents::NEW_WELL;
 
                 const auto& events = this->schedule()[reportStepIdx].wellgroup_events();
-                const bool event = this->report_step_starts_ && events.hasEvent(well->name(), effective_events_mask);
+                const bool event = this->report_step_starts_ && (events.hasEvent(well->name(), effective_events_mask));
                 const bool dyn_status_change = this->wellState().well(well->name()).status
                         != this->prevWellState().well(well->name()).status;
 
