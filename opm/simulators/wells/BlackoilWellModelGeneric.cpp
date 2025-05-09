@@ -86,7 +86,7 @@
 namespace Opm {
 
 template<class Scalar>
-BlackoilWellModelGeneric<Scalar>::
+BlackoilWellModelGeneric<FluidSystem, Indices>::
 BlackoilWellModelGeneric(Schedule& schedule,
                          BlackoilWellModelGasLiftGeneric<Scalar>& gaslift,
                          const SummaryState& summaryState,
@@ -136,21 +136,21 @@ BlackoilWellModelGeneric(Schedule& schedule,
 }
 
 template<class Scalar>
-int BlackoilWellModelGeneric<Scalar>::
+int BlackoilWellModelGeneric<FluidSystem, Indices>::
 numLocalWells() const
 {
     return wells_ecl_.size();
 }
 
 template<class Scalar>
-int BlackoilWellModelGeneric<Scalar>::
+int BlackoilWellModelGeneric<FluidSystem, Indices>::
 numPhases() const
 {
     return phase_usage_.num_phases;
 }
 
 template<class Scalar>
-bool BlackoilWellModelGeneric<Scalar>::
+bool BlackoilWellModelGeneric<FluidSystem, Indices>::
 hasLocalWell(const std::string& wname) const
 {
     return std::any_of(this->wells_ecl_.begin(),
@@ -163,7 +163,7 @@ hasLocalWell(const std::string& wname) const
 
 template<class Scalar>
 bool
-BlackoilWellModelGeneric<Scalar>::
+BlackoilWellModelGeneric<FluidSystem, Indices>::
 hasOpenLocalWell(const std::string& wname) const
 {
     return std::any_of(well_container_generic_.begin(),
@@ -175,21 +175,21 @@ hasOpenLocalWell(const std::string& wname) const
 }
 
 template<class Scalar>
-bool BlackoilWellModelGeneric<Scalar>::
+bool BlackoilWellModelGeneric<FluidSystem, Indices>::
 wellsActive() const
 {
     return wells_active_;
 }
 
 template<class Scalar>
-bool BlackoilWellModelGeneric<Scalar>::
+bool BlackoilWellModelGeneric<FluidSystem, Indices>::
 networkActive() const
 {
     return network_active_;
 }
 
 template<class Scalar>
-bool BlackoilWellModelGeneric<Scalar>::
+bool BlackoilWellModelGeneric<FluidSystem, Indices>::
 anyMSWellOpenLocal() const
 {
     return std::any_of(wells_ecl_.begin(), wells_ecl_.end(),
@@ -197,7 +197,7 @@ anyMSWellOpenLocal() const
 }
 
 template<class Scalar>
-const Well& BlackoilWellModelGeneric<Scalar>::
+const Well& BlackoilWellModelGeneric<FluidSystem, Indices>::
 getWellEcl(const std::string& well_name) const
 {
     // finding the iterator of the well in wells_ecl
@@ -213,7 +213,7 @@ getWellEcl(const std::string& well_name) const
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 initFromRestartFile(const RestartValue& restartValues,
                     std::unique_ptr<WellTestState> wtestState,
                     const std::size_t numCells,
@@ -269,7 +269,7 @@ initFromRestartFile(const RestartValue& restartValues,
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 prepareDeserialize(int report_step, const std::size_t numCells, bool handle_ms_well)
 {
     // wells_ecl_ should only contain wells on this processor.
@@ -292,7 +292,7 @@ prepareDeserialize(int report_step, const std::size_t numCells, bool handle_ms_w
 }
 
 template<class Scalar>
-std::vector<Well> BlackoilWellModelGeneric<Scalar>::
+std::vector<Well> BlackoilWellModelGeneric<FluidSystem, Indices>::
 getLocalWells(const int timeStepIdx) const
 {
     auto w = schedule().getWells(timeStepIdx);
@@ -302,7 +302,7 @@ getLocalWells(const int timeStepIdx) const
 
 template<class Scalar>
 std::vector<std::reference_wrapper<ParallelWellInfo<Scalar>>>
-BlackoilWellModelGeneric<Scalar>::
+BlackoilWellModelGeneric<FluidSystem, Indices>::
 createLocalParallelWellInfo(const std::vector<Well>& wells)
 {
     std::vector<std::reference_wrapper<ParallelWellInfo<Scalar>>> local_parallel_well_info;
@@ -321,7 +321,7 @@ createLocalParallelWellInfo(const std::vector<Well>& wells)
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 initializeWellProdIndCalculators()
 {
     this->prod_index_calc_.clear();
@@ -332,7 +332,7 @@ initializeWellProdIndCalculators()
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 initializeWellPerfData()
 {
     well_perf_data_.resize(wells_ecl_.size());
@@ -423,7 +423,7 @@ initializeWellPerfData()
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 checkGEconLimits(
         const Group& group,
         const double simulation_time,
@@ -458,7 +458,7 @@ checkGEconLimits(
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 checkGconsaleLimits(const Group& group,
                     WellState<Scalar>& well_state,
                     const int reportStepIdx,
@@ -586,7 +586,7 @@ checkGconsaleLimits(const Group& group,
 }
 
 template<class Scalar>
-bool BlackoilWellModelGeneric<Scalar>::
+bool BlackoilWellModelGeneric<FluidSystem, Indices>::
 checkGroupHigherConstraints(const Group& group,
                             DeferredLogger& deferred_logger,
                             const int reportStepIdx,
@@ -797,7 +797,7 @@ checkGroupHigherConstraints(const Group& group,
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 updateEclWells(const int timeStepIdx,
                const SimulatorUpdate& sim_update,
                const SummaryState& st)
@@ -821,7 +821,7 @@ updateEclWells(const int timeStepIdx,
 
 template<class Scalar>
 template<typename Iter, typename Body>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 wellUpdateLoop(Iter first, Iter last, const int timeStepIdx, Body&& body)
 {
     std::for_each(first, last,
@@ -849,7 +849,7 @@ wellUpdateLoop(Iter first, Iter last, const int timeStepIdx, Body&& body)
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 updateEclWellsConstraints(const int              timeStepIdx,
                           const SimulatorUpdate& sim_update,
                           const SummaryState&    st)
@@ -871,7 +871,7 @@ updateEclWellsConstraints(const int              timeStepIdx,
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 updateEclWellsCTFFromAction(const int              timeStepIdx,
                             const SimulatorUpdate& sim_update)
 {
@@ -899,7 +899,7 @@ updateEclWellsCTFFromAction(const int              timeStepIdx,
 }
 
 template<class Scalar>
-Scalar BlackoilWellModelGeneric<Scalar>::
+Scalar BlackoilWellModelGeneric<FluidSystem, Indices>::
 wellPI(const int well_index) const
 {
     const auto& pu = this->phase_usage_;
@@ -931,7 +931,7 @@ wellPI(const int well_index) const
 }
 
 template<class Scalar>
-Scalar BlackoilWellModelGeneric<Scalar>::
+Scalar BlackoilWellModelGeneric<FluidSystem, Indices>::
 wellPI(const std::string& well_name) const
 {
     auto well_iter = std::find_if(this->wells_ecl_.begin(), this->wells_ecl_.end(),
@@ -949,7 +949,7 @@ wellPI(const std::string& well_name) const
 }
 
 template<class Scalar>
-bool BlackoilWellModelGeneric<Scalar>::
+bool BlackoilWellModelGeneric<FluidSystem, Indices>::
 wasDynamicallyShutThisTimeStep(const int well_index) const
 {
     return wasDynamicallyShutThisTimeStep(this->wells_ecl_[well_index].name());
@@ -957,7 +957,7 @@ wasDynamicallyShutThisTimeStep(const int well_index) const
 
 template<class Scalar>
 bool
-BlackoilWellModelGeneric<Scalar>::
+BlackoilWellModelGeneric<FluidSystem, Indices>::
 wasDynamicallyShutThisTimeStep(const std::string& well_name) const
 {
     return this->closed_this_step_.find(well_name) !=
@@ -965,7 +965,7 @@ wasDynamicallyShutThisTimeStep(const std::string& well_name) const
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 updateWsolvent(const Group& group,
                const int reportStepIdx,
                const WellState<Scalar>& wellState)
@@ -1007,7 +1007,7 @@ updateWsolvent(const Group& group,
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 setWsolvent(const Group& group,
             const int reportStepIdx,
             Scalar wsolvent)
@@ -1026,7 +1026,7 @@ setWsolvent(const Group& group,
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 assignWellTargets(data::Wells& wsrpt) const
 {
     auto pwInfo = this->local_parallel_well_info_.begin();
@@ -1049,7 +1049,7 @@ assignWellTargets(data::Wells& wsrpt) const
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 assignProductionWellTargets(const Well& well, data::WellControlLimits& limits) const
 {
     using Item = data::WellControlLimits::Item;
@@ -1066,7 +1066,7 @@ assignProductionWellTargets(const Well& well, data::WellControlLimits& limits) c
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 assignInjectionWellTargets(const Well& well, data::WellControlLimits& limits) const
 {
     using Item = data::WellControlLimits::Item;
@@ -1094,7 +1094,7 @@ assignInjectionWellTargets(const Well& well, data::WellControlLimits& limits) co
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 assignShutConnections(data::Wells& wsrpt,
                       const int reportStepIndex) const
 {
@@ -1139,7 +1139,7 @@ assignShutConnections(data::Wells& wsrpt,
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 assignGroupControl(const Group& group,
                    data::GroupData& gdata) const
 {
@@ -1170,7 +1170,7 @@ assignGroupControl(const Group& group,
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 assignGroupValues(const int                               reportStepIdx,
                   std::map<std::string, data::GroupData>& gvalues) const
 {
@@ -1187,7 +1187,7 @@ assignGroupValues(const int                               reportStepIdx,
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 assignNodeValues(std::map<std::string, data::NodeData>& nodevalues,
                  const int reportStepIdx) const
 {
@@ -1238,7 +1238,7 @@ assignNodeValues(std::map<std::string, data::NodeData>& nodevalues,
 
 template<class Scalar>
 data::GroupAndNetworkValues
-BlackoilWellModelGeneric<Scalar>::
+BlackoilWellModelGeneric<FluidSystem, Indices>::
 groupAndNetworkData(const int reportStepIdx) const
 {
     auto grp_nwrk_values = data::GroupAndNetworkValues{};
@@ -1250,7 +1250,7 @@ groupAndNetworkData(const int reportStepIdx) const
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 updateAndCommunicateGroupData(const int reportStepIdx,
                               const int iterationIdx,
                               const Scalar tol_nupcol,
@@ -1403,7 +1403,7 @@ updateAndCommunicateGroupData(const int reportStepIdx,
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 updateNetworkActiveState(const int report_step) {
     const auto& network = schedule()[report_step].network();
     if (!network.active()) {
@@ -1424,7 +1424,7 @@ updateNetworkActiveState(const int report_step) {
 }
 
 template<class Scalar>
-bool BlackoilWellModelGeneric<Scalar>::
+bool BlackoilWellModelGeneric<FluidSystem, Indices>::
 needPreStepNetworkRebalance(const int report_step) const
 {
     const auto& network = schedule()[report_step].network();
@@ -1443,7 +1443,7 @@ needPreStepNetworkRebalance(const int report_step) const
 }
 
 template<class Scalar>
-bool BlackoilWellModelGeneric<Scalar>::
+bool BlackoilWellModelGeneric<FluidSystem, Indices>::
 forceShutWellByName(const std::string& wellname,
                     const double simulation_time,
                     const bool dont_shut_grup_wells)
@@ -1498,7 +1498,7 @@ forceShutWellByName(const std::string& wellname,
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 inferLocalShutWells()
 {
     this->local_shut_wells_.clear();
@@ -1518,7 +1518,7 @@ inferLocalShutWells()
 }
 
 template<class Scalar>
-Scalar BlackoilWellModelGeneric<Scalar>::
+Scalar BlackoilWellModelGeneric<FluidSystem, Indices>::
 updateNetworkPressures(const int reportStepIdx, const Scalar damping_factor, const Scalar upper_update_bound)
 {
     OPM_TIMEFUNCTION();
@@ -1595,7 +1595,7 @@ updateNetworkPressures(const int reportStepIdx, const Scalar damping_factor, con
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 calculateEfficiencyFactors(const int reportStepIdx)
 {
     for (auto& well : well_container_generic_) {
@@ -1612,14 +1612,14 @@ calculateEfficiencyFactors(const int reportStepIdx)
 }
 
 template<class Scalar>
-WellInterfaceGeneric<Scalar>*
-BlackoilWellModelGeneric<Scalar>::
+WellInterfaceGeneric<FluidSystem, Indices>*
+BlackoilWellModelGeneric<FluidSystem, Indices>::
 getGenWell(const std::string& well_name)
 {
     // finding the iterator of the well in wells_ecl
     auto well = std::find_if(well_container_generic_.begin(),
                              well_container_generic_.end(),
-                                [&well_name](const WellInterfaceGeneric<Scalar>* elem)->bool {
+                                [&well_name](const WellInterfaceGeneric<FluidSystem, Indices>* elem)->bool {
                                      return elem->name() == well_name;
                                  });
 
@@ -1629,7 +1629,7 @@ getGenWell(const std::string& well_name)
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 setRepRadiusPerfLength()
 {
     for (const auto& well : well_container_generic_) {
@@ -1638,7 +1638,7 @@ setRepRadiusPerfLength()
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 updateWellPotentials(const int reportStepIdx,
                      const bool onlyAfterEvent,
                      const SummaryConfig& summaryConfig,
@@ -1699,7 +1699,7 @@ updateWellPotentials(const int reportStepIdx,
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 runWellPIScaling(const int reportStepIdx,
                  DeferredLogger& local_deferredLogger)
 {
@@ -1773,7 +1773,7 @@ runWellPIScaling(const int reportStepIdx,
 }
 
 template<class Scalar>
-bool BlackoilWellModelGeneric<Scalar>::
+bool BlackoilWellModelGeneric<FluidSystem, Indices>::
 shouldBalanceNetwork(const int reportStepIdx, const int iterationIdx) const
 {
     // if network is not active, we do not need to balance the network
@@ -1798,7 +1798,7 @@ shouldBalanceNetwork(const int reportStepIdx, const int iterationIdx) const
 }
 
 template<class Scalar>
-std::vector<int> BlackoilWellModelGeneric<Scalar>::
+std::vector<int> BlackoilWellModelGeneric<FluidSystem, Indices>::
 getCellsForConnections(const Well& well) const
 {
     std::vector<int> wellCells;
@@ -1818,7 +1818,7 @@ getCellsForConnections(const Well& well) const
 }
 
 template<class Scalar>
-std::vector<std::string> BlackoilWellModelGeneric<Scalar>::
+std::vector<std::string> BlackoilWellModelGeneric<FluidSystem, Indices>::
 getWellsForTesting(const int timeStepIdx,
                    const double simulationTime)
 {
@@ -1830,7 +1830,7 @@ getWellsForTesting(const int timeStepIdx,
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 assignMassGasRate(data::Wells& wsrpt,
                   const Scalar gasDensity) const
 {
@@ -1845,7 +1845,7 @@ assignMassGasRate(data::Wells& wsrpt,
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 assignWellTracerRates(data::Wells& wsrpt,
                       const WellTracerRates& wellTracerRates,
                       const unsigned reportStep) const
@@ -1867,7 +1867,7 @@ assignWellTracerRates(data::Wells& wsrpt,
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 assignMswTracerRates(data::Wells& wsrpt,
                      const MswTracerRates& mswTracerRates,
                      const unsigned reportStep) const
@@ -1896,7 +1896,7 @@ assignMswTracerRates(data::Wells& wsrpt,
 }
 
 template<class Scalar>
-std::vector<std::vector<int>> BlackoilWellModelGeneric<Scalar>::
+std::vector<std::vector<int>> BlackoilWellModelGeneric<FluidSystem, Indices>::
 getMaxWellConnections() const
 {
     std::vector<std::vector<int>> wells;
@@ -1935,7 +1935,7 @@ getMaxWellConnections() const
 }
 
 template<class Scalar>
-int BlackoilWellModelGeneric<Scalar>::numLocalWellsEnd() const
+int BlackoilWellModelGeneric<FluidSystem, Indices>::numLocalWellsEnd() const
 {
     auto w = schedule().getWellsatEnd();
     w.erase(std::remove_if(w.begin(), w.end(), not_on_process_), w.end());
@@ -1943,13 +1943,13 @@ int BlackoilWellModelGeneric<Scalar>::numLocalWellsEnd() const
 }
 
 template<class Scalar>
-int BlackoilWellModelGeneric<Scalar>::numLocalNonshutWells() const
+int BlackoilWellModelGeneric<FluidSystem, Indices>::numLocalNonshutWells() const
 {
     return well_container_generic_.size();
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::initInjMult()
+void BlackoilWellModelGeneric<FluidSystem, Indices>::initInjMult()
 {
     for (auto& well : this->well_container_generic_) {
         if (well->isInjector() && well->wellEcl().getInjMultMode() != Well::InjMultMode::NONE) {
@@ -1966,7 +1966,7 @@ void BlackoilWellModelGeneric<Scalar>::initInjMult()
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 updateFiltrationModelsPostStep(const double dt,
                                const std::size_t water_index,
                                DeferredLogger& deferred_logger)
@@ -1988,7 +1988,7 @@ updateFiltrationModelsPostStep(const double dt,
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 updateInjMult(DeferredLogger& deferred_logger)
 {
     for (const auto& well : this->well_container_generic_) {
@@ -1999,7 +1999,7 @@ updateInjMult(DeferredLogger& deferred_logger)
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 updateFiltrationModelsPreStep(DeferredLogger& deferred_logger)
 {
     for (auto& well : this->well_container_generic_) {
@@ -2014,7 +2014,7 @@ updateFiltrationModelsPreStep(DeferredLogger& deferred_logger)
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 logPrimaryVars() const
 {
     std::ostringstream os;
@@ -2030,7 +2030,7 @@ logPrimaryVars() const
 }
 
 template<class Scalar>
-void BlackoilWellModelGeneric<Scalar>::
+void BlackoilWellModelGeneric<FluidSystem, Indices>::
 reportGroupSwitching(DeferredLogger& local_deferredLogger) const
 {
     for (const auto& [name, ctrls] : this->switched_prod_groups_) {
@@ -2071,7 +2071,7 @@ reportGroupSwitching(DeferredLogger& local_deferredLogger) const
 }
 
 template<class Scalar>
-bool BlackoilWellModelGeneric<Scalar>::
+bool BlackoilWellModelGeneric<FluidSystem, Indices>::
 operator==(const BlackoilWellModelGeneric& rhs) const
 {
     return this->initial_step_ == rhs.initial_step_

@@ -178,7 +178,7 @@ template<class Scalar> class WellContributions;
 
             using WellInterfacePtr = std::shared_ptr<WellInterface<TypeTag> >;
 
-            using BlackoilWellModelGeneric<Scalar>::initFromRestartFile;
+            using BlackoilWellModelGeneric<FluidSystem, Indices>::initFromRestartFile;
             void initFromRestartFile(const RestartValue& restartValues)
             {
                 initFromRestartFile(restartValues,
@@ -187,7 +187,7 @@ template<class Scalar> class WellContributions;
                                     param_.use_multisegment_well_);
             }
 
-            using BlackoilWellModelGeneric<Scalar>::prepareDeserialize;
+            using BlackoilWellModelGeneric<FluidSystem, Indices>::prepareDeserialize;
             void prepareDeserialize(const int report_step)
             {
                 prepareDeserialize(report_step, grid().size(0),
@@ -454,7 +454,7 @@ template<class Scalar> class WellContributions;
             void updateAverageFormationFactor();
 
             void computePotentials(const std::size_t widx,
-                                   const WellState<Scalar>& well_state_copy,
+                                   const WellState<FluidSystem, Indices>& well_state_copy,
                                    std::string& exc_msg,
                                    ExceptionType::ExcEnum& exc_type,
                                    DeferredLogger& deferred_logger) override;

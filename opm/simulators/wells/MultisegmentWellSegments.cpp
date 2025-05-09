@@ -61,7 +61,7 @@ template<class FluidSystem, class Indices>
 MultisegmentWellSegments<FluidSystem,Indices>::
 MultisegmentWellSegments(const int numSegments,
                          const ParallelWellInfo<Scalar>& parallel_well_info,
-                         WellInterfaceGeneric<Scalar>& well)
+                         WellInterfaceGeneric<FluidSystem, Indices>& well)
     : perforations_(numSegments)
     , local_perforation_depth_diffs_(well.numPerfs(), 0.0)
     , inlets_(well.wellEcl().getSegments().size())
