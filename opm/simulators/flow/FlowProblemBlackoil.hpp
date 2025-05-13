@@ -1677,7 +1677,7 @@ protected:
 #endif
     MixingRateControls<FluidSystem> mixControls_;
 
-    ActionHandler<Scalar> actionHandler_;
+    ActionHandler<FluidSystem, Indices> actionHandler_;
 
     ModuleParams moduleParams_;
 
