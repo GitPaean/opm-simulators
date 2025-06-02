@@ -25,6 +25,8 @@
 #include <opm/input/eclipse/EclipseState/Compositional/CompositionalConfig.hpp>
 #include <opm/input/eclipse/EclipseState/Tables/StandardCond.hpp>
 
+#include <iostream>
+
 namespace Opm {
 
 template <typename TypeTag>
@@ -408,6 +410,9 @@ iterateWellEq(const Simulator& simulator,
 
         solveEqAndUpdateWellState(well_state);
     } while (it < max_iter);
+    if (!converged) {
+        std::cout << "Warning: well " << this->name() << " did not converge after " << it << " iterations." << std::endl;
+    }
     return converged;
 }
 
@@ -493,8 +498,13 @@ CompWell<TypeTag>::
 getConvergence() const
 {
     bool converged = true;
+    std::cout << " residual for well " << this->name() << std::endl;
     for (const auto& val : this->well_equations_.residual()[0]) {
-        converged = converged && (std::abs(val) < 1.e-8);
+        std::cout << " " << val;
+    }
+    std::cout << std::endl;
+    for (const auto& val : this->well_equations_.residual()[0]) {
+        converged = converged && (std::abs(val) < 1.e-12);
     }
     return converged;
 }

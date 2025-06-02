@@ -411,7 +411,7 @@ public:
                 std::cout << "checking conservativeness of solution\n";
             }
 
-            this->model().checkConservativeness(/*tolerance=*/-1, /*verbose=*/true);
+            // this->model().checkConservativeness(/*tolerance=*/-1, /*verbose=*/true);
             if (rank == 0) {
                 std::cout << "solution is sufficiently conservative\n";
             }

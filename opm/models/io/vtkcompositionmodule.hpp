@@ -169,18 +169,18 @@ public:
                     totalMassFrac_[compIdx][I] = compMass / totalMass;
                 }
                 if (params_.totalMoleFracOutput_) {
-                    Scalar compMoles = 0;
-                    Scalar totalMoles = 0;
-                    for (unsigned phaseIdx = 0; phaseIdx < numPhases; ++phaseIdx) {
-                        totalMoles +=
-                            Toolbox::value(fs.molarDensity(phaseIdx)) *
-                            Toolbox::value(fs.saturation(phaseIdx));
-                        compMoles +=
-                            Toolbox::value(fs.molarDensity(phaseIdx)) *
-                            Toolbox::value(fs.saturation(phaseIdx)) *
-                            Toolbox::value(fs.moleFraction(phaseIdx, compIdx));
-                    }
-                    totalMoleFrac_[compIdx][I] = compMoles / totalMoles;
+                    // Scalar compMoles = 0;
+                    // Scalar totalMoles = 0;
+                    // for (unsigned phaseIdx = 0; phaseIdx < numPhases; ++phaseIdx) {
+                    //     totalMoles +=
+                    //         Toolbox::value(fs.molarDensity(phaseIdx)) *
+                    //         Toolbox::value(fs.saturation(phaseIdx));
+                    //     compMoles +=
+                    //         Toolbox::value(fs.molarDensity(phaseIdx)) *
+                    //         Toolbox::value(fs.saturation(phaseIdx)) *
+                    //         Toolbox::value(fs.moleFraction(phaseIdx, compIdx));
+                    // }
+                    totalMoleFrac_[compIdx][I] = Toolbox::value(fs.moleFraction(compIdx));
                 }
                 if (params_.fugacityOutput_) {
                     fugacity_[compIdx][I] = Toolbox::value(intQuants.fluidState().fugacity(/*phaseIdx=*/0, compIdx));
