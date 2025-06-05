@@ -155,6 +155,10 @@ update(const WellState<Scalar>& well_state,
             deferred_logger.warning("MULTI_PHASE_INJECTOR_NOT_SUPPORTED",
                                     "Multi phase injectors are not supported, requested for well " + well_.name());
             break;
+        default:
+            // Unknown or unsupported injection type.
+            deferred_logger.warning("UNSUPPORTED_INJECTION_TYPE",
+                                     fmt::format("Unknown or unsupported injector type, requested for well {}", well_.name()) );
         }
     } else {
             value_[WQTotal] = total_well_rate;
@@ -230,6 +234,13 @@ update(const WellState<Scalar>& well_state,
         }
     }
 
+    // Temperature
+    // TODO: to check whether the temperature needs to go through some specical process
+    // TODO: for example, the injection temperature might not be the same with the temperature in the wellbore
+    // it is possible that we can use the temperature from the primary variables directly
+    if constexpr (Indices::enableEnergy) {
+        value_[Temperature] = ws.temperature;
+    }
     // BHP
     value_[Bhp] = ws.bhp;
     setEvaluationsFromValues();
@@ -288,6 +299,10 @@ updateNewton(const BVectorWell& dwells,
     }
 
     this->processFractions();
+
+    if constexpr (Indices::enableEnergy) {
+        value_[Temperature] -= dwells[0][Temperature];
+    }
 
     // updating the total rates Q_t
     value_[WQTotal] -= dwells[0][WQTotal];

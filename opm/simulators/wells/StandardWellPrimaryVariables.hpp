@@ -62,8 +62,12 @@ protected:
     static constexpr int numWellControlEq = 1;
 
 public:
+    //! \brief Number of the mass conservation equations
+    // TODO: we need to extend this when more consevatiion equations are involved in the wellbore
+    static constexpr int numComponentConservationEq = Indices::numPhases + Indices::numSolvents;
+
     //! \brief Number of the conservation equations.
-    static constexpr int numWellConservationEq = Indices::numPhases + Indices::numSolvents;
+    static constexpr int numWellConservationEq = numComponentConservationEq + Indices::enableEnergy;
 
     //! \brief Number of the well equations that will always be used.
     //! \details Based on the solution strategy, there might be other well equations be introduced.
@@ -81,6 +85,8 @@ public:
     static constexpr int WFrac = has_wfrac_variable ? 1 : -1000;
     static constexpr int GFrac = has_gfrac_variable ? has_wfrac_variable + 1 : -1000;
     static constexpr int SFrac = !Indices::enableSolvent ? -1000 : has_wfrac_variable+has_gfrac_variable+1;
+    // \Note: multiple solvents are not supported in the current implementation, it is safer to use enableSolvent here
+    static constexpr int Temperature = !Indices::enableEnergy ? -1000 : has_wfrac_variable+has_gfrac_variable+Indices::enableSolvent+1;
 
     using Scalar = typename FluidSystem::Scalar;
     //! \brief Evaluation for the well equations.

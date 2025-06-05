@@ -90,8 +90,11 @@ void
 StandardWellEval<FluidSystem,Indices>::
 computeAccumWell()
 {
-    for (std::size_t eq_idx = 0; eq_idx < F0_.size(); ++eq_idx) {
+    for (std::size_t eq_idx = 0; eq_idx < numComponentConservationEq; ++eq_idx) {
         F0_[eq_idx] = this->primary_variables_.surfaceVolumeFraction(eq_idx).value();
+    }
+    if constexpr (Indices::enableEnergy) {
+        F0_[Temperature] = this->primary_variables_.value(Temperature);
     }
 }
 

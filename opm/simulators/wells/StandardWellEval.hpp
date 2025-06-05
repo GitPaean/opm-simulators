@@ -50,6 +50,7 @@ protected:
     using StdWellConnections = StandardWellConnections<FluidSystem,Indices>;
     static constexpr int Bhp = PrimaryVariables::Bhp;
     static constexpr int WQTotal= PrimaryVariables::WQTotal;
+    static constexpr int numComponentConservationEq = PrimaryVariables::numComponentConservationEq;
     static constexpr int numWellConservationEq = PrimaryVariables::numWellConservationEq;
 
     static constexpr bool has_wfrac_variable = PrimaryVariables::has_wfrac_variable;
@@ -57,6 +58,7 @@ protected:
     static constexpr int WFrac = PrimaryVariables::WFrac;
     static constexpr int GFrac = PrimaryVariables::GFrac;
     static constexpr int SFrac = PrimaryVariables::SFrac;
+    static constexpr int Temperature = PrimaryVariables::Temperature;
 
 public:
     using EvalWell = typename PrimaryVariables::EvalWell;
