@@ -220,6 +220,7 @@ checkGroupProductionConstraints(const Group& group,
                                 const int reportStepIdx,
                                 DeferredLogger& deferred_logger) const
 {
+    const bool output_group = group.name() == "GRANE_CM";
     const auto& well_state = wellModel_.wellState();
     const auto& pu = wellModel_.phaseUsage();
 
@@ -263,6 +264,10 @@ checkGroupProductionConstraints(const Group& group,
 
             // sum over all nodes
             current_rate = wellModel_.comm().sum(current_rate);
+            if (output_group) {
+                std::cout << " group " << group.name() << " has WRAT control, current rate: "
+                          << current_rate * 86400. << " target: " << controls.water_target * 86400. << std::endl;
+            }
 
             if (controls.water_target < current_rate  ) {
                 Scalar scale = 1.0;
