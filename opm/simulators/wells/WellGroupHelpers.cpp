@@ -100,7 +100,11 @@ namespace Opm {
         for (const std::string& groupName : group.groups()) {
             const auto& groupTmp = schedule.getGroup(groupName, reportStepIdx);
             const auto& gefac = groupTmp.getGroupEfficiencyFactor(network);
-            rate += gefac * sumWellPhaseRates(res_rates, groupTmp, schedule, wellState, reportStepIdx, phasePos, injector, network);
+            const auto group_rate = sumWellPhaseRates(res_rates, groupTmp, schedule, wellState, reportStepIdx, phasePos, injector, network);
+            if (wellState.isRank0() && !injector) {
+                std::cout << " adding group " << groupName << " rates " << group_rate * 86400. << " gefac: " << gefac << " upon rates " << rate * 86400. << std::endl;
+            }
+            rate += gefac * group_rate;// sumWellPhaseRates(res_rates, groupTmp, schedule, wellState, reportStepIdx, phasePos, injector, network);
         }
 
         // only sum satelite production once

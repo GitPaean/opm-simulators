@@ -220,8 +220,8 @@ checkGroupProductionConstraints(const Group& group,
                                 const int reportStepIdx,
                                 DeferredLogger& deferred_logger) const
 {
-    const bool output_group = group.name() == "GRANE_CM";
     const auto& well_state = wellModel_.wellState();
+    const bool output_group = group.name() == "GRANE_CM" && well_state.isRank0();
     const auto& pu = wellModel_.phaseUsage();
 
     const auto controls = group.productionControls(wellModel_.summaryState());
