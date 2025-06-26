@@ -95,14 +95,16 @@ namespace Opm {
                       const bool injector,
                       const bool network)
     {
+        const bool isWaterPhase = (phasePos == wellState.phaseUsage().phase_pos[BlackoilPhases::Aqua]);
+        const bool relevant_group = group.name() == "GRANE_CM";
 
         Scalar rate = 0.0;
         for (const std::string& groupName : group.groups()) {
             const auto& groupTmp = schedule.getGroup(groupName, reportStepIdx);
             const auto& gefac = groupTmp.getGroupEfficiencyFactor(network);
             const auto group_rate = sumWellPhaseRates(res_rates, groupTmp, schedule, wellState, reportStepIdx, phasePos, injector, network);
-            if (wellState.isRank0() && !injector) {
-                std::cout << " adding group " << groupName << " rates " << group_rate * 86400. << " gefac: " << gefac << " upon rates " << rate * 86400. << std::endl;
+            if (!injector && isWaterPhase && relevant_group) {
+                std::cout << " adding group " << groupName << " water rates " << group_rate * 86400. << " gefac: " << gefac << " upon rates " << rate * 86400. << std::endl;
             }
             rate += gefac * group_rate;// sumWellPhaseRates(res_rates, groupTmp, schedule, wellState, reportStepIdx, phasePos, injector, network);
         }
