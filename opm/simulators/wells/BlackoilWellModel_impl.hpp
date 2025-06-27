@@ -32,6 +32,8 @@
 #include <opm/grid/utility/cartesianToCompressed.hpp>
 #include <opm/common/utility/numeric/RootFinders.hpp>
 
+#include <opm/input/eclipse/Schedule/Group/Group.hpp>
+
 #include <opm/input/eclipse/Schedule/Network/Balance.hpp>
 #include <opm/input/eclipse/Schedule/Network/ExtNetwork.hpp>
 #include <opm/input/eclipse/Schedule/Well/PAvgDynamicSourceData.hpp>
@@ -1324,6 +1326,8 @@ namespace Opm {
         for (const std::string& nodeName : network.node_names()) {
             const bool has_choke = network.node(nodeName).as_choke();
             if (has_choke) {
+                const int rank = this->grid().comm().rank();
+                std::cout << " rank " << rank << " computeWellGroupThp: nodeName = " << nodeName << std::endl;
                 const auto& summary_state = this->simulator_.vanguard().summaryState();
                 const Group& group = this->schedule().getGroup(nodeName, reportStepIdx);
 
@@ -1359,6 +1363,26 @@ namespace Opm {
                                                             local_deferredLogger);
                     target_tmp = target.first;
                     cmode_tmp = target.second;
+
+                    std::cout << " rank " << rank << " computeWellGroupThp: nodeName = " << nodeName << " target_tmp = " << target_tmp * 86400
+                              << ", cmode_tmp = " << Group::ProductionCMode2String(cmode_tmp) << std::endl;
+
+                    if (target_tmp < 1.e-13) {
+                        // for debugging
+                        target = WellGroupControls<Scalar>::getAutoChokeGroupProductionTargetRate(
+                                group.name(),
+                                parentGroup,
+                                well_state,
+                                group_state,
+                                this->schedule(),
+                                summary_state,
+                                resv_coeff,
+                                efficiencyFactor,
+                                reportStepIdx,
+                                pu,
+                                &this->guideRate_,
+                                local_deferredLogger);
+                    }
                 }
                 const auto cmode = cmode_tmp;
                 WGHelpers::TargetCalculator tcalc(cmode, pu, resv_coeff,
@@ -1371,6 +1395,8 @@ namespace Opm {
                 }
 
                 const Scalar orig_target = target_tmp;
+                std::cout << " rank " << rank << " computeWellGroupThp: nodeName = " << nodeName
+                          << ", orig_target = " << orig_target * 86400 << std::endl;
 
                 auto mismatch = [&] (auto group_thp) {
                     Scalar group_rate(0.0);

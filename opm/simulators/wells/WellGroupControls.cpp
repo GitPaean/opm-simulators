@@ -446,9 +446,24 @@ getAutoChokeGroupProductionTargetRate(const std::string& name,
         //     Apply local reductions only at the control level
         //     (top) and for levels where we have a specified
         //     group guide rate.
-            target -= localReduction(chain[ii]);
+            const auto local_reduction = localReduction(chain[ii]);
+            std::cout << " for chain " << chain[ii]
+                      << " local reduction: " << local_reduction
+                      << " target: " << target
+                      << std::endl;
+
+            target -= local_reduction; // localReduction(chain[ii]);
         }
-        target *= localFraction(chain[ii+1]);
+        auto fraction = localFraction(chain[ii+1]);
+        std::cout << " for chain " << chain[ii]
+                  << " fraction: " << fraction
+                  << " target: " << target
+                  << std::endl;
+        if (!std::isfinite(fraction)) {
+            // for debugging
+            fraction = localFraction(chain[ii+1]);
+        }
+        target *= fraction; // localFraction(chain[ii+1]);
     }
     // Avoid negative target rates coming from too large local reductions.
     const double target_rate = std::max(Scalar(0.0), target / efficiencyFactor);
