@@ -96,7 +96,7 @@ namespace Opm {
                       const bool network)
     {
         const bool isWaterPhase = (phasePos == wellState.phaseUsage().phase_pos[BlackoilPhases::Aqua]);
-        const bool relevant_group = group.name() == "GRANE_CM";
+        const bool relevant_group = group.name() == "M5S";
 
         Scalar rate = 0.0;
         for (const std::string& groupName : group.groups()) {
@@ -104,7 +104,7 @@ namespace Opm {
             const auto& gefac = groupTmp.getGroupEfficiencyFactor(network);
             const auto group_rate = sumWellPhaseRates(res_rates, groupTmp, schedule, wellState, reportStepIdx, phasePos, injector, network);
             if (!injector && isWaterPhase && relevant_group) {
-                std::cout << " adding group " << groupName << " water rates " << group_rate * 86400. << " gefac: " << gefac << " upon rates " << rate * 86400. << std::endl;
+                std::cout << " is Rank0? " << wellState.isRank0() << " adding group " << groupName << " water rates " << group_rate * 86400. << " gefac: " << gefac << " upon rates " << rate * 86400. << std::endl;
             }
             rate += gefac * group_rate;// sumWellPhaseRates(res_rates, groupTmp, schedule, wellState, reportStepIdx, phasePos, injector, network);
         }

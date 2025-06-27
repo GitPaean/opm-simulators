@@ -221,7 +221,7 @@ checkGroupProductionConstraints(const Group& group,
                                 DeferredLogger& deferred_logger) const
 {
     const auto& well_state = wellModel_.wellState();
-    const bool output_group = group.name() == "GRANE_CM" && well_state.isRank0();
+    const bool output_group = group.name() == "M5S";
     const auto& pu = wellModel_.phaseUsage();
 
     const auto controls = group.productionControls(wellModel_.summaryState());
@@ -265,7 +265,7 @@ checkGroupProductionConstraints(const Group& group,
             // sum over all nodes
             current_rate = wellModel_.comm().sum(current_rate);
             if (output_group) {
-                std::cout << " group " << group.name() << " has WRAT control, current rate: "
+                std::cout << "rank " << wellModel_.comm().rank() << " group " << group.name() << " has WRAT control, current rate: "
                           << current_rate * 86400. << " target: " << controls.water_target * 86400. << std::endl;
             }
 
