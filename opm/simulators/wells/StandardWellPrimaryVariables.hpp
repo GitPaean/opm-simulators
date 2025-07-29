@@ -64,7 +64,8 @@ protected:
 
 public:
     //! \brief Number of the conservation equations.
-    static constexpr int numWellConservationEq = Indices::numPhases + Indices::numSolvents;
+    // \Note: using Indices::enableEnergy here to make it clear that we only allow one energy equation for now
+    static constexpr int numWellConservationEq = Indices::numPhases + Indices::numSolvents + Indices::enableEnergy;
 
     //! \brief Number of the well equations that will always be used.
     //! \details Based on the solution strategy, there might be other well equations be introduced.
@@ -82,6 +83,7 @@ public:
     static constexpr int WFrac = has_wfrac_variable ? 1 : -1000;
     static constexpr int GFrac = has_gfrac_variable ? has_wfrac_variable + 1 : -1000;
     static constexpr int SFrac = !Indices::enableSolvent ? -1000 : has_wfrac_variable+has_gfrac_variable+1;
+    static constexpr int Temperature = Indices::enableEnergy ? has_wfrac_variable+has_gfrac_variable+Indices::enableSolvent+1 : -1000;
 
     using Scalar = typename FluidSystem::Scalar;
     using IndexTraits = typename FluidSystem::IndexTraitsType;
