@@ -58,6 +58,7 @@ protected:
     static constexpr int WFrac = PrimaryVariables::WFrac;
     static constexpr int GFrac = PrimaryVariables::GFrac;
     static constexpr int SFrac = PrimaryVariables::SFrac;
+    static constexpr int Temperature = PrimaryVariables::Temperature;
 
 public:
     using EvalWell = typename PrimaryVariables::EvalWell;
