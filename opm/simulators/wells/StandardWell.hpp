@@ -89,6 +89,8 @@ namespace Opm
         using Base::has_bioeffects;
         using Base::has_micp;
 
+        using typename StdWellEval::PrimaryVariables;
+
         using PolymerModule =  BlackOilPolymerModule<TypeTag>;
         using FoamModule = BlackOilFoamModule<TypeTag>;
         using typename Base::PressureMatrix;
@@ -476,7 +478,7 @@ namespace Opm
                                 DeferredLogger& deferred_logger) const;
 
     private:
-        Eval connectionRateEnergy(const std::vector<EvalWell>& cq_s,
+        EvalWell connectionRateEnergy(const std::vector<EvalWell>& cq_s,
                                   const IntensiveQuantities& intQuants,
                                   DeferredLogger& deferred_logger) const;
 

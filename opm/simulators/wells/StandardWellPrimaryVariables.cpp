@@ -237,6 +237,12 @@ update(const WellState<Scalar, IndexTraits>& well_state,
 
     // BHP
     value_[Bhp] = ws.bhp;
+
+    // if energy is active, let us set the temperature
+    if constexpr (Indices::enableEnergy) {
+        value_[Temperature] = ws.temperature;
+    }
+
     setEvaluationsFromValues();
 }
 

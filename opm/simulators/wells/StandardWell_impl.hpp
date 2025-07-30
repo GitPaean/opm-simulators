@@ -240,6 +240,17 @@ namespace Opm
             for (int componentIdx = 0; componentIdx < this->numConservationQuantities(); ++componentIdx) {
                 const Value cq_p = - Tw[componentIdx] * (mob[componentIdx] * drawdown);
                 cq_s[componentIdx] = b_perfcells_dense[componentIdx] * cq_p;
+
+//                if constexpr (has_energy) {
+//                    // we need to calculate the energy flux rate for the perforation
+//                    // TODO: the types are a little problematic here, since the function is templated for different types
+//                    // TODO: since this function is used for both Scalar and Evaluation types
+//                    auto& connection_flux = cq_s[PrimaryVariables::Temperature];
+//
+//                    const auto& fs = intQuants.fluidState();
+//                    const auto enthalpy_flux = cq_p * this->extendEval(fs.enthalpy(componentIdx) * fs.density(componentIdx));
+//                    connection_flux += enthalpy_flux;
+//                }
             }
 
             if (FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx) &&
@@ -393,7 +404,8 @@ namespace Opm
         auto& perf_rates = perf_data.phase_rates;
         for (int perf = 0; perf < this->number_of_local_perforations_; ++perf) {
             // Calculate perforation quantities.
-            std::vector<EvalWell> cq_s(this->num_conservation_quantities_, 0.0);
+            // \Note: for now we append the energy fluxes to the end of cq_s.
+            std::vector<EvalWell> cq_s(this->num_conservation_quantities_ + has_energy, 0.0);
             EvalWell water_flux_s{0.0};
             EvalWell cq_s_zfrac_effective{0.0};
             calculateSinglePerf(simulator, perf, well_state, connectionRates,
@@ -555,8 +567,8 @@ namespace Opm
         }
 
         if constexpr (has_energy) {
-            connectionRates[perf][Indices::contiEnergyEqIdx] =
-                connectionRateEnergy(cq_s, intQuants, deferred_logger);
+            cq_s[PrimaryVariables::Temperature] = connectionRateEnergy(cq_s, intQuants, deferred_logger);
+            connectionRates[perf][Indices::contiEnergyEqIdx] = this->restrictEval(cq_s[PrimaryVariables::Temperature]);
             ws.energy_rate += getValue(connectionRates[perf][Indices::contiEnergyEqIdx]);
         }
 
@@ -2654,14 +2666,14 @@ namespace Opm
 
 
     template <typename TypeTag>
-    typename StandardWell<TypeTag>::Eval
+    typename StandardWell<TypeTag>::EvalWell
     StandardWell<TypeTag>::
     connectionRateEnergy(const std::vector<EvalWell>& cq_s,
                          const IntensiveQuantities& intQuants,
                          DeferredLogger& deferred_logger) const
     {
         auto fs = intQuants.fluidState();
-        Eval result = 0;
+        EvalWell result(this->primary_variables_.numWellEq() + Indices::numEq, 0.);
         for (unsigned phaseIdx = 0; phaseIdx < FluidSystem::numPhases; ++phaseIdx) {
             if (!FluidSystem::phaseIsActive(phaseIdx)) {
                 continue;
@@ -2708,6 +2720,8 @@ namespace Opm
             if (this->isInjector() && !this->wellIsStopped() && cq_r_thermal > 0.0){
                 // only handles single phase injection now
                 assert(this->well_ecl_.injectorType() != InjectorType::MULTI);
+
+                // we need to set the fluid system based on the temperature and flow composition inside the wellbore
                 fs.setTemperature(this->well_ecl_.inj_temperature());
                 typedef typename std::decay<decltype(fs)>::type::Scalar FsScalar;
                 typename FluidSystem::template ParameterCache<FsScalar> paramCache;
@@ -2723,11 +2737,11 @@ namespace Opm
                 result += getValue(cq_r_thermal);
             } else if (cq_r_thermal > 0.0) {
                 cq_r_thermal *= getValue(fs.enthalpy(phaseIdx)) * getValue(fs.density(phaseIdx));
-                result += Base::restrictEval(cq_r_thermal);
+                result += cq_r_thermal;
             } else {
                 // compute the thermal flux
                 cq_r_thermal *= this->extendEval(fs.enthalpy(phaseIdx)) * this->extendEval(fs.density(phaseIdx));
-                result += Base::restrictEval(cq_r_thermal);
+                result += cq_r_thermal;
             }
         }
 
