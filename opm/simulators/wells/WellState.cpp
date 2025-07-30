@@ -204,7 +204,7 @@ initSingleProducer(const Well& well,
 
     // the rest of the code needs to executed even if ws.perf_data is empty
     // as this does not say anything for the whole well if it is distributed.
-    // Hence never ever return here!
+    // Hence, never ever return here!
     if (well.getStatus() == Well::Status::OPEN) {
         ws.status = Well::Status::OPEN;
     }
@@ -256,17 +256,15 @@ initSingleWell(const std::vector<Scalar>& cellPressures,
     // The following call is necessary to ensure that processes that do not contain the first perforation get the correct value
     pressure_first_connection = well_info.broadcastFirstPerforationValue(pressure_first_connection);
 
+    Scalar temperature_first_connection = !well_perf_data.empty() ? cellTemperatures[well_perf_data[0].cell_index] : -1;
+    // The following call is necessary to ensure that processes that do not contain the first perforation get the correct value
+    temperature_first_connection = well_info.broadcastFirstPerforationValue(temperature_first_connection);
+
     if (well.isInjector()) {
-        Scalar temperature_first_connection = -1;
-        if (!well_perf_data.empty()) {
-            temperature_first_connection = cellTemperatures[well_perf_data[0].cell_index];
-        }
-        // The following call is necessary to ensure that processes that do not contain the first perforation get the correct value
-        temperature_first_connection = well_info.broadcastFirstPerforationValue(temperature_first_connection);
         this->initSingleInjector(well, well_info, pressure_first_connection, temperature_first_connection,
                                  well_perf_data, summary_state);
     } else {
-        this->initSingleProducer(well, well_info, pressure_first_connection,
+        this->initSingleProducer(well, well_info, pressure_first_connection, temperature_first_connection,
                                  well_perf_data, summary_state);
     }
 }
