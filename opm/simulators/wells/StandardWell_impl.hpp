@@ -408,6 +408,8 @@ namespace Opm
             std::vector<EvalWell> cq_s(this->num_conservation_quantities_ + has_energy, 0.0);
             EvalWell water_flux_s{0.0};
             EvalWell cq_s_zfrac_effective{0.0};
+            // TODO: it almost shows that we can have a separate for the energy instead of having it in the
+            // cq_s vector. Then the energy does not intervene with the component things
             calculateSinglePerf(simulator, perf, well_state, connectionRates,
                                 cq_s, water_flux_s, cq_s_zfrac_effective, deferred_logger);
 
@@ -438,6 +440,15 @@ namespace Opm
                 } else {
                     perf_rates[perf*np + FluidSystem::activeCompToActivePhaseIdx(componentIdx)] = cq_s[componentIdx].value();
                 }
+            }
+
+            if constexpr (has_energy) {
+                // code is not very correct, remains to be corrected
+                StandardWellAssemble<FluidSystem, Indices>(*this).
+                      assembleConnectionEnergyEq(cq_s[PrimaryVariables::Temperature],
+                                          perf,
+                                          this->primary_variables_.numWellEq(),
+                                          this->linSys_);
             }
 
             if constexpr (has_zFraction) {
@@ -471,6 +482,9 @@ namespace Opm
                 resWell_loc += (this->primary_variables_.surfaceVolumeFraction(componentIdx) -
                                 this->F0_[componentIdx]) * volume / dt;
             }
+            // TODO: we need to consider the energy equation here, both the accomulation term and the well rates
+            // TODO: accumulation term will be the internal energy in the wellbore, while the well rates will be the enthalpy rates.
+
             resWell_loc -= this->primary_variables_.getQs(componentIdx) * this->well_efficiency_factor_;
             StandardWellAssemble<FluidSystem,Indices>(*this).
                 assembleSourceEq(resWell_loc,

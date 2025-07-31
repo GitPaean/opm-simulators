@@ -229,6 +229,31 @@ assemblePerforationEq(const EvalWell& cq_s_effective,
     }
 }
 
+//! \brief Assemble energy equation for a perforation.
+template<class FluidSystem, class Indices>
+void StandardWellAssemble<FluidSystem,Indices>::
+assembleConnectionEnergyEq(const EvalWell& cq_s_effective,
+                           const int cell_idx,
+                           const int numWellEq,
+                           StandardWellEquations<Scalar,Indices::numEq>& eqns1) const
+{
+    StandardWellEquationAccess eqns(eqns1);
+
+    // TODO: the code should not be correct, remains to be corrected
+    // residual
+    eqns.residual()[0][Indices::contiEnergyEqIdx] += cq_s_effective.value();
+
+    // matrices
+    for (int pvIdx = 0; pvIdx < numWellEq; ++pvIdx) {
+        eqns.C()[0][cell_idx][pvIdx][Indices::contiEnergyEqIdx] -= cq_s_effective.derivative(pvIdx+Indices::numEq);
+        eqns.D()[0][0][Indices::contiEnergyEqIdx][pvIdx] += cq_s_effective.derivative(pvIdx+Indices::numEq);
+    }
+
+    for (int pvIdx = 0; pvIdx < Indices::numEq; ++pvIdx) {
+        eqns.B()[0][cell_idx][Indices::contiEnergyEqIdx][pvIdx] += cq_s_effective.derivative(pvIdx);
+    }
+}
+
 template<class FluidSystem, class Indices>
 void StandardWellAssemble<FluidSystem,Indices>::
 assembleSourceEq(const EvalWell& resWell_loc,

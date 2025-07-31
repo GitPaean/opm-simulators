@@ -82,6 +82,12 @@ public:
                                const int numWellEq,
                                StandardWellEquationsType& eqns) const;
 
+    //! \brief Assemble energy equation for a perforation.
+    void assembleConnectionEnergyEq(const EvalWell& cq_s_effective,
+                               const int cell_idx,
+                               const int numWellEq,
+                               StandardWellEquations<Scalar,Indices::numEq>& eqns) const;
+
     //! \brief Assemble equation for Z fraction.
     void assembleZFracEq(const EvalWell& cq_s_zfrac_effective,
                          const int cell_idx,
