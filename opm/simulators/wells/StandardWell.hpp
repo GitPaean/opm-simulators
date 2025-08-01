@@ -477,6 +477,7 @@ namespace Opm
                                 const SummaryState& summary_state,
                                 DeferredLogger& deferred_logger) const;
 
+
     private:
         EvalWell connectionRateEnergy(const std::vector<EvalWell>& cq_s,
                                   const IntensiveQuantities& intQuants,
@@ -484,6 +485,20 @@ namespace Opm
 
         // density of the first perforation, might not be from this rank
         Scalar cachedRefDensity{0};
+
+        // not sure where to put it yet. the idea of this method, is to based on certain
+        // fluid composition (basically the surface volume ratios, a temperature, and a pressure).
+        // some values can be Scalar or EvalWell.
+        // As the first version, let us treat the Scalar as EvalWell without derivatives for now.
+        // Then we can see how we can adjust it.
+
+        // TODO: this function should be improved to handle both Scalar and EvalWell
+        // possibly private
+        FluidState createFluidState(const std::vector<EvalWell>& fluid_composition,
+                                    const EvalWell& pressure,
+                                    const EvalWell& temperature) const;
+
+        FluidState createWellboreFluidState() const;
     };
 
 }

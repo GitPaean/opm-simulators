@@ -2762,6 +2762,7 @@ namespace Opm
         return result * this->well_efficiency_factor_;
     }
 
+<<<<<<< HEAD
     template <typename TypeTag>
     typename StandardWell<TypeTag>::Scalar
     StandardWell<TypeTag>::
@@ -2781,6 +2782,133 @@ namespace Opm
         return max_pressure;
     }
 
+    // TODO: we should be able to have a Scalar version for this function
+    template <typename TypeTag>
+    typename StandardWell<TypeTag>::FluidState
+    StandardWell<TypeTag>::
+    createFluidState(const std::vector<EvalWell>& fluid_composition,
+                     const EvalWell& pressure,
+                     const EvalWell& temperature) const
+    {
+        FluidState fluid_state;
+        fluid_state.setTemperature(temperature);
+        for (unsigned phaseIdx = 0; phaseIdx < FluidSystem::numPhases; ++phaseIdx) {
+            if (!FluidSystem::phaseIsActive(phaseIdx)) {
+                continue;
+            }
+            // we assume there is no capillary pressure in the wellbore
+            fluid_state.setPressure(phaseIdx, pressure);
+        }
+        // TODO: it should be the well related pvt region index
+        fluid_state.setPvtRegionIndex(0); // default region index
+
+        const bool both_oil_gas = FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx) && FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx);
+        // let us handle the dissolution first
+        for (unsigned phaseIdx = 0; phaseIdx < FluidSystem::numPhases; ++phaseIdx) {
+            if (!FluidSystem::phaseIsActive(phaseIdx)) {
+                continue;
+            }
+
+            const unsigned activeCompIdx = Indices::canonicalToActiveComponentIndex(FluidSystem::solventComponentIndex(phaseIdx));
+            switch (phaseIdx) {
+                case FluidSystem::oilPhaseIdx: {
+                    if (FluidSystem::enableDissolvedGas() && both_oil_gas) {
+                        const EvalWell saturated_rs = FluidSystem::saturatedDissolutionFactor(fluid_state, phaseIdx,  fluid_state.pvtRegionIndex());
+                        const unsigned gasCompIdx = Indices::canonicalToActiveComponentIndex(FluidSystem::solventComponentIndex(FluidSystem::gasPhaseIdx));
+                        const EvalWell max_possible_rs = fluid_composition[gasCompIdx] / fluid_composition[activeCompIdx];
+                        const EvalWell rs = std::min(saturated_rs, max_possible_rs);
+                        fluid_state.setRs(rs);
+                    } else {
+                        fluid_state.setRs(0.0);
+                    }
+                    break;
+                }
+                case FluidSystem::gasPhaseIdx: {
+                    if (FluidSystem::enableVaporization() && both_oil_gas) {
+                        const EvalWell saturated_rv = FluidSystem::saturatedVaporizationFactor(fluid_state, phaseIdx, fluid_state.pvtRegionIndex());
+                        const unsigned oilCompIdx = Indices::canonicalToActiveComponentIndex(FluidSystem::solventComponentIndex(FluidSystem::oilPhaseIdx));
+                        const EvalWell max_possible_rv = fluid_composition[oilCompIdx] / fluid_composition[activeCompIdx];
+                        const EvalWell rv = std::min(saturated_rv, max_possible_rv);
+                        fluid_state.setRv(rv);
+                    } else {
+                        fluid_state.setRv(0.0);
+                    }
+                    break;
+                }
+                case FluidSystem::waterPhaseIdx: {
+                    // TODO: handle the water phase dissolution with gas later
+                    break;
+                }
+                default: {
+                    throw std::logic_error("Unhandled phase index " + std::to_string(phaseIdx));
+                }
+            }
+            const auto& inv_b = FluidSystem::inverseFormationVolumeFactor(fluid_state, phaseIdx, fluid_state.pvtRegionIndex());
+            fluid_state.setInvB(phaseIdx, inv_b);
+        }
+
+        // calculate the saturations for all the phases
+        // let us handle the dissolution first
+        for (unsigned phaseIdx = 0; phaseIdx < FluidSystem::numPhases; ++phaseIdx) {
+            if (!FluidSystem::phaseIsActive(phaseIdx)) {
+                continue;
+            }
+            if (!both_oil_gas || FluidSystem::waterPhaseIdx == phaseIdx) {
+                const unsigned activeCompIdx = Indices::canonicalToActiveComponentIndex(
+                        FluidSystem::solventComponentIndex(phaseIdx));
+                fluid_state.setSaturation(phaseIdx, fluid_composition[activeCompIdx] / fluid_state.invB(phaseIdx));
+            } else {
+                // remove dissolved gas and vapporized oil
+                const unsigned oilCompIdx = Indices::canonicalToActiveComponentIndex(FluidSystem::oilCompIdx);
+                const unsigned gasCompIdx = Indices::canonicalToActiveComponentIndex(FluidSystem::gasCompIdx);
+                // q_os = q_or * b_o + rv * q_gr * b_g
+                // q_gs = q_gr * g_g + rs * q_or * b_o
+                // q_gr = 1 / (b_g * d) * (q_gs - rs * q_os)
+                // d = 1.0 - rs * rv
+                const EvalWell d = 1.0 - fluid_state.Rv() * fluid_state.Rs();
+                if (d <= 0.0) {
+                    throw std::logic_error(fmt::format("Problematic d value {} obtained for well {}"
+                                                       " during createFluidState with rs {}"
+                                                       ", rv {}. Continue as if no dissolution (rs = 0) and"
+                                                       " vaporization (rv = 0) for this connection.",
+                                                       d, this->name(), fluid_state.Rs(), fluid_state.Rv()));
+                }
+                if (FluidSystem::gasPhaseIdx == phaseIdx) {
+                    fluid_state.setSaturation(phaseIdx, (fluid_composition[gasCompIdx] -
+                                                         fluid_state.Rs() * fluid_composition[oilCompIdx]) /
+                                                        (d * fluid_state.invB(phaseIdx)));
+                } else if (FluidSystem::oilPhaseIdx == phaseIdx) {
+                    fluid_state.setSaturation(phaseIdx, (fluid_composition[oilCompIdx] -
+                                                         fluid_state.Rv() * fluid_composition[gasCompIdx]) /
+                                                        (d * fluid_state.invB(phaseIdx)));
+                }
+
+                typename FluidSystem::template ParameterCache<EvalWell> paramCache;
+                paramCache.setRegionIndex(fluid_state.pvtRegionIndex());
+                paramCache.updatePhase(fluid_state, phaseIdx);
+                fluid_state.setDensity(phaseIdx, FluidSystem::density(fluid_state, paramCache, phaseIdx));
+                fluid_state.setEnthalpy(phaseIdx, FluidSystem::enthalpy(fluid_state, paramCache, phaseIdx));
+            }
+        }
+    }
+
+    // TODO: we should be able to have a Scalar version for this function
+    template <typename TypeTag>
+    typename StandardWell<TypeTag>::FluidState
+    StandardWell<TypeTag>::
+    createWellboreFluidState() const
+    {
+        const EvalWell& pressure = this->primary_variables_.eval(Bhp);
+        const EvalWell& temperature = this->primary_variables_.eval(Indices::Temperature);
+
+        std::vector<EvalWell> fluid_composition(this->num_components_, 0.0);
+        for (int comp = 0; comp < this->num_components_; ++comp) {
+            // TODO: something like obtainN to handle the situation that
+            fluid_composition[comp] = this->primary_variables_.surfaceVolumeFraction(comp);
+        }
+
+        return this->createFluidState(fluid_composition, pressure, temperature);
+    }
 } // namespace Opm
 
 #endif
