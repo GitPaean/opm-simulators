@@ -88,6 +88,10 @@ namespace Opm
         using Base::has_energy;
         using Base::has_bioeffects;
         using Base::has_micp;
+        using Base::has_temperature;
+        using Base::has_watVapor;
+        using Base::has_saltPrecip;
+        using Base::has_disgas_in_water;
 
         using typename StdWellEval::PrimaryVariables;
 
@@ -125,6 +129,8 @@ namespace Opm
 
         using IndexTraits = typename FluidSystem::IndexTraitsType;
         using WellStateType = WellState<Scalar, IndexTraits>;
+
+        using FluidStateWell = BlackOilFluidState<EvalWell, FluidSystem, has_temperature, has_energy, Indices::compositionSwitchIdx >= 0, has_watVapor, has_brine, has_saltPrecip, has_disgas_in_water, Indices::numPhases>;
 
         StandardWell(const Well& well,
                      const ParallelWellInfo<Scalar>& pw_info,
@@ -494,11 +500,11 @@ namespace Opm
 
         // TODO: this function should be improved to handle both Scalar and EvalWell
         // possibly private
-        FluidState createFluidState(const std::vector<EvalWell>& fluid_composition,
+        FluidStateWell createFluidState(const std::vector<EvalWell>& fluid_composition,
                                     const EvalWell& pressure,
                                     const EvalWell& temperature) const;
 
-        FluidState createWellboreFluidState() const;
+        FluidStateWell createWellboreFluidState() const;
     };
 
 }
