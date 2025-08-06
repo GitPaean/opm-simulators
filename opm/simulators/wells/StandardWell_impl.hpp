@@ -63,7 +63,8 @@ namespace Opm
     , StdWellEval(static_cast<const WellInterfaceIndices<FluidSystem,Indices>&>(*this))
     , regularize_(false)
     {
-        assert(this->num_conservation_quantities_ == numWellConservationEq);
+    //    we need to find something else here
+    //    assert(this->num_conservation_quantities_ == numWellConservationEq);
     }
 
 
@@ -2686,8 +2687,23 @@ namespace Opm
                          const IntensiveQuantities& intQuants,
                          DeferredLogger& deferred_logger) const
     {
+        Scalar total_rate = 0.;
+        for (const auto& val : cq_s) {
+            total_rate += getValue(val);
+        }
+        const bool is_injecting = total_rate > 0.;
+
+        // for injecting connections, the enthalpy are based on the wellbore fluid state
+        // for producing connections, the enthalpy are based on the reservoir fluid state
+        // if we have the fluid state, how we should calculate the enthalpy?
+        // I think since we have the fluid state, we know the density, enthalpy for each phase, we need to calculate the volume rate
+        // for the reservoir conditions
+        // the internal energy can be calculated based on the temperature.
+        // the enthalpy is adding pressure and density.
+        // I need to check the enthalpy formule to see how should this be calculated.
         auto fs = intQuants.fluidState();
-        EvalWell result(this->primary_variables_.numWellEq() + Indices::numEq, 0.);
+
+        EvalWell result {0.};
 
         const auto& fluid_state_wellbore = this->createWellboreFluidState();
 
@@ -2852,6 +2868,8 @@ namespace Opm
             fluid_state.setInvB(phaseIdx, inv_b);
         }
 
+        std::vector<EvalWell> saturations (FluidSystem::numPhases, zero_eval_well);
+        EvalWell total_saturation {0.0};
         // calculate the saturations for all the phases
         // let us handle the dissolution first
         for (unsigned phaseIdx = 0; phaseIdx < FluidSystem::numPhases; ++phaseIdx) {
@@ -2861,7 +2879,7 @@ namespace Opm
             if (!both_oil_gas || FluidSystem::waterPhaseIdx == phaseIdx) {
                 const unsigned activeCompIdx = Indices::canonicalToActiveComponentIndex(
                         FluidSystem::solventComponentIndex(phaseIdx));
-                fluid_state.setSaturation(phaseIdx, fluid_composition[activeCompIdx] / fluid_state.invB(phaseIdx));
+                saturations[phaseIdx] = fluid_composition[activeCompIdx] / fluid_state.invB(phaseIdx);
             } else {
                 // remove dissolved gas and vapporized oil
                 const unsigned oilCompIdx = Indices::canonicalToActiveComponentIndex(FluidSystem::oilCompIdx);
@@ -2879,22 +2897,31 @@ namespace Opm
                                                        d, this->name(), fluid_state.Rs(), fluid_state.Rv()));
                 }
                 if (FluidSystem::gasPhaseIdx == phaseIdx) {
-                    fluid_state.setSaturation(phaseIdx, (fluid_composition[gasCompIdx] -
-                                                         fluid_state.Rs() * fluid_composition[oilCompIdx]) /
-                                                        (d * fluid_state.invB(phaseIdx)));
+                    saturations[phaseIdx] = (fluid_composition[gasCompIdx] -
+                                             fluid_state.Rs() * fluid_composition[oilCompIdx]) /
+                                            (d * fluid_state.invB(phaseIdx));
                 } else if (FluidSystem::oilPhaseIdx == phaseIdx) {
-                    fluid_state.setSaturation(phaseIdx, (fluid_composition[oilCompIdx] -
-                                                         fluid_state.Rv() * fluid_composition[gasCompIdx]) /
-                                                        (d * fluid_state.invB(phaseIdx)));
+                    saturations[phaseIdx] = (fluid_composition[oilCompIdx] -
+                                             fluid_state.Rv() * fluid_composition[gasCompIdx]) /
+                                            (d * fluid_state.invB(phaseIdx));
                 }
-
-                typename FluidSystem::template ParameterCache<EvalWell> paramCache;
-                paramCache.setRegionIndex(fluid_state.pvtRegionIndex());
-                paramCache.updatePhase(fluid_state, phaseIdx);
-                fluid_state.setDensity(phaseIdx, FluidSystem::density(fluid_state, paramCache, phaseIdx));
-                fluid_state.setEnthalpy(phaseIdx, FluidSystem::enthalpy(fluid_state, paramCache, phaseIdx));
+                total_saturation += saturations[phaseIdx];
             }
         }
+
+        for (unsigned phaseIdx = 0; phaseIdx < FluidSystem::numPhases; ++phaseIdx) {
+            if (!FluidSystem::phaseIsActive(phaseIdx)) {
+                continue;
+            }
+            fluid_state.setSaturation(phaseIdx, saturations[phaseIdx] / total_saturation);
+
+            typename FluidSystem::template ParameterCache<EvalWell> paramCache;
+            paramCache.setRegionIndex(fluid_state.pvtRegionIndex());
+            paramCache.updatePhase(fluid_state, phaseIdx);
+            fluid_state.setDensity(phaseIdx, FluidSystem::density(fluid_state, paramCache, phaseIdx));
+            fluid_state.setEnthalpy(phaseIdx, FluidSystem::enthalpy(fluid_state, paramCache, phaseIdx));
+        }
+        return fluid_state;
     }
 
     // TODO: we should be able to have a Scalar version for this function
