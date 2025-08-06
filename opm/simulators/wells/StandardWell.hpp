@@ -100,7 +100,7 @@ namespace Opm
         using typename Base::PressureMatrix;
 
         // number of the conservation equations
-        static constexpr int numWellConservationEq = Indices::numPhases + Indices::numSolvents;
+        static constexpr int numWellConservationEq = Indices::numPhases + Indices::numSolvents + Indices::enableEnergy;
         // number of the well control equations
         static constexpr int numWellControlEq = 1;
         // number of the well equations that will always be used
@@ -110,7 +110,7 @@ namespace Opm
         // the index for Bhp in primary variables and also the index of well control equation
         // they both will be the last one in their respective system.
         // TODO: we should have indices for the well equations and well primary variables separately
-        static constexpr int Bhp = numStaticWellEq - numWellControlEq;
+        static constexpr int Bhp = PrimaryVariables::Bhp;
 
         using StdWellEval::WQTotal;
 
