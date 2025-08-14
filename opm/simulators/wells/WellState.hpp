@@ -61,7 +61,7 @@ enum class WellStatus;
 
 /// The state of a set of wells, tailored for use by the fully
 /// implicit blackoil simulator.
-template<typename IndexTraits, typename Scalar>
+template<typename Scalar, typename IndexTraits>
 class WellState
 {
 public:
@@ -73,7 +73,6 @@ public:
 
     // TODO: trying to PhasedIdx to make it more explicit as phase index, will evaluate how it goes.
     // TODO: eventually, we should distinguish phase index and component index
-
     static const int waterPhaseIdx = PhaseUsageInfo<IndexTraits>::waterPhaseIdx;
     static const int oilPhaseIdx = PhaseUsageInfo<IndexTraits>::oilPhaseIdx;
     static const int gasPhaseIdx = PhaseUsageInfo<IndexTraits>::gasPhaseIdx;
@@ -261,42 +260,42 @@ public:
         return this->wells_.well_index(well_name);
     }
 
-    const SingleWellState<IndexTraits, Scalar>& operator[](std::size_t well_index) const
+    const SingleWellState<Scalar, IndexTraits>& operator[](std::size_t well_index) const
     {
         return this->wells_[well_index];
     }
 
-    const SingleWellState<IndexTraits, Scalar>& operator[](const std::string& well_name) const
+    const SingleWellState<Scalar, IndexTraits>& operator[](const std::string& well_name) const
     {
         return this->wells_[well_name];
     }
 
-    SingleWellState<IndexTraits, Scalar>& operator[](std::size_t well_index)
+    SingleWellState<Scalar, IndexTraits>& operator[](std::size_t well_index)
     {
         return this->wells_[well_index];
     }
 
-    SingleWellState<IndexTraits, Scalar>& operator[](const std::string& well_name)
+    SingleWellState<Scalar, IndexTraits>& operator[](const std::string& well_name)
     {
         return this->wells_[well_name];
     }
 
-    const SingleWellState<IndexTraits, Scalar>& well(std::size_t well_index) const
+    const SingleWellState<Scalar, IndexTraits>& well(std::size_t well_index) const
     {
         return this->operator[](well_index);
     }
 
-    const SingleWellState<IndexTraits, Scalar>& well(const std::string& well_name) const
+    const SingleWellState<Scalar, IndexTraits>& well(const std::string& well_name) const
     {
         return this->operator[](well_name);
     }
 
-    SingleWellState<IndexTraits, Scalar>& well(std::size_t well_index)
+    SingleWellState<Scalar, IndexTraits>& well(std::size_t well_index)
     {
         return this->operator[](well_index);
     }
 
-    SingleWellState<IndexTraits, Scalar>& well(const std::string& well_name)
+    SingleWellState<Scalar, IndexTraits>& well(const std::string& well_name)
     {
         return this->operator[](well_name);
     }
@@ -339,7 +338,7 @@ private:
     // The wells_ variable is essentially a map of all the wells on the current
     // process. Observe that since a well can be split over several processes a
     // well might appear in the WellContainer on different processes.
-    WellContainer<SingleWellState<IndexTraits, Scalar>> wells_;
+    WellContainer<SingleWellState<Scalar, IndexTraits>> wells_;
 
     // The members global_well_info and well_rates are map like
     // structures which will have entries for *all* the wells in the system.

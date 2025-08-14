@@ -139,26 +139,28 @@ void PackUnpackXConn::unpack([[maybe_unused]] const int link,
 
 namespace Opm {
 
-template<typename IndexTraits, typename Scalar>
-WellState<IndexTraits, Scalar>::WellState(const ParallelWellInfo<Scalar>& pinfo)
+template<typename Scalar, typename IndexTraits>
+WellState<Scalar, IndexTraits>::WellState(const ParallelWellInfo<Scalar>& pinfo)
 {
+    PhaseUsageInfo<IndexTraits> pu {};
     wells_.add("test4",
-               SingleWellState<IndexTraits, Scalar>{"dummy", pinfo, false, 0.0, {}, 0.0});
+               SingleWellState<Scalar, IndexTraits>{"dummy", pinfo, pu,
+                                                     false, 0.0, {}, 0.0});
 }
 
-template<typename IndexTraits, typename Scalar>
-WellState<IndexTraits, Scalar> WellState<IndexTraits, Scalar>::
+template<typename Scalar, typename IndexTraits>
+WellState<Scalar, IndexTraits> WellState<Scalar, IndexTraits>::
 serializationTestObject(const ParallelWellInfo<Scalar>& pinfo)
 {
     WellState result{PhaseUsageInfo<IndexTraits>{}};
     result.well_rates = {{"test2", {true, {1.0}}}, {"test3", {false, {2.0}}}};
-    result.wells_.add("test4", SingleWellState<IndexTraits, Scalar>::serializationTestObject(pinfo));
+    result.wells_.add("test4", SingleWellState<Scalar, IndexTraits>::serializationTestObject(pinfo));
 
     return result;
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::
 base_init(const std::vector<Scalar>& cellPressures,
           const std::vector<Scalar>& cellTemperatures,
           const std::vector<Well>& wells_ecl,
@@ -181,8 +183,8 @@ base_init(const std::vector<Scalar>& cellPressures,
     }
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::
 initSingleProducer(const Well& well,
                    const ParallelWellInfo<Scalar>& well_info,
                    Scalar pressure_first_connection,
@@ -192,8 +194,9 @@ initSingleProducer(const Well& well,
     const Scalar temp = 273.15 + 15.56;
 
     auto& ws = this->wells_.add(well.name(),
-                                SingleWellState<IndexTraits, Scalar>{well.name(),
+                                SingleWellState<Scalar, IndexTraits>{well.name(),
                                                 well_info,
+                                                PhaseUsageInfo<IndexTraits>{},
                                                 true,
                                                 pressure_first_connection,
                                                 well_perf_data,
@@ -209,8 +212,8 @@ initSingleProducer(const Well& well,
     ws.update_producer_targets(well, summary_state);
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::
 initSingleInjector(const Well& well,
                    const ParallelWellInfo<Scalar>& well_info,
                    Scalar pressure_first_connection,
@@ -219,12 +222,13 @@ initSingleInjector(const Well& well,
                    const SummaryState& summary_state)
 {
     const Scalar temp = well.hasInjTemperature() ? well.inj_temperature() : temperature_first_connection;
-    auto& ws = this->wells_.add(well.name(), SingleWellState<IndexTraits, Scalar>{well.name(),
-                                                                     well_info,
-                                                                     false,
-                                                                     pressure_first_connection,
-                                                                     well_perf_data,
-                                                                     temp});
+    auto& ws = this->wells_.add(well.name(), SingleWellState<Scalar, IndexTraits>{well.name(),
+                                             well_info,
+                                             PhaseUsageInfo<IndexTraits>{},
+                                             false,
+                                             pressure_first_connection,
+                                             well_perf_data,
+                                             temp});
 
     // the rest of the code needs to executed even if ws.perf_data is empty
     // as this does not say anything for the whole well if it is distributed.
@@ -236,8 +240,8 @@ initSingleInjector(const Well& well,
     ws.update_injector_targets(well, summary_state);
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::
 initSingleWell(const std::vector<Scalar>& cellPressures,
                const std::vector<Scalar>& cellTemperatures,
                const Well& well,
@@ -267,8 +271,8 @@ initSingleWell(const std::vector<Scalar>& cellPressures,
     }
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::
 init(const std::vector<Scalar>& cellPressures,
      const std::vector<Scalar>& cellTemperatures,
      const Schedule& schedule,
@@ -454,8 +458,8 @@ init(const std::vector<Scalar>& cellPressures,
     updateWellsDefaultALQ(schedule, report_step, summary_state);
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::
 resize(const std::vector<Well>& wells_ecl,
        const std::vector<std::reference_wrapper<ParallelWellInfo<Scalar>>>& parallel_well_info,
        const Schedule& schedule,
@@ -474,9 +478,9 @@ resize(const std::vector<Well>& wells_ecl,
     }
 }
 
-template<typename IndexTraits, typename Scalar>
+template<typename Scalar, typename IndexTraits>
 const std::vector<Scalar>&
-WellState<IndexTraits, Scalar>::currentWellRates(const std::string& wellName) const
+WellState<Scalar, IndexTraits>::currentWellRates(const std::string& wellName) const
 {
     auto it = well_rates.find(wellName);
 
@@ -487,8 +491,8 @@ WellState<IndexTraits, Scalar>::currentWellRates(const std::string& wellName) co
     return it->second.second;
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::
 gatherVectorsOnRoot(const std::vector<data::Connection>& from_connections,
                     std::vector<data::Connection>& to_connections,
                     const Parallel::Communication& comm) const
@@ -513,9 +517,9 @@ gatherVectorsOnRoot(const std::vector<data::Connection>& from_connections,
     toOwnerComm.exchange(lineariser);
 }
 
-template<typename IndexTraits, typename Scalar>
+template<typename Scalar, typename IndexTraits>
 data::Wells
-WellState<IndexTraits, Scalar>::
+WellState<Scalar, IndexTraits>::
 report(const int* globalCellIdxMap,
        const std::function<bool(const int)>& wasDynamicallyClosed) const
 {
@@ -638,8 +642,8 @@ report(const int* globalCellIdxMap,
     return res;
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::
 reportConnections(std::vector<data::Connection>& connections,
                   const std::size_t well_index,
                   const int* globalCellIdxMap) const
@@ -668,8 +672,8 @@ reportConnections(std::vector<data::Connection>& connections,
     }
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::
 initWellStateMSWell(const std::vector<Well>& wells_ecl,
                     const WellState* prev_well_state)
 {
@@ -904,8 +908,8 @@ initWellStateMSWell(const std::vector<Well>& wells_ecl,
     }
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::
 calculateSegmentRatesBeforeSum(const ParallelWellInfo<Scalar>& pw_info,
                                const std::vector<std::vector<int>>& segment_inlets,
                                const std::vector<std::vector<int>>& segment_perforations,
@@ -938,8 +942,8 @@ calculateSegmentRatesBeforeSum(const ParallelWellInfo<Scalar>& pw_info,
         }
     }
 }
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::
 calculateSegmentRates(const ParallelWellInfo<Scalar>& pw_info,
                       const std::vector<std::vector<int>>& segment_inlets,
                       const std::vector<std::vector<int>>& segment_perforations,
@@ -951,36 +955,36 @@ calculateSegmentRates(const ParallelWellInfo<Scalar>& pw_info,
     pw_info.communication().sum(segment_rates.data(), segment_rates.size());
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::stopWell(int well_index)
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::stopWell(int well_index)
 {
     auto& ws = this->well(well_index);
     ws.stop();
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::openWell(int well_index)
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::openWell(int well_index)
 {
     auto& ws = this->well(well_index);
     ws.open();
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::shutWell(int well_index)
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::shutWell(int well_index)
 {
     auto& ws = this->well(well_index);
     ws.shut();
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::updateStatus(int well_index, WellStatus status)
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::updateStatus(int well_index, WellStatus status)
 {
     auto& ws = this->well(well_index);
     ws.updateStatus(status);
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::communicateGroupRates(const Parallel::Communication& comm)
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::communicateGroupRates(const Parallel::Communication& comm)
 {
     // Compute the size of the data.
     std::size_t sz = std::accumulate(this->well_rates.begin(), this->well_rates.end(), std::size_t{0},
@@ -1016,8 +1020,8 @@ void WellState<IndexTraits, Scalar>::communicateGroupRates(const Parallel::Commu
     assert(pos == data.end());
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::updateGlobalIsGrup(const Parallel::Communication& comm)
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::updateGlobalIsGrup(const Parallel::Communication& comm)
 {
     this->global_well_info.value().clear();
     for (std::size_t well_index = 0; well_index < this->size(); well_index++) {
@@ -1031,8 +1035,8 @@ void WellState<IndexTraits, Scalar>::updateGlobalIsGrup(const Parallel::Communic
     this->global_well_info.value().communicate(comm);
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::
 updateEfficiencyScalingFactor(const std::string& wellName,
                               const Scalar value)
 {
@@ -1041,9 +1045,9 @@ updateEfficiencyScalingFactor(const std::string& wellName,
     this->well(*idx).efficiency_scaling_factor = value;
 }
 
-template<typename IndexTraits, typename Scalar>
+template<typename Scalar, typename IndexTraits>
 data::Segment
-WellState<IndexTraits, Scalar>::
+WellState<Scalar, IndexTraits>::
 reportSegmentResults(const int well_id,
                      const int seg_ix,
                      const int seg_no) const
@@ -1124,8 +1128,8 @@ reportSegmentResults(const int well_id,
     return seg_res;
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::
 reportConnectionFactors(const std::size_t well_index,
                         std::vector<data::Connection>& connections) const
 {
@@ -1141,8 +1145,8 @@ reportConnectionFactors(const std::size_t well_index,
     }
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::
 reportConnectionPressuresAndRates(const std::size_t well_index,
                                   std::vector<data::Connection>& connections) const
 {
@@ -1160,7 +1164,7 @@ reportConnectionPressuresAndRates(const std::size_t well_index,
         pi .at(phasepos) = rt::productivity_index_water;
     }
 
-    if (pu.haseIsActive(oilPhaseIdx)) {
+    if (pu.phaseIsActive(oilPhaseIdx)) {
         const int phasepos = pu.canonicalToActivePhaseIdx(oilPhaseIdx);
         phs.at(phasepos) = rt::oil;
         pi .at(phasepos) = rt::productivity_index_oil;
@@ -1235,8 +1239,8 @@ reportConnectionPressuresAndRates(const std::size_t well_index,
     }
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::
 reportConnectionFilterCake(const std::size_t well_index,
                            std::vector<data::Connection>& connections) const
 {
@@ -1259,8 +1263,8 @@ reportConnectionFilterCake(const std::size_t well_index,
     }
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::
 reportFractureStatistics(const std::vector<ConnFracStatistics<Scalar>>& stats,
                          std::vector<data::Connection>& connections) const
 {
@@ -1296,8 +1300,8 @@ reportFractureStatistics(const std::vector<ConnFracStatistics<Scalar>>& stats,
     }
 }
 
-template<typename IndexTraits, typename Scalar>
-bool WellState<IndexTraits, Scalar>::
+template<typename Scalar, typename IndexTraits>
+bool WellState<Scalar, IndexTraits>::
 wellIsOwned(std::size_t well_index,
             [[maybe_unused]] const std::string& wellName) const
 {
@@ -1307,8 +1311,8 @@ wellIsOwned(std::size_t well_index,
     return well_info.isOwner();
 }
 
-template<typename IndexTraits, typename Scalar>
-bool WellState<IndexTraits, Scalar>::wellIsOwned(const std::string& wellName) const
+template<typename Scalar, typename IndexTraits>
+bool WellState<Scalar, IndexTraits>::wellIsOwned(const std::string& wellName) const
 {
     const auto& well_index = this->index(wellName);
     if (!well_index.has_value()) {
@@ -1319,8 +1323,8 @@ bool WellState<IndexTraits, Scalar>::wellIsOwned(const std::string& wellName) co
     return wellIsOwned(well_index.value(), wellName);
 }
 
-template<typename IndexTraits, typename Scalar>
-void WellState<IndexTraits, Scalar>::
+template<typename Scalar, typename IndexTraits>
+void WellState<Scalar, IndexTraits>::
 updateWellsDefaultALQ(const Schedule& schedule,
                       const int report_step,
                       const SummaryState& summary_state)
@@ -1337,27 +1341,27 @@ updateWellsDefaultALQ(const Schedule& schedule,
     }
 }
 
-template<typename IndexTraits, typename Scalar>
-bool WellState<IndexTraits, Scalar>::operator==(const WellState& rhs) const
+template<typename Scalar, typename IndexTraits>
+bool WellState<Scalar, IndexTraits>::operator==(const WellState& rhs) const
 {
     return this->well_rates == rhs.well_rates &&
            this->wells_ == rhs.wells_ &&
            this->permanently_inactive_well_names_ == rhs.permanently_inactive_well_names_;
 }
 
-template<typename IndexTraits, typename Scalar>
+template<typename Scalar, typename IndexTraits>
 const ParallelWellInfo<Scalar>&
-WellState<IndexTraits, Scalar>::parallelWellInfo(std::size_t well_index) const
+WellState<Scalar, IndexTraits>::parallelWellInfo(std::size_t well_index) const
 {
     const auto& ws = this->well(well_index);
     return ws.parallel_info;
 }
 
 
-template class WellState<BlackOilDefaultFluidSystemIndices, double>;
+template class WellState<double, BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
-template class WellState<BlackOilDefaultFluidSystemIndices, float>;
+template class WellState<float, BlackOilDefaultFluidSystemIndices>;
 #endif
 
 } // namespace Opm
