@@ -31,6 +31,8 @@
 
 #include <opm/output/data/Wells.hpp>
 
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
+
 #include <opm/simulators/wells/ConnFracStatistics.hpp>
 #include <opm/simulators/wells/ParallelWellInfo.hpp>
 #include <opm/simulators/wells/PerforationData.hpp>
@@ -39,12 +41,6 @@
 #include <opm/simulators/utils/ParallelCommunication.hpp>
 
 #include <opm/grid/common/p2pcommunicator.hh>
-
-#include <opm/material/fluidsystems/BlackOilFluidSystem.hpp>
-
-#include <opm/models/blackoil/blackoilvariableandequationindices.hh>
-#include <opm/models/blackoil/blackoilonephaseindices.hh>
-#include <opm/models/blackoil/blackoiltwophaseindices.hh>
 
 #include <algorithm>
 #include <cassert>
@@ -143,26 +139,26 @@ void PackUnpackXConn::unpack([[maybe_unused]] const int link,
 
 namespace Opm {
 
-template<typename FluidSystem, typename Indices>
-WellState<FluidSystem, Indices>::WellState(const ParallelWellInfo<Scalar>& pinfo)
+template<typename IndexTraits, typename Scalar>
+WellState<IndexTraits, Scalar>::WellState(const ParallelWellInfo<Scalar>& pinfo)
 {
     wells_.add("test4",
-               SingleWellState<FluidSystem, Indices>{"dummy", pinfo, false, 0.0, {}, 0.0});
+               SingleWellState<IndexTraits, Scalar>{"dummy", pinfo, false, 0.0, {}, 0.0});
 }
 
-template<typename FluidSystem, typename Indices>
-WellState<FluidSystem, Indices> WellState<FluidSystem, Indices>::
+template<typename IndexTraits, typename Scalar>
+WellState<IndexTraits, Scalar> WellState<IndexTraits, Scalar>::
 serializationTestObject(const ParallelWellInfo<Scalar>& pinfo)
 {
-    WellState result;
+    WellState result{PhaseUsageInfo<IndexTraits>{}};
     result.well_rates = {{"test2", {true, {1.0}}}, {"test3", {false, {2.0}}}};
-    result.wells_.add("test4", SingleWellState<FluidSystem, Indices>::serializationTestObject(pinfo));
+    result.wells_.add("test4", SingleWellState<IndexTraits, Scalar>::serializationTestObject(pinfo));
 
     return result;
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::
 base_init(const std::vector<Scalar>& cellPressures,
           const std::vector<Scalar>& cellTemperatures,
           const std::vector<Well>& wells_ecl,
@@ -185,8 +181,8 @@ base_init(const std::vector<Scalar>& cellPressures,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::
 initSingleProducer(const Well& well,
                    const ParallelWellInfo<Scalar>& well_info,
                    Scalar pressure_first_connection,
@@ -196,7 +192,7 @@ initSingleProducer(const Well& well,
     const Scalar temp = 273.15 + 15.56;
 
     auto& ws = this->wells_.add(well.name(),
-                                SingleWellState<FluidSystem, Indices>{well.name(),
+                                SingleWellState<IndexTraits, Scalar>{well.name(),
                                                 well_info,
                                                 true,
                                                 pressure_first_connection,
@@ -213,8 +209,8 @@ initSingleProducer(const Well& well,
     ws.update_producer_targets(well, summary_state);
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::
 initSingleInjector(const Well& well,
                    const ParallelWellInfo<Scalar>& well_info,
                    Scalar pressure_first_connection,
@@ -223,7 +219,7 @@ initSingleInjector(const Well& well,
                    const SummaryState& summary_state)
 {
     const Scalar temp = well.hasInjTemperature() ? well.inj_temperature() : temperature_first_connection;
-    auto& ws = this->wells_.add(well.name(), SingleWellState<FluidSystem, Indices>{well.name(),
+    auto& ws = this->wells_.add(well.name(), SingleWellState<IndexTraits, Scalar>{well.name(),
                                                                      well_info,
                                                                      false,
                                                                      pressure_first_connection,
@@ -240,8 +236,8 @@ initSingleInjector(const Well& well,
     ws.update_injector_targets(well, summary_state);
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::
 initSingleWell(const std::vector<Scalar>& cellPressures,
                const std::vector<Scalar>& cellTemperatures,
                const Well& well,
@@ -271,8 +267,8 @@ initSingleWell(const std::vector<Scalar>& cellPressures,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::
 init(const std::vector<Scalar>& cellPressures,
      const std::vector<Scalar>& cellTemperatures,
      const Schedule& schedule,
@@ -458,8 +454,8 @@ init(const std::vector<Scalar>& cellPressures,
     updateWellsDefaultALQ(schedule, report_step, summary_state);
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::
 resize(const std::vector<Well>& wells_ecl,
        const std::vector<std::reference_wrapper<ParallelWellInfo<Scalar>>>& parallel_well_info,
        const Schedule& schedule,
@@ -478,9 +474,9 @@ resize(const std::vector<Well>& wells_ecl,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-const std::vector<typename WellState<FluidSystem, Indices>::Scalar>&
-WellState<FluidSystem, Indices>::currentWellRates(const std::string& wellName) const
+template<typename IndexTraits, typename Scalar>
+const std::vector<Scalar>&
+WellState<IndexTraits, Scalar>::currentWellRates(const std::string& wellName) const
 {
     auto it = well_rates.find(wellName);
 
@@ -491,8 +487,8 @@ WellState<FluidSystem, Indices>::currentWellRates(const std::string& wellName) c
     return it->second.second;
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::
 gatherVectorsOnRoot(const std::vector<data::Connection>& from_connections,
                     std::vector<data::Connection>& to_connections,
                     const Parallel::Communication& comm) const
@@ -517,9 +513,9 @@ gatherVectorsOnRoot(const std::vector<data::Connection>& from_connections,
     toOwnerComm.exchange(lineariser);
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename IndexTraits, typename Scalar>
 data::Wells
-WellState<FluidSystem, Indices>::
+WellState<IndexTraits, Scalar>::
 report(const int* globalCellIdxMap,
        const std::function<bool(const int)>& wasDynamicallyClosed) const
 {
@@ -554,8 +550,10 @@ report(const int* globalCellIdxMap,
         well.filtrate.total = ws.sum_filtrate_total();
         well.filtrate.concentration = ws.filtrate_conc;
 
-        if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
-            const int phase_pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
+        const auto& pu = this->phaseUsageInfo_;
+
+        if (pu.phaseIsActive(waterPhaseIdx)) {
+            const int phase_pos = pu.canonicalToActivePhaseIdx(waterPhaseIdx);
             well.rates.set(rt::wat, wv[phase_pos]);
             well.rates.set(rt::reservoir_water, reservoir_rates[phase_pos]);
             well.rates.set(rt::productivity_index_water, wpi[phase_pos]);
@@ -563,35 +561,35 @@ report(const int* globalCellIdxMap,
             well.rates.set(rt::mass_wat, ws.sum_wat_mass_rates());
         }
 
-        if (FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx)) {
-            const int phase_pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx);
+        if (pu.phaseIsActive(oilPhaseIdx)) {
+            const int phase_pos = pu.canonicalToActivePhaseIdx(oilPhaseIdx);
             well.rates.set(rt::oil, wv[phase_pos]);
             well.rates.set(rt::reservoir_oil, reservoir_rates[phase_pos]);
             well.rates.set(rt::productivity_index_oil, wpi[phase_pos]);
             well.rates.set(rt::well_potential_oil, well_potentials[phase_pos]);
         }
 
-        if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
-            const int phase_pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
+        if (pu.phaseIsActive(gasPhaseIdx)) {
+            const int phase_pos = pu.canonicalToActivePhaseIdx(gasPhaseIdx);
             well.rates.set(rt::gas, wv[phase_pos]);
             well.rates.set(rt::reservoir_gas, reservoir_rates[phase_pos]);
             well.rates.set(rt::productivity_index_gas, wpi[phase_pos]);
             well.rates.set(rt::well_potential_gas, well_potentials[phase_pos]);
         }
 
-        if (Indices::enableSolvent || Indices::enableExtbo) {
+        if (pu.hasSolvent() || pu.hasZFraction()) {
             well.rates.set(rt::solvent, ws.sum_solvent_rates());
         }
 
-        if (Indices::enablePolymer) {
+        if (pu.hasPolymer()) {
             well.rates.set(rt::polymer, ws.sum_polymer_rates());
         }
 
-        if (Indices::enableBrine) {
+        if (pu.hasBrine()) {
             well.rates.set(rt::brine, ws.sum_brine_rates());
         }
 
-        if (Indices::enableMICP) {
+        if (pu.hasMICP()) {
             well.rates.set(rt::microbial, ws.sum_microbial_rates());
             well.rates.set(rt::oxygen, ws.sum_oxygen_rates());
             well.rates.set(rt::urea, ws.sum_urea_rates());
@@ -640,8 +638,8 @@ report(const int* globalCellIdxMap,
     return res;
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::
 reportConnections(std::vector<data::Connection>& connections,
                   const std::size_t well_index,
                   const int* globalCellIdxMap) const
@@ -670,8 +668,8 @@ reportConnections(std::vector<data::Connection>& connections,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::
 initWellStateMSWell(const std::vector<Well>& wells_ecl,
                     const WellState* prev_well_state)
 {
@@ -680,7 +678,7 @@ initWellStateMSWell(const std::vector<Well>& wells_ecl,
     if (nw == 0) {
         return;
     }
-    const int np = Indices::numPhases;
+    const int np = this->numPhases();
 
     std::optional<std::string> distributedMSWellLocalErrorMessage;
     std::optional<std::string> connectionWithoutAssociatedSegmentsLocalErrorMessage;
@@ -773,10 +771,11 @@ initWellStateMSWell(const std::vector<Well>& wells_ecl,
             }
 
             auto& perf_data = ws.perf_data;
+            const auto& pu = this->phaseUsageInfo_;
             // for the seg_rates_, now it becomes a recursive solution procedure.
-            if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
+            if (pu.phaseIsActive(gasPhaseIdx)) {
                 auto& perf_rates = perf_data.phase_rates;
-                const int gaspos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
+                const int gaspos = pu.canonicalToActivePhaseIdx(gasPhaseIdx);
                 // scale the phase rates for Gas to avoid too bad initial guess for gas fraction
                 // it will probably benefit the standard well too, while it needs to be justified
                 // TODO: to see if this strategy can benefit StandardWell too
@@ -905,8 +904,8 @@ initWellStateMSWell(const std::vector<Well>& wells_ecl,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::
 calculateSegmentRatesBeforeSum(const ParallelWellInfo<Scalar>& pw_info,
                                const std::vector<std::vector<int>>& segment_inlets,
                                const std::vector<std::vector<int>>& segment_perforations,
@@ -939,8 +938,8 @@ calculateSegmentRatesBeforeSum(const ParallelWellInfo<Scalar>& pw_info,
         }
     }
 }
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::
 calculateSegmentRates(const ParallelWellInfo<Scalar>& pw_info,
                       const std::vector<std::vector<int>>& segment_inlets,
                       const std::vector<std::vector<int>>& segment_perforations,
@@ -952,36 +951,36 @@ calculateSegmentRates(const ParallelWellInfo<Scalar>& pw_info,
     pw_info.communication().sum(segment_rates.data(), segment_rates.size());
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::stopWell(int well_index)
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::stopWell(int well_index)
 {
     auto& ws = this->well(well_index);
     ws.stop();
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::openWell(int well_index)
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::openWell(int well_index)
 {
     auto& ws = this->well(well_index);
     ws.open();
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::shutWell(int well_index)
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::shutWell(int well_index)
 {
     auto& ws = this->well(well_index);
     ws.shut();
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::updateStatus(int well_index, WellStatus status)
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::updateStatus(int well_index, WellStatus status)
 {
     auto& ws = this->well(well_index);
     ws.updateStatus(status);
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::communicateGroupRates(const Parallel::Communication& comm)
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::communicateGroupRates(const Parallel::Communication& comm)
 {
     // Compute the size of the data.
     std::size_t sz = std::accumulate(this->well_rates.begin(), this->well_rates.end(), std::size_t{0},
@@ -1017,8 +1016,8 @@ void WellState<FluidSystem, Indices>::communicateGroupRates(const Parallel::Comm
     assert(pos == data.end());
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::updateGlobalIsGrup(const Parallel::Communication& comm)
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::updateGlobalIsGrup(const Parallel::Communication& comm)
 {
     this->global_well_info.value().clear();
     for (std::size_t well_index = 0; well_index < this->size(); well_index++) {
@@ -1032,8 +1031,8 @@ void WellState<FluidSystem, Indices>::updateGlobalIsGrup(const Parallel::Communi
     this->global_well_info.value().communicate(comm);
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::
 updateEfficiencyScalingFactor(const std::string& wellName,
                               const Scalar value)
 {
@@ -1042,9 +1041,9 @@ updateEfficiencyScalingFactor(const std::string& wellName,
     this->well(*idx).efficiency_scaling_factor = value;
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename IndexTraits, typename Scalar>
 data::Segment
-WellState<FluidSystem, Indices>::
+WellState<IndexTraits, Scalar>::
 reportSegmentResults(const int well_id,
                      const int seg_ix,
                      const int seg_no) const
@@ -1069,7 +1068,7 @@ reportSegmentResults(const int well_id,
         segpress[Value::PDropAccel] = segments.pressure_drop_accel[seg_ix];
     }
 
-    const int num_phases = Indices::numPhases;
+    const int num_phases = this->numPhases();
     const auto* rate = &segments.rates[seg_ix * num_phases];
     const auto* resv = &segments.phase_resv_rates[seg_ix * num_phases];
     const auto* velocity = &segments.phase_velocity[seg_ix * num_phases];
@@ -1077,8 +1076,10 @@ reportSegmentResults(const int well_id,
     const auto* viscosity = &segments.phase_viscosity[seg_ix * num_phases];
     const auto* density = &segments.phase_density[seg_ix * (num_phases + 2)]; // +2 for mixture densities
 
-    if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx))  {
-        const auto iw = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
+    const auto& pu = this->phaseUsageInfo_;
+
+    if (pu.phaseIsActive(waterPhaseIdx))  {
+        const auto iw = pu.canonicalToActivePhaseIdx(waterPhaseIdx);
 
         seg_res.rates.set(data::Rates::opt::wat, rate[iw]);
         seg_res.rates.set(data::Rates::opt::reservoir_water, resv[iw]);
@@ -1088,8 +1089,8 @@ reportSegmentResults(const int well_id,
         seg_res.density.set(PhaseDensity::Water, density[iw]);
     }
 
-    if (FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx))  {
-        const auto io = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx);
+    if (pu.phaseIsActive(oilPhaseIdx))  {
+        const auto io = pu.canonicalToActivePhaseIdx(oilPhaseIdx);
 
         seg_res.rates.set(data::Rates::opt::oil, rate[io]);
         seg_res.rates.set(data::Rates::opt::vaporized_oil, segments.vaporized_oil_rate[seg_ix]);
@@ -1100,8 +1101,8 @@ reportSegmentResults(const int well_id,
         seg_res.density.set(PhaseDensity::Oil, density[io]);
     }
 
-    if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx))  {
-        const auto ig = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
+    if (pu.phaseIsActive(gasPhaseIdx))  {
+        const auto ig = pu.canonicalToActivePhaseIdx(gasPhaseIdx);
 
         seg_res.rates.set(data::Rates::opt::gas, rate[ig]);
         seg_res.rates.set(data::Rates::opt::dissolved_gas, segments.dissolved_gas_rate[seg_ix]);
@@ -1123,8 +1124,8 @@ reportSegmentResults(const int well_id,
     return seg_res;
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::
 reportConnectionFactors(const std::size_t well_index,
                         std::vector<data::Connection>& connections) const
 {
@@ -1140,31 +1141,33 @@ reportConnectionFactors(const std::size_t well_index,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::
 reportConnectionPressuresAndRates(const std::size_t well_index,
                                   std::vector<data::Connection>& connections) const
 {
     using rt = data::Rates::opt;
 
-    const int np = Indices::numPhases;
+    const int np = this->numPhases();
     std::vector<rt> phs(np);
     std::vector<rt> pi(np);
 
-    if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
-        const int phasepos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
+    const auto& pu = this->phaseUsageInfo_;
+
+    if (pu.phaseIsActive(waterPhaseIdx)) {
+        const int phasepos = pu.canonicalToActivePhaseIdx(waterPhaseIdx);
         phs.at(phasepos) = rt::wat;
         pi .at(phasepos) = rt::productivity_index_water;
     }
 
-    if (FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx)) {
-        const int phasepos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx);
+    if (pu.haseIsActive(oilPhaseIdx)) {
+        const int phasepos = pu.canonicalToActivePhaseIdx(oilPhaseIdx);
         phs.at(phasepos) = rt::oil;
         pi .at(phasepos) = rt::productivity_index_oil;
     }
 
-    if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
-        const int phasepos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
+    if (pu.phaseIsActive(gasPhaseIdx)) {
+        const int phasepos = pu.canonicalToActivePhaseIdx(gasPhaseIdx);
         phs.at(phasepos) = rt::gas;
         pi .at(phasepos) = rt::productivity_index_gas;
     }
@@ -1193,25 +1196,25 @@ reportConnectionPressuresAndRates(const std::size_t well_index,
         connection.rates.set(rt::vaporized_oil, perf_data.phase_mixing_rates[i][ws.vaporized_oil]);
     }
 
-    if (Indices::enablePolymer) {
+    if (pu.hasPolymer()) {
         for (auto i = 0*num_perf_well; i < num_perf_well; ++i) {
             connections[i].rates.set(rt::polymer, perf_data.polymer_rates[i]);
         }
     }
 
-    if (Indices::enableBrine) {
+    if (pu.hasBrine()) {
         for (auto i = 0*num_perf_well; i < num_perf_well; ++i) {
             connections[i].rates.set(rt::brine, perf_data.brine_rates[i]);
         }
     }
 
-    if (Indices::enableSolvent) {
+    if (pu.hasSolvent()) {
         for (auto i = 0*num_perf_well; i < num_perf_well; ++i) {
             connections[i].rates.set(rt::solvent, perf_data.solvent_rates[i]);
         }
     }
 
-    if (Indices::enableMICP) {
+    if (pu.hasMICP()) {
         for (auto i = 0*num_perf_well; i < num_perf_well; ++i) {
             connections[i].rates.set(rt::microbial, perf_data.microbial_rates[i]);
             connections[i].rates.set(rt::oxygen, perf_data.oxygen_rates[i]);
@@ -1219,22 +1222,21 @@ reportConnectionPressuresAndRates(const std::size_t well_index,
         }
     }
 
-    // TODO: adding flags for CO2STORE and H2STORE in FluidSystem?
-    // if (pu.has_co2_or_h2store) {
-    //     for (auto i = 0*num_perf_well; i < num_perf_well; ++i) {
-    //         connections[i].rates.set(rt::mass_gas, perf_data.gas_mass_rates[i]);
-    //     }
-    // }
+    if (pu.hasCO2orH2Store()) {
+        for (auto i = 0*num_perf_well; i < num_perf_well; ++i) {
+            connections[i].rates.set(rt::mass_gas, perf_data.gas_mass_rates[i]);
+        }
+    }
 
-    if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx) ) {
+    if (pu.phaseIsActive(waterPhaseIdx) ) {
         for (auto i = 0*num_perf_well; i < num_perf_well; ++i) {
             connections[i].rates.set(rt::mass_wat, perf_data.wat_mass_rates[i]);
         }
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::
 reportConnectionFilterCake(const std::size_t well_index,
                            std::vector<data::Connection>& connections) const
 {
@@ -1257,8 +1259,8 @@ reportConnectionFilterCake(const std::size_t well_index,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::
 reportFractureStatistics(const std::vector<ConnFracStatistics<Scalar>>& stats,
                          std::vector<data::Connection>& connections) const
 {
@@ -1294,8 +1296,8 @@ reportFractureStatistics(const std::vector<ConnFracStatistics<Scalar>>& stats,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-bool WellState<FluidSystem, Indices>::
+template<typename IndexTraits, typename Scalar>
+bool WellState<IndexTraits, Scalar>::
 wellIsOwned(std::size_t well_index,
             [[maybe_unused]] const std::string& wellName) const
 {
@@ -1305,8 +1307,8 @@ wellIsOwned(std::size_t well_index,
     return well_info.isOwner();
 }
 
-template<typename FluidSystem, typename Indices>
-bool WellState<FluidSystem, Indices>::wellIsOwned(const std::string& wellName) const
+template<typename IndexTraits, typename Scalar>
+bool WellState<IndexTraits, Scalar>::wellIsOwned(const std::string& wellName) const
 {
     const auto& well_index = this->index(wellName);
     if (!well_index.has_value()) {
@@ -1317,8 +1319,8 @@ bool WellState<FluidSystem, Indices>::wellIsOwned(const std::string& wellName) c
     return wellIsOwned(well_index.value(), wellName);
 }
 
-template<typename FluidSystem, typename Indices>
-void WellState<FluidSystem, Indices>::
+template<typename IndexTraits, typename Scalar>
+void WellState<IndexTraits, Scalar>::
 updateWellsDefaultALQ(const Schedule& schedule,
                       const int report_step,
                       const SummaryState& summary_state)
@@ -1335,28 +1337,27 @@ updateWellsDefaultALQ(const Schedule& schedule,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-bool WellState<FluidSystem, Indices>::operator==(const WellState& rhs) const
+template<typename IndexTraits, typename Scalar>
+bool WellState<IndexTraits, Scalar>::operator==(const WellState& rhs) const
 {
     return this->well_rates == rhs.well_rates &&
            this->wells_ == rhs.wells_ &&
            this->permanently_inactive_well_names_ == rhs.permanently_inactive_well_names_;
 }
 
-template<typename FluidSystem, typename Indices>
-const ParallelWellInfo<typename WellState<FluidSystem, Indices>::Scalar>&
-WellState<FluidSystem, Indices>::parallelWellInfo(std::size_t well_index) const
+template<typename IndexTraits, typename Scalar>
+const ParallelWellInfo<Scalar>&
+WellState<IndexTraits, Scalar>::parallelWellInfo(std::size_t well_index) const
 {
     const auto& ws = this->well(well_index);
     return ws.parallel_info;
 }
 
-#include <opm/simulators/utils/InstantiationIndicesMacros.hpp>
 
-INSTANTIATE_TYPE_INDICES(WellState, double)
+template class WellState<BlackOilDefaultFluidSystemIndices, double>;
 
 #if FLOW_INSTANTIATE_FLOAT
-INSTANTIATE_TYPE_INDICES(WellState, float)
+template class WellState<BlackOilDefaultFluidSystemIndices, float>;
 #endif
 
 } // namespace Opm
