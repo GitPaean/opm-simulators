@@ -34,18 +34,16 @@ template<class Scalar> class ParallelWellInfo;
   Microscopic class to handle well, group and well test state.
 */
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 struct WGState
 {
-    using Scalar = typename FluidSystem::Scalar;
-
-    WGState();
+    explicit WGState(const PhaseUsageInfo<IndexTraits>& pu);
 
     static WGState serializationTestObject(const ParallelWellInfo<Scalar>& pinfo);
 
     void wtest_state(std::unique_ptr<WellTestState> wtest_state);
 
-    WellState<FluidSystem, Indices> well_state;
+    WellState<Scalar, IndexTraits> well_state;
     GroupState<Scalar> group_state;
     WellTestState well_test_state;
 

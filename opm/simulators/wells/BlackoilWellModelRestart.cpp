@@ -29,11 +29,7 @@
 
 #include <opm/output/data/Groups.hpp>
 
-#include <opm/material/fluidsystems/BlackOilFluidSystem.hpp>
-
-#include <opm/models/blackoil/blackoilvariableandequationindices.hh>
-#include <opm/models/blackoil/blackoilonephaseindices.hh>
-#include <opm/models/blackoil/blackoiltwophaseindices.hh>
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 
 #include <opm/simulators/wells/BlackoilWellModelGeneric.hpp>
 #include <opm/simulators/wells/PerforationData.hpp>
@@ -73,12 +69,12 @@ namespace {
 
 namespace Opm {
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelRestart<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelRestart<Scalar, IndexTraits>::
 loadRestartConnectionData(const std::vector<data::Rates::opt>& phs,
                           const data::Well&                    rst_well,
                           const std::vector<PerforationData<Scalar>>&  old_perf_data,
-                          SingleWellState<FluidSystem, Indices>&             ws) const
+                          SingleWellState<Scalar, IndexTraits>&             ws) const
 {
     auto& perf_data        = ws.perf_data;
     auto  perf_pressure    = perf_data.pressure.begin();
@@ -98,12 +94,12 @@ loadRestartConnectionData(const std::vector<data::Rates::opt>& phs,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelRestart<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelRestart<Scalar, IndexTraits>::
 loadRestartSegmentData(const std::string&                   well_name,
                        const std::vector<data::Rates::opt>& phs,
                        const data::Well&                    rst_well,
-                       SingleWellState<FluidSystem, Indices>&             ws) const
+                       SingleWellState<Scalar, IndexTraits>&             ws) const
 {
     const auto& segment_set = wellModel_.getWellEcl(well_name).getSegments();
     const auto& rst_segments = rst_well.segments;
@@ -130,14 +126,14 @@ loadRestartSegmentData(const std::string&                   well_name,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelRestart<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelRestart<Scalar, IndexTraits>::
 loadRestartWellData(const std::string&                   well_name,
                     const bool                           handle_ms_well,
                     const std::vector<data::Rates::opt>& phs,
                     const data::Well&                    rst_well,
                     const std::vector<PerforationData<Scalar>>&  old_perf_data,
-                    SingleWellState<FluidSystem, Indices>&             ws) const
+                    SingleWellState<Scalar, IndexTraits>&             ws) const
 {
     const auto np = phs.size();
 
@@ -164,8 +160,8 @@ loadRestartWellData(const std::string&                   well_name,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelRestart<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelRestart<Scalar, IndexTraits>::
 loadRestartGroupData(const std::string&     group,
                      const data::GroupData& value,
                      GroupState<Scalar>&    grpState) const
@@ -190,8 +186,8 @@ loadRestartGroupData(const std::string&     group,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelRestart<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelRestart<Scalar, IndexTraits>::
 loadRestartGuideRates(const int                    report_step,
                       const GuideRateModel::Target target,
                       const data::Wells&           rst_wells,
@@ -209,8 +205,8 @@ loadRestartGuideRates(const int                    report_step,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelRestart<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelRestart<Scalar, IndexTraits>::
 loadRestartGuideRates(const int                                     report_step,
                       const GuideRateConfig&                        config,
                       const std::map<std::string, data::GroupData>& rst_groups,
@@ -233,28 +229,30 @@ loadRestartGuideRates(const int                                     report_step,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelRestart<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelRestart<Scalar, IndexTraits>::
 loadRestartData(const data::Wells&                 rst_wells,
                 const data::GroupAndNetworkValues& grpNwrkValues,
                 const bool                         handle_ms_well,
-                WellState<FluidSystem, Indices>&   well_state,
+                WellState<Scalar, IndexTraits>&    well_state,
                 GroupState<Scalar>&                grpState) const
 {
     using rt = data::Rates::opt;
-    const auto np = Indices::numPhases;
+    // const auto& phases = wellModel_.phaseUsage();
+    const auto& pu = well_state.phaseUsageInfo();
+    const auto np = pu.numActivePhases();
 
     std::vector<rt> phs(np);
-    if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
-        phs.at(FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx)) = rt::wat;
+    if (pu.phaseIsActive(IndexTraits::waterPhaseIdx)) {
+        phs.at(pu.canonicalToActivePhaseIdx(IndexTraits::waterPhaseIdx)) = rt::wat;
     }
 
-    if (FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx)) {
-        phs.at(FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx)) = rt::oil;
+    if (pu.phaseIsActive(IndexTraits::oilPhaseIdx)) {
+        phs.at(pu.canonicalToActivePhaseIdx(IndexTraits::oilPhaseIdx)) = rt::oil;
     }
 
-    if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
-        phs.at(FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx)) = rt::gas;
+    if (pu.phaseIsActive(IndexTraits::gasPhaseIdx)) {
+        phs.at(pu.canonicalToActivePhaseIdx(IndexTraits::gasPhaseIdx)) = rt::gas;
     }
 
     for (auto well_index = 0*well_state.size();
@@ -274,12 +272,10 @@ loadRestartData(const data::Wells&                 rst_wells,
     }
 }
 
-#include <opm/simulators/utils/InstantiationIndicesMacros.hpp>
-
-INSTANTIATE_TYPE_INDICES(BlackoilWellModelRestart, double)
+template class BlackoilWellModelRestart<double, BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
-INSTANTIATE_TYPE_INDICES(BlackoilWellModelRestart, float)
+template class BlackoilWellModelRestart<float, BlackOilDefaultFluidSystemIndices>;
 #endif
 
 } // namespace Opm

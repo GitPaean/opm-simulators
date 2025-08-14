@@ -946,7 +946,7 @@ namespace Opm
     template<typename TypeTag>
     void
     StandardWell<TypeTag>::
-    checkOperabilityUnderBHPLimit(const WellState<FluidSystem, Indices>& well_state,
+    checkOperabilityUnderBHPLimit(const WellState<double, Indices>& well_state,
                                   const Simulator& simulator,
                                   DeferredLogger& deferred_logger)
     {
@@ -1016,7 +1016,7 @@ namespace Opm
     void
     StandardWell<TypeTag>::
     checkOperabilityUnderTHPLimit(const Simulator& simulator,
-                                  const WellState<FluidSystem, Indices>& well_state,
+                                  const WellState<double, Indices>& well_state,
                                   DeferredLogger& deferred_logger)
     {
         const auto& summaryState = simulator.vanguard().summaryState();
@@ -1913,7 +1913,7 @@ namespace Opm
 
 
     template<typename TypeTag>
-    typename StandardWell<TypeTag>::EvalWell
+    typename StandardWell<TypeTag>::Eval
     StandardWell<TypeTag>::
     pskinwater(const Scalar throughput,
                const EvalWell& water_velocity,
@@ -1945,7 +1945,7 @@ namespace Opm
 
 
     template<typename TypeTag>
-    typename StandardWell<TypeTag>::EvalWell
+    typename StandardWell<TypeTag>::Eval
     StandardWell<TypeTag>::
     pskin(const Scalar throughput,
               const EvalWell& water_velocity,
@@ -2181,11 +2181,10 @@ namespace Opm
 
 
 
-
     template<typename TypeTag>
     std::optional<typename StandardWell<TypeTag>::Scalar>
     StandardWell<TypeTag>::
-    computeBhpAtThpLimitProd(const WellState<FluidSystem, Indices>& well_state,
+    computeBhpAtThpLimitProd(const WellState<double, Indices>& well_state,
                              const Simulator& simulator,
                              const SummaryState& summary_state,
                              DeferredLogger& deferred_logger) const

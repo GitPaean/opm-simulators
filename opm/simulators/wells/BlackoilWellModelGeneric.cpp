@@ -52,6 +52,8 @@
 
 #include <opm/models/utils/parametersystem.hpp>
 
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
+
 #include <opm/simulators/utils/DeferredLogger.hpp>
 #include <opm/simulators/wells/BlackoilWellModelConstraints.hpp>
 #include <opm/simulators/wells/BlackoilWellModelGasLift.hpp>
@@ -86,12 +88,13 @@
 
 namespace Opm {
 
-template<typename FluidSystem, typename Indices>
-BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+BlackoilWellModelGeneric<Scalar, IndexTraits>::
 BlackoilWellModelGeneric(Schedule& schedule,
-                         BlackoilWellModelGasLiftGeneric<FluidSystem, Indices>& gaslift,
+                         BlackoilWellModelGasLiftGeneric<Scalar, IndexTraits>& gaslift,
                          const SummaryState& summaryState,
                          const EclipseState& eclState,
+                         const PhaseUsageInfo<IndexTraits>& pu,
                          const Parallel::Communication& comm)
     : schedule_(schedule)
     , summaryState_(summaryState)
@@ -99,12 +102,13 @@ BlackoilWellModelGeneric(Schedule& schedule,
     , comm_(comm)
     , gen_gaslift_(gaslift)
     , wbp_(*this)
+    , phase_usage_info_(pu)
     , terminal_output_(comm_.rank() == 0 &&
                        Parameters::Get<Parameters::EnableTerminalOutput>())
     , guideRate_(schedule)
-    , active_wgstate_()
-    , last_valid_wgstate_()
-    , nupcol_wgstate_()
+    , active_wgstate_(pu)
+    , last_valid_wgstate_(pu)
+    , nupcol_wgstate_(pu)
 {
 
     const auto numProcs = comm_.size();
@@ -135,22 +139,22 @@ BlackoilWellModelGeneric(Schedule& schedule,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-int BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+int BlackoilWellModelGeneric<Scalar, IndexTraits>::
 numLocalWells() const
 {
     return wells_ecl_.size();
 }
 
-template<typename FluidSystem, typename Indices>
-int BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+int BlackoilWellModelGeneric<Scalar, IndexTraits>::
 numPhases() const
 {
-    return Indices::numPhases;
+    return phase_usage_info_.numActivePhases();
 }
 
-template<typename FluidSystem, typename Indices>
-bool BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+bool BlackoilWellModelGeneric<Scalar, IndexTraits>::
 hasLocalWell(const std::string& wname) const
 {
     return std::any_of(this->wells_ecl_.begin(),
@@ -161,9 +165,9 @@ hasLocalWell(const std::string& wname) const
     });
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 bool
-BlackoilWellModelGeneric<FluidSystem, Indices>::
+BlackoilWellModelGeneric<Scalar, IndexTraits>::
 hasOpenLocalWell(const std::string& wname) const
 {
     return std::any_of(well_container_generic_.begin(),
@@ -174,30 +178,30 @@ hasOpenLocalWell(const std::string& wname) const
     });
 }
 
-template<typename FluidSystem, typename Indices>
-bool BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+bool BlackoilWellModelGeneric<Scalar, IndexTraits>::
 wellsActive() const
 {
     return wells_active_;
 }
 
-template<typename FluidSystem, typename Indices>
-bool BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+bool BlackoilWellModelGeneric<Scalar, IndexTraits>::
 networkActive() const
 {
     return network_active_;
 }
 
-template<typename FluidSystem, typename Indices>
-bool BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+bool BlackoilWellModelGeneric<Scalar, IndexTraits>::
 anyMSWellOpenLocal() const
 {
     return std::any_of(wells_ecl_.begin(), wells_ecl_.end(),
                        [](const auto& well) { return well.isMultiSegment(); });
 }
 
-template<typename FluidSystem, typename Indices>
-const Well& BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+const Well& BlackoilWellModelGeneric<Scalar, IndexTraits>::
 getWellEcl(const std::string& well_name) const
 {
     // finding the iterator of the well in wells_ecl
@@ -212,8 +216,8 @@ getWellEcl(const std::string& well_name) const
     return *well_ecl;
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 initFromRestartFile(const RestartValue& restartValues,
                     std::unique_ptr<WellTestState> wtestState,
                     const std::size_t numCells,
@@ -269,8 +273,8 @@ initFromRestartFile(const RestartValue& restartValues,
     initial_step_ = false;
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 prepareDeserialize(int report_step, const std::size_t numCells, bool handle_ms_well, bool enable_distributed_wells)
 {
     // wells_ecl_ should only contain wells on this processor.
@@ -292,8 +296,8 @@ prepareDeserialize(int report_step, const std::size_t numCells, bool handle_ms_w
     this->updateNupcolWGState();
 }
 
-template<typename FluidSystem, typename Indices>
-std::vector<Well> BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+std::vector<Well> BlackoilWellModelGeneric<Scalar, IndexTraits>::
 getLocalWells(const int timeStepIdx) const
 {
     auto w = std::vector<Well>{};
@@ -314,9 +318,9 @@ getLocalWells(const int timeStepIdx) const
     return w;
 }
 
-template<typename FluidSystem, typename Indices>
-std::vector<std::reference_wrapper<ParallelWellInfo<typename FluidSystem::Scalar>>>
-BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+std::vector<std::reference_wrapper<ParallelWellInfo<Scalar>>>
+BlackoilWellModelGeneric<Scalar, IndexTraits>::
 createLocalParallelWellInfo(const std::vector<Well>& wells)
 {
     std::vector<std::reference_wrapper<ParallelWellInfo<Scalar>>> local_parallel_well_info;
@@ -334,8 +338,8 @@ createLocalParallelWellInfo(const std::vector<Well>& wells)
     return local_parallel_well_info;
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 initializeWellProdIndCalculators()
 {
     this->prod_index_calc_.clear();
@@ -345,8 +349,8 @@ initializeWellProdIndCalculators()
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 initializeWellPerfData()
 {
     well_perf_data_.resize(wells_ecl_.size());
@@ -439,8 +443,8 @@ initializeWellPerfData()
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 checkGEconLimits(
         const Group& group,
         const double simulation_time,
@@ -458,7 +462,7 @@ checkGEconLimits(
         return;
     }
 
-    GroupEconomicLimitsChecker<FluidSystem, Indices> checker {
+    GroupEconomicLimitsChecker<Scalar, IndexTraits> checker {
         *this, wellTestState(), group, simulation_time, report_step_idx, deferred_logger
     };
     if (checker.minOilRate() || checker.minGasRate()) {
@@ -474,10 +478,10 @@ checkGEconLimits(
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 checkGconsaleLimits(const Group& group,
-                    WellState<FluidSystem, Indices>& well_state,
+                    WellState<Scalar, IndexTraits>& well_state,
                     const int reportStepIdx,
                     DeferredLogger& deferred_logger)
 {
@@ -500,14 +504,14 @@ checkGconsaleLimits(const Group& group,
     const auto& gconsale = schedule()[reportStepIdx].gconsale().get(group.name(), summaryState_);
     const Group::ProductionCMode& oldProductionControl = this->groupState().production_control(group.name());
 
-    const int gasPos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
-    Scalar production_rate = WellGroupHelpers<FluidSystem, Indices>::sumWellSurfaceRates(group,
+    const int gasPos = phase_usage_info_.canonicalToActivePhaseIdx(IndexTraits::gasPhaseIdx);
+    Scalar production_rate = WellGroupHelpers<Scalar, IndexTraits>::sumWellSurfaceRates(group,
                                                                            schedule(),
                                                                            well_state,
                                                                            reportStepIdx,
                                                                            gasPos,
                                                                            /*isInjector*/false);
-    Scalar injection_rate = WellGroupHelpers<FluidSystem, Indices>::sumWellSurfaceRates(group,
+    Scalar injection_rate = WellGroupHelpers<Scalar, IndexTraits>::sumWellSurfaceRates(group,
                                                                           schedule(),
                                                                           well_state,
                                                                           reportStepIdx,
@@ -521,7 +525,7 @@ checkGconsaleLimits(const Group& group,
     Scalar production_target = gconsale.sales_target + injection_rate;
 
     // add import rate and subtract consumption rate for group for gas
-    if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
+    if (phase_usage_info_.phaseIsActive(IndexTraits::gasPhaseIdx)) {
         const auto& [consumption_rate, import_rate] = this->groupState().gconsump_rates(group.name());
         sales_rate += import_rate;
         sales_rate -= consumption_rate;
@@ -602,8 +606,8 @@ checkGconsaleLimits(const Group& group,
         deferred_logger.info(ss);
 }
 
-template<typename FluidSystem, typename Indices>
-bool BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+bool BlackoilWellModelGeneric<Scalar, IndexTraits>::
 checkGroupHigherConstraints(const Group& group,
                             DeferredLogger& deferred_logger,
                             const int reportStepIdx,
@@ -635,20 +639,20 @@ checkGroupHigherConstraints(const Group& group,
             ->first;
     }
 
-    std::vector<Scalar> rates(Indices::numPhases, 0.0);
+    std::vector<Scalar> rates(this->numPhases(), 0.0);
 
     bool isField = group.name() == "FIELD";
     if (!isField && group.isInjectionGroup()) {
         // Obtain rates for group.
-        std::vector<Scalar> resv_coeff_inj(Indices::numPhases, 0.0);
+        std::vector<Scalar> resv_coeff_inj(this->numPhases(), 0.0);
         calcInjResvCoeff(fipnum, pvtreg, resv_coeff_inj);
 
         // checkGroupConstraintsInj considers 'available' rates (e.g., group rates minus reduction rates).
         // So when checking constraints, current groups rate must also be subtracted it's reduction rate
         const std::vector<Scalar> reduction_rates = this->groupState().injection_reduction_rates(group.name());
 
-        for (int phasePos = 0; phasePos < Indices::numPhases; ++phasePos) {
-            const Scalar local_current_rate = WellGroupHelpers<FluidSystem, Indices>::sumWellSurfaceRates(group,
+        for (int phasePos = 0; phasePos < this->numPhases(); ++phasePos) {
+            const Scalar local_current_rate = WellGroupHelpers<Scalar, IndexTraits>::sumWellSurfaceRates(group,
                                                                                             schedule(),
                                                                                             this->wellState(),
                                                                                             reportStepIdx,
@@ -694,7 +698,7 @@ checkGroupHigherConstraints(const Group& group,
             if (currentControl != Group::InjectionCMode::FLD && group.injectionGroupControlAvailable(phase)) {
                 const Group& parentGroup = schedule().getGroup(group.parent(), reportStepIdx);
                 const auto [is_changed, scaling_factor] =
-                    WellGroupHelpers<FluidSystem, Indices>::checkGroupConstraintsInj(group.name(),
+                    WellGroupHelpers<Scalar, IndexTraits>::checkGroupConstraintsInj(group.name(),
                                                                        group.parent(),
                                                                        parentGroup,
                                                                        this->wellState(),
@@ -715,7 +719,7 @@ checkGroupHigherConstraints(const Group& group,
                         actionOnBrokenConstraints(group, Group::InjectionCMode::FLD,
                                                   phase, this->groupState(),
                                                   deferred_logger);
-                    WellGroupHelpers<FluidSystem, Indices>::updateWellRatesFromGroupTargetScale(scaling_factor,
+                    WellGroupHelpers<Scalar, IndexTraits>::updateWellRatesFromGroupTargetScale(scaling_factor,
                                                                                   group,
                                                                                   schedule(),
                                                                                   reportStepIdx,
@@ -754,8 +758,8 @@ checkGroupHigherConstraints(const Group& group,
                 return false;
             }
         }
-        for (int phasePos = 0; phasePos < Indices::numPhases; ++phasePos) {
-            const Scalar local_current_rate = WellGroupHelpers<FluidSystem, Indices>::sumWellSurfaceRates(group,
+        for (int phasePos = 0; phasePos < this->numPhases(); ++phasePos) {
+            const Scalar local_current_rate = WellGroupHelpers<Scalar, IndexTraits>::sumWellSurfaceRates(group,
                                                                                             schedule(),
                                                                                             this->wellState(),
                                                                                             reportStepIdx,
@@ -764,14 +768,14 @@ checkGroupHigherConstraints(const Group& group,
             // Sum over all processes
             rates[phasePos] = -comm_.sum(local_current_rate) - reduction_rates[phasePos];
         }
-        std::vector<Scalar> resv_coeff(Indices::numPhases, 0.0);
+        std::vector<Scalar> resv_coeff(this->numPhases(), 0.0);
         calcResvCoeff(fipnum, pvtreg, this->groupState().production_rates(group.name()), resv_coeff);
         // Check higher up only if under individual (not FLD) control.
         const Group::ProductionCMode& currentControl = this->groupState().production_control(group.name());
         if (currentControl != Group::ProductionCMode::FLD && group.productionGroupControlAvailable()) {
             const Group& parentGroup = schedule().getGroup(group.parent(), reportStepIdx);
             const auto [is_changed, scaling_factor] =
-                WellGroupHelpers<FluidSystem, Indices>::checkGroupConstraintsProd(group.name(),
+                WellGroupHelpers<Scalar, IndexTraits>::checkGroupConstraintsProd(group.name(),
                                                                     group.parent(),
                                                                     parentGroup,
                                                                     this->wellState(),
@@ -798,7 +802,7 @@ checkGroupHigherConstraints(const Group& group,
 
                 if (changed) {
                     switched_prod_groups_[group.name()].push_back(Group::ProductionCMode::FLD);
-                    WellGroupHelpers<FluidSystem, Indices>::updateWellRatesFromGroupTargetScale(scaling_factor,
+                    WellGroupHelpers<Scalar, IndexTraits>::updateWellRatesFromGroupTargetScale(scaling_factor,
                                                                                   group,
                                                                                   schedule(),
                                                                                   reportStepIdx,
@@ -813,8 +817,8 @@ checkGroupHigherConstraints(const Group& group,
     return changed;
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 updateEclWells(const int timeStepIdx,
                const SimulatorUpdate& sim_update,
                const SummaryState& st)
@@ -836,9 +840,9 @@ updateEclWells(const int timeStepIdx,
     }
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 template<typename Iter, typename Body>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 wellUpdateLoop(Iter first, Iter last, const int timeStepIdx, Body&& body)
 {
     std::for_each(first, last,
@@ -865,8 +869,8 @@ wellUpdateLoop(Iter first, Iter last, const int timeStepIdx, Body&& body)
     });
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 updateEclWellsConstraints(const int              timeStepIdx,
                           const SimulatorUpdate& sim_update,
                           const SummaryState&    st)
@@ -883,8 +887,8 @@ updateEclWellsConstraints(const int              timeStepIdx,
     });
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 updateEclWellsCTFFromAction(const int              timeStepIdx,
                             const SimulatorUpdate& sim_update)
 {
@@ -911,9 +915,9 @@ updateEclWellsCTFFromAction(const int              timeStepIdx,
     });
 }
 
-template<typename FluidSystem, typename Indices>
-typename FluidSystem::Scalar
-BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+Scalar
+BlackoilWellModelGeneric<Scalar, IndexTraits>::
 wellPI(const int well_index) const
 {
     const auto& pi = this->wellState().well(well_index).productivity_index;
@@ -921,18 +925,18 @@ wellPI(const int well_index) const
     const auto preferred = this->wells_ecl_[well_index].getPreferredPhase();
     switch (preferred) { // Should really have LIQUID = OIL + WATER here too...
     case Phase::WATER:
-        return FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)
-            ? pi[FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx)]
+        return phase_usage_info_.phaseIsActive(IndexTraits::waterPhaseIdx)
+            ? pi[phase_usage_info_.canonicalToActivePhaseIdx(IndexTraits::waterPhaseIdx)]
             : 0.0;
 
     case Phase::OIL:
-        return FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx)
-            ? pi[FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx)]
+        return phase_usage_info_.phaseIsActive(IndexTraits::oilPhaseIdx)
+            ? pi[phase_usage_info_.canonicalToActivePhaseIdx(IndexTraits::oilPhaseIdx)]
             : 0.0;
 
     case Phase::GAS:
-        return FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)
-            ? pi[FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx)]
+        return phase_usage_info_.phaseIsActive(IndexTraits::gasPhaseIdx)
+            ? pi[phase_usage_info_.canonicalToActivePhaseIdx(IndexTraits::gasPhaseIdx)]
             : 0.0;
 
     default:
@@ -943,9 +947,9 @@ wellPI(const int well_index) const
     }
 }
 
-template<typename FluidSystem, typename Indices>
-typename FluidSystem::Scalar
-BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+Scalar
+BlackoilWellModelGeneric<Scalar, IndexTraits>::
 wellPI(const std::string& well_name) const
 {
     auto well_iter = std::find_if(this->wells_ecl_.begin(), this->wells_ecl_.end(),
@@ -962,27 +966,27 @@ wellPI(const std::string& well_name) const
     return this->wellPI(well_index);
 }
 
-template<typename FluidSystem, typename Indices>
-bool BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+bool BlackoilWellModelGeneric<Scalar, IndexTraits>::
 wasDynamicallyShutThisTimeStep(const int well_index) const
 {
     return wasDynamicallyShutThisTimeStep(this->wells_ecl_[well_index].name());
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 bool
-BlackoilWellModelGeneric<FluidSystem, Indices>::
+BlackoilWellModelGeneric<Scalar, IndexTraits>::
 wasDynamicallyShutThisTimeStep(const std::string& well_name) const
 {
     return this->closed_this_step_.find(well_name) !=
            this->closed_this_step_.end();
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 updateWsolvent(const Group& group,
                const int reportStepIdx,
-               const WellState<FluidSystem, Indices>& wellState)
+               const WellState<Scalar, IndexTraits>& wellState)
 {
     for (const std::string& groupName : group.groups()) {
         const Group& groupTmp = schedule_.getGroup(groupName, reportStepIdx);
@@ -994,16 +998,16 @@ updateWsolvent(const Group& group,
 
     auto currentGroupControl = this->groupState().injection_control(group.name(), Phase::GAS);
     if( currentGroupControl == Group::InjectionCMode::REIN ) {
-        const int gasPos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
+        const int gasPos = phase_usage_info_.canonicalToActivePhaseIdx(IndexTraits::gasPhaseIdx);
         const auto& controls = group.injectionControls(Phase::GAS, summaryState_);
         const Group& groupRein = schedule_.getGroup(controls.reinj_group, reportStepIdx);
-        Scalar gasProductionRate = WellGroupHelpers<FluidSystem, Indices>::sumWellSurfaceRates(groupRein,
+        Scalar gasProductionRate = WellGroupHelpers<Scalar, IndexTraits>::sumWellSurfaceRates(groupRein,
                                                                                  schedule_,
                                                                                  wellState,
                                                                                  reportStepIdx,
                                                                                  gasPos,
                                                                                  /*isInjector*/false);
-        Scalar solventProductionRate = WellGroupHelpers<FluidSystem, Indices>::sumSolventRates(groupRein,
+        Scalar solventProductionRate = WellGroupHelpers<Scalar, IndexTraits>::sumSolventRates(groupRein,
                                                                                  schedule_,
                                                                                  wellState,
                                                                                  reportStepIdx,
@@ -1020,8 +1024,8 @@ updateWsolvent(const Group& group,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 setWsolvent(const Group& group,
             const int reportStepIdx,
             Scalar wsolvent)
@@ -1039,9 +1043,9 @@ setWsolvent(const Group& group,
     }
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 template <typename LoopBody>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 loopOwnedWells(LoopBody&& loopBody) const
 {
     auto wellIndex = 0 * this->wells_ecl_.size();
@@ -1055,8 +1059,8 @@ loopOwnedWells(LoopBody&& loopBody) const
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 assignWellTargets(data::Wells& wsrpt) const
 {
     this->loopOwnedWells([this, &wsrpt]
@@ -1075,8 +1079,8 @@ assignWellTargets(data::Wells& wsrpt) const
     });
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 assignProductionWellTargets(const Well& well, data::WellControlLimits& limits) const
 {
     using Item = data::WellControlLimits::Item;
@@ -1092,8 +1096,8 @@ assignProductionWellTargets(const Well& well, data::WellControlLimits& limits) c
         .set(Item::LiquidRate, ctrl.liquid_rate);
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 assignInjectionWellTargets(const Well& well, data::WellControlLimits& limits) const
 {
     using Item = data::WellControlLimits::Item;
@@ -1120,8 +1124,8 @@ assignInjectionWellTargets(const Well& well, data::WellControlLimits& limits) co
     limits.set(rateItem, ctrl.surface_rate);
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 assignDynamicWellStatus(data::Wells& wsrpt,
                         const int reportStepIndex) const
 {
@@ -1140,8 +1144,8 @@ assignDynamicWellStatus(data::Wells& wsrpt,
     });
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 assignShutConnections(data::Wells& wsrpt,
                       const int reportStepIndex) const
 {
@@ -1177,8 +1181,8 @@ assignShutConnections(data::Wells& wsrpt,
     });
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 assignGroupControl(const Group& group,
                    data::GroupData& gdata) const
 {
@@ -1208,8 +1212,8 @@ assignGroupControl(const Group& group,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 assignGroupValues(const int                               reportStepIdx,
                   std::map<std::string, data::GroupData>& gvalues) const
 {
@@ -1225,8 +1229,8 @@ assignGroupValues(const int                               reportStepIdx,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 assignNodeValues(std::map<std::string, data::NodeData>& nodevalues,
                  const int reportStepIdx) const
 {
@@ -1251,7 +1255,7 @@ assignNodeValues(std::map<std::string, data::NodeData>& nodevalues,
         return;
     }
 
-    auto converged_pressures = WellGroupHelpers<FluidSystem, Indices>::computeNetworkPressures(network,
+    auto converged_pressures = WellGroupHelpers<Scalar, IndexTraits>::computeNetworkPressures(network,
                                                                                  this->wellState(),
                                                                                  this->groupState(),
                                                                                  *(vfp_properties_->getProd()),
@@ -1276,9 +1280,9 @@ assignNodeValues(std::map<std::string, data::NodeData>& nodevalues,
     }
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 data::GroupAndNetworkValues
-BlackoilWellModelGeneric<FluidSystem, Indices>::
+BlackoilWellModelGeneric<Scalar, IndexTraits>::
 groupAndNetworkData(const int reportStepIdx) const
 {
     auto grp_nwrk_values = data::GroupAndNetworkValues{};
@@ -1289,8 +1293,8 @@ groupAndNetworkData(const int reportStepIdx) const
     return grp_nwrk_values;
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 updateAndCommunicateGroupData(const int reportStepIdx,
                               const int iterationIdx,
                               const Scalar tol_nupcol,
@@ -1326,7 +1330,7 @@ updateAndCommunicateGroupData(const int reportStepIdx,
                         const int np = this->wellState().numPhases();
                         Scalar gr_rate_nupcol = 0.0;
                         for (int phaseIdx = 0; phaseIdx < np; ++phaseIdx) {
-                            gr_rate_nupcol += WellGroupHelpers<FluidSystem, Indices>::sumWellPhaseRates(is_vrep,
+                            gr_rate_nupcol += WellGroupHelpers<Scalar, IndexTraits>::sumWellPhaseRates(is_vrep,
                                                     group,
                                                     schedule(),
                                                     this->nupcolWellState(),
@@ -1336,7 +1340,7 @@ updateAndCommunicateGroupData(const int reportStepIdx,
                         }
                         Scalar gr_rate = 0.0;
                         for (int phaseIdx = 0; phaseIdx < np; ++phaseIdx) {
-                            gr_rate += WellGroupHelpers<FluidSystem, Indices>::sumWellPhaseRates(is_vrep,
+                            gr_rate += WellGroupHelpers<Scalar, IndexTraits>::sumWellPhaseRates(is_vrep,
                                                     group,
                                                     schedule(),
                                                     this->wellState(),
@@ -1367,7 +1371,7 @@ updateAndCommunicateGroupData(const int reportStepIdx,
     constexpr std::array<bool, num_configs> is_production_group = {true, false, false, false};
     constexpr std::array<Phase, num_configs> phases = { Phase::OIL, Phase::WATER, Phase::OIL, Phase::GAS };
     for (int i = 0; i < num_configs; i++) {
-        WellGroupHelpers<FluidSystem, Indices>::updateGroupControlledWells(schedule(),
+        WellGroupHelpers<Scalar, IndexTraits>::updateGroupControlledWells(schedule(),
                                                              well_state,
                                                              this->groupState(),
                                                              summaryState_,
@@ -1381,7 +1385,7 @@ updateAndCommunicateGroupData(const int reportStepIdx,
     // the group target reduction rates needs to be update since wells may have switched to/from GRUP control
     // The group target reduction does not honor NUPCOL.
     std::vector<Scalar> groupTargetReduction(numPhases(), 0.0);
-    WellGroupHelpers<FluidSystem, Indices>::updateGroupTargetReduction(fieldGroup,
+    WellGroupHelpers<Scalar, IndexTraits>::updateGroupTargetReduction(fieldGroup,
                                                          schedule(),
                                                          reportStepIdx,
                                                          /*isInjector*/ false,
@@ -1391,7 +1395,7 @@ updateAndCommunicateGroupData(const int reportStepIdx,
                                                          this->groupState(),
                                                          groupTargetReduction);
     std::vector<Scalar> groupTargetReductionInj(numPhases(), 0.0);
-    WellGroupHelpers<FluidSystem, Indices>::updateGroupTargetReduction(fieldGroup,
+    WellGroupHelpers<Scalar, IndexTraits>::updateGroupTargetReduction(fieldGroup,
                                                          schedule(),
                                                          reportStepIdx,
                                                          /*isInjector*/ true,
@@ -1401,41 +1405,41 @@ updateAndCommunicateGroupData(const int reportStepIdx,
                                                          this->groupState(),
                                                          groupTargetReductionInj);
 
-    WellGroupHelpers<FluidSystem, Indices>::updateREINForGroups(fieldGroup,
+    WellGroupHelpers<Scalar, IndexTraits>::updateREINForGroups(fieldGroup,
                                                   schedule(),
                                                   reportStepIdx,
                                                   summaryState_,
                                                   well_state_nupcol,
                                                   this->groupState(),
                                                   comm_.rank() == 0);
-    WellGroupHelpers<FluidSystem, Indices>::updateVREPForGroups(fieldGroup,
+    WellGroupHelpers<Scalar, IndexTraits>::updateVREPForGroups(fieldGroup,
                                                   schedule(),
                                                   reportStepIdx,
                                                   well_state_nupcol,
                                                   this->groupState());
 
-    WellGroupHelpers<FluidSystem, Indices>::updateReservoirRatesInjectionGroups(fieldGroup,
+    WellGroupHelpers<Scalar, IndexTraits>::updateReservoirRatesInjectionGroups(fieldGroup,
                                                                   schedule(),
                                                                   reportStepIdx,
                                                                   well_state_nupcol,
                                                                   this->groupState());
-    WellGroupHelpers<FluidSystem, Indices>::updateSurfaceRatesInjectionGroups(fieldGroup,
+    WellGroupHelpers<Scalar, IndexTraits>::updateSurfaceRatesInjectionGroups(fieldGroup,
                                                                 schedule(),
                                                                 reportStepIdx,
                                                                 well_state_nupcol,
                                                                 this->groupState());
-    WellGroupHelpers<FluidSystem, Indices>::updateNetworkLeafNodeProductionRates(schedule(),
+    WellGroupHelpers<Scalar, IndexTraits>::updateNetworkLeafNodeProductionRates(schedule(),
                                                                    reportStepIdx,
                                                                    well_state_nupcol,
                                                                    this->groupState());
 
-    WellGroupHelpers<FluidSystem, Indices>::updateGroupProductionRates(fieldGroup,
+    WellGroupHelpers<Scalar, IndexTraits>::updateGroupProductionRates(fieldGroup,
                                                          schedule(),
                                                          reportStepIdx,
                                                          well_state_nupcol,
                                                          this->groupState());
 
-    WellGroupHelpers<FluidSystem, Indices>::updateWellRates(fieldGroup,
+    WellGroupHelpers<Scalar, IndexTraits>::updateWellRates(fieldGroup,
                                               schedule(),
                                               reportStepIdx,
                                               well_state_nupcol,
@@ -1448,7 +1452,7 @@ updateAndCommunicateGroupData(const int reportStepIdx,
         for (const auto& well : well_container_generic_) {
             const auto& ws = this->wellState().well(well->indexOfWell());
             const auto& group = this->schedule().getGroup(well->wellEcl().groupName(), well->currentStep());
-            std::vector<Scalar> resv_coeff(Indices::numPhases, 0.0);
+            std::vector<Scalar> resv_coeff(this->numPhases(), 0.0);
             const int fipnum = 0;
             int pvtreg = well->pvtRegionIdx();
             calcResvCoeff(fipnum, pvtreg, this->groupState().production_rates(group.name()), resv_coeff);
@@ -1457,7 +1461,7 @@ updateAndCommunicateGroupData(const int reportStepIdx,
             // Translate injector type from control to Phase.
             Scalar group_target = std::numeric_limits<Scalar>::max();
             if (well->isProducer()) {
-                group_target = WellGroupHelpers<FluidSystem, Indices>::getWellGroupTargetProducer(well->name(),
+                group_target = WellGroupHelpers<Scalar, IndexTraits>::getWellGroupTargetProducer(well->name(),
                                             well->wellEcl().groupName(),
                                             group,
                                             this->wellState(),
@@ -1493,7 +1497,7 @@ updateAndCommunicateGroupData(const int reportStepIdx,
                 default:
                     assert(false); //programming error
                 }
-                group_target = WellGroupHelpers<FluidSystem, Indices>::getWellGroupTargetInjector(well->name(),
+                group_target = WellGroupHelpers<Scalar, IndexTraits>::getWellGroupTargetInjector(well->name(),
                                             well->wellEcl().groupName(),
                                             group,
                                             this->wellState(),
@@ -1514,8 +1518,8 @@ updateAndCommunicateGroupData(const int reportStepIdx,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 updateNetworkActiveState(const int report_step) {
     const auto& network = schedule()[report_step].network();
     if (!network.active()) {
@@ -1535,8 +1539,8 @@ updateNetworkActiveState(const int report_step) {
     this->network_active_ = comm_.max(network_active);
 }
 
-template<typename FluidSystem, typename Indices>
-bool BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+bool BlackoilWellModelGeneric<Scalar, IndexTraits>::
 needPreStepNetworkRebalance(const int report_step) const
 {
     const auto& network = schedule()[report_step].network();
@@ -1554,8 +1558,8 @@ needPreStepNetworkRebalance(const int report_step) const
     return network_rebalance_necessary;
 }
 
-template<typename FluidSystem, typename Indices>
-bool BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+bool BlackoilWellModelGeneric<Scalar, IndexTraits>::
 forceShutWellByName(const std::string& wellname,
                     const double simulation_time,
                     const bool dont_shut_grup_wells)
@@ -1609,8 +1613,8 @@ forceShutWellByName(const std::string& wellname,
     return (well_was_shut == 1);
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 inferLocalShutWells()
 {
     this->local_shut_wells_.clear();
@@ -1629,9 +1633,9 @@ inferLocalShutWells()
     }
 }
 
-template<typename FluidSystem, typename Indices>
-typename FluidSystem::Scalar
-BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+Scalar
+BlackoilWellModelGeneric<Scalar, IndexTraits>::
 updateNetworkPressures(const int reportStepIdx, const Scalar damping_factor, const Scalar upper_update_bound)
 {
     OPM_TIMEFUNCTION();
@@ -1643,7 +1647,7 @@ updateNetworkPressures(const int reportStepIdx, const Scalar damping_factor, con
 
     const auto previous_node_pressures = node_pressures_;
 
-    node_pressures_ = WellGroupHelpers<FluidSystem, Indices>::computeNetworkPressures(network,
+    node_pressures_ = WellGroupHelpers<Scalar, IndexTraits>::computeNetworkPressures(network,
                                                                         this->wellState(),
                                                                         this->groupState(),
                                                                         *(vfp_properties_->getProd()),
@@ -1696,7 +1700,7 @@ updateNetworkPressures(const int reportStepIdx, const Scalar damping_factor, con
                 // set the dynamic THP constraint of the well accordingly.
                 const Scalar new_limit = it->second;
                 well->setDynamicThpLimit(new_limit);
-                SingleWellState<FluidSystem, Indices>& ws = this->wellState()[well->indexOfWell()];
+                SingleWellState<Scalar, IndexTraits>& ws = this->wellState()[well->indexOfWell()];
                 const bool thp_is_limit = ws.production_cmode == Well::ProducerCMode::THP;
                 // TODO: not sure why the thp is NOT updated properly elsewhere
                 if (thp_is_limit) {
@@ -1708,15 +1712,15 @@ updateNetworkPressures(const int reportStepIdx, const Scalar damping_factor, con
     return network_imbalance;
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 calculateEfficiencyFactors(const int reportStepIdx)
 {
     for (auto& well : well_container_generic_) {
         const Well& wellEcl = well->wellEcl();
         Scalar well_efficiency_factor = wellEcl.getEfficiencyFactor() *
                                         wellState().getGlobalEfficiencyScalingFactor(well->name());
-        WellGroupHelpers<FluidSystem, Indices>::accumulateGroupEfficiencyFactor(schedule().getGroup(wellEcl.groupName(),
+        WellGroupHelpers<Scalar, IndexTraits>::accumulateGroupEfficiencyFactor(schedule().getGroup(wellEcl.groupName(),
                                                                                       reportStepIdx),
                                                                   schedule(),
                                                                   reportStepIdx,
@@ -1725,15 +1729,15 @@ calculateEfficiencyFactors(const int reportStepIdx)
     }
 }
 
-template<typename FluidSystem, typename Indices>
-WellInterfaceGeneric<FluidSystem, Indices>*
-BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+WellInterfaceGeneric<Scalar, IndexTraits>*
+BlackoilWellModelGeneric<Scalar, IndexTraits>::
 getGenWell(const std::string& well_name)
 {
     // finding the iterator of the well in wells_ecl
     auto well = std::find_if(well_container_generic_.begin(),
                              well_container_generic_.end(),
-                                [&well_name](const WellInterfaceGeneric<FluidSystem, Indices>* elem)->bool {
+                                [&well_name](const WellInterfaceGeneric<Scalar, IndexTraits>* elem)->bool {
                                      return elem->name() == well_name;
                                  });
 
@@ -1742,8 +1746,8 @@ getGenWell(const std::string& well_name)
     return *well;
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 setRepRadiusPerfLength()
 {
     for (const auto& well : well_container_generic_) {
@@ -1751,8 +1755,8 @@ setRepRadiusPerfLength()
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 updateWellPotentials(const int reportStepIdx,
                      const bool onlyAfterEvent,
                      const SummaryConfig& summaryConfig,
@@ -1812,8 +1816,8 @@ updateWellPotentials(const int reportStepIdx,
                                    terminal_output_, comm_);
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 runWellPIScaling(const int reportStepIdx,
                  DeferredLogger& local_deferredLogger)
 {
@@ -1886,8 +1890,8 @@ runWellPIScaling(const int reportStepIdx,
     this->last_run_wellpi_ = reportStepIdx;
 }
 
-template<typename FluidSystem, typename Indices>
-bool BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+bool BlackoilWellModelGeneric<Scalar, IndexTraits>::
 shouldBalanceNetwork(const int reportStepIdx, const int iterationIdx) const
 {
     // if network is not active, we do not need to balance the network
@@ -1911,8 +1915,8 @@ shouldBalanceNetwork(const int reportStepIdx, const int iterationIdx) const
     }
 }
 
-template<typename FluidSystem, typename Indices>
-std::vector<int> BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+std::vector<int> BlackoilWellModelGeneric<Scalar, IndexTraits>::
 getCellsForConnections(const Well& well) const
 {
     std::vector<int> wellCells;
@@ -1934,8 +1938,8 @@ getCellsForConnections(const Well& well) const
     return wellCells;
 }
 
-template<typename FluidSystem, typename Indices>
-std::vector<std::string> BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+std::vector<std::string> BlackoilWellModelGeneric<Scalar, IndexTraits>::
 getWellsForTesting(const int timeStepIdx,
                    const double simulationTime)
 {
@@ -1946,8 +1950,8 @@ getWellsForTesting(const int timeStepIdx,
       return {};
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 assignMassGasRate(data::Wells& wsrpt,
                   const Scalar gasDensity) const
 {
@@ -1961,8 +1965,8 @@ assignMassGasRate(data::Wells& wsrpt,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 assignWellTracerRates(data::Wells& wsrpt,
                       const WellTracerRates& wellTracerRates,
                       const unsigned reportStep) const
@@ -1983,8 +1987,8 @@ assignWellTracerRates(data::Wells& wsrpt,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 assignMswTracerRates(data::Wells& wsrpt,
                      const MswTracerRates& mswTracerRates,
                      const unsigned reportStep) const
@@ -2012,8 +2016,8 @@ assignMswTracerRates(data::Wells& wsrpt,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-std::vector<std::vector<int>> BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+std::vector<std::vector<int>> BlackoilWellModelGeneric<Scalar, IndexTraits>::
 getMaxWellConnections() const
 {
     auto wellConnections = std::vector<std::vector<int>>{};
@@ -2057,8 +2061,8 @@ getMaxWellConnections() const
     return wellConnections;
 }
 
-template<typename FluidSystem, typename Indices>
-int BlackoilWellModelGeneric<FluidSystem, Indices>::numLocalWellsEnd() const
+template<typename Scalar, typename IndexTraits>
+int BlackoilWellModelGeneric<Scalar, IndexTraits>::numLocalWellsEnd() const
 {
     const auto& wnames = schedule().back().well_order().names();
 
@@ -2067,14 +2071,14 @@ int BlackoilWellModelGeneric<FluidSystem, Indices>::numLocalWellsEnd() const
                          { return ! this->not_on_process_(wname); });
 }
 
-template<typename FluidSystem, typename Indices>
-int BlackoilWellModelGeneric<FluidSystem, Indices>::numLocalNonshutWells() const
+template<typename Scalar, typename IndexTraits>
+int BlackoilWellModelGeneric<Scalar, IndexTraits>::numLocalNonshutWells() const
 {
     return well_container_generic_.size();
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::initInjMult()
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::initInjMult()
 {
     for (auto& well : this->well_container_generic_) {
         if (well->isInjector() && well->wellEcl().getInjMultMode() != Well::InjMultMode::NONE) {
@@ -2090,8 +2094,8 @@ void BlackoilWellModelGeneric<FluidSystem, Indices>::initInjMult()
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 updateFiltrationModelsPostStep(const double dt,
                                const std::size_t water_index,
                                DeferredLogger& deferred_logger)
@@ -2112,8 +2116,8 @@ updateFiltrationModelsPostStep(const double dt,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 updateInjMult(DeferredLogger& deferred_logger)
 {
     for (const auto& well : this->well_container_generic_) {
@@ -2123,8 +2127,8 @@ updateInjMult(DeferredLogger& deferred_logger)
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 updateFiltrationModelsPreStep(DeferredLogger& deferred_logger)
 {
     for (auto& well : this->well_container_generic_) {
@@ -2138,8 +2142,8 @@ updateFiltrationModelsPreStep(DeferredLogger& deferred_logger)
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 logPrimaryVars() const
 {
     std::ostringstream os;
@@ -2154,8 +2158,8 @@ logPrimaryVars() const
     OpmLog::debug(os.str());
 }
 
-template<typename FluidSystem, typename Indices>
-void BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void BlackoilWellModelGeneric<Scalar, IndexTraits>::
 reportGroupSwitching(DeferredLogger& local_deferredLogger) const
 {
     for (const auto& [name, ctrls] : this->switched_prod_groups_) {
@@ -2198,8 +2202,8 @@ reportGroupSwitching(DeferredLogger& local_deferredLogger) const
     }
 }
 
-template<typename FluidSystem, typename Indices>
-bool BlackoilWellModelGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+bool BlackoilWellModelGeneric<Scalar, IndexTraits>::
 operator==(const BlackoilWellModelGeneric& rhs) const
 {
     return this->initial_step_ == rhs.initial_step_
@@ -2219,12 +2223,10 @@ operator==(const BlackoilWellModelGeneric& rhs) const
         && this->gen_gaslift_ == rhs.gen_gaslift_;
 }
 
-#include <opm/simulators/utils/InstantiationIndicesMacros.hpp>
-
-INSTANTIATE_TYPE_INDICES(BlackoilWellModelGeneric, double)
+template class BlackoilWellModelGeneric<double, BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
-INSTANTIATE_TYPE_INDICES(BlackoilWellModelGeneric, float)
+template class BlackoilWellModelGeneric<float, BlackOilDefaultFluidSystemIndices>;
 #endif
 
 }

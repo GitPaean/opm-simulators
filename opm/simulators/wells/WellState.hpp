@@ -101,6 +101,12 @@ public:
         return this->size();
     }
 
+    // TODO: temporary during development
+    const PhaseUsageInfo<IndexTraits>& phaseUsageInfo() const
+    {
+        return this->phaseUsageInfo_;
+    }
+
     const ParallelWellInfo<Scalar>& parallelWellInfo(std::size_t well_index) const;
 
     /// Allocate and initialize if wells is non-null.  Also tries
@@ -417,4 +423,5 @@ private:
 
 } // namespace Opm
 
+// TODO: we are missing pu, while it was not there in the first place
 #endif // OPM_WELLSTATEFULLYIMPLICITBLACKOIL_HEADER_INCLUDED

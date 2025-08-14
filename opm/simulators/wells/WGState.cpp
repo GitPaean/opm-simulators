@@ -31,46 +31,44 @@
 
 namespace Opm {
 
-template<typename FluidSystem, typename Indices>
-WGState<FluidSystem, Indices>::WGState() :
-    well_state{},
-    group_state(Indices::numPhases),
+template<typename Scalar, typename IndexTraits>
+WGState<Scalar, IndexTraits>::WGState(const PhaseUsageInfo<IndexTraits>& pu):
+    well_state{pu},
+    group_state(pu.numActivePhases()),
     well_test_state{}
 {}
 
-template<typename FluidSystem, typename Indices>
-WGState<FluidSystem, Indices> WGState<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+WGState<Scalar, IndexTraits> WGState<Scalar, IndexTraits>::
 serializationTestObject(const ParallelWellInfo<Scalar>& pinfo)
 {
-    WGState result{};
-    result.well_state = WellState<FluidSystem, Indices>::serializationTestObject(pinfo);
+    WGState result{PhaseUsageInfo<IndexTraits>{}};
+    result.well_state = WellState<Scalar, IndexTraits>::serializationTestObject(pinfo);
     result.group_state = GroupState<Scalar>::serializationTestObject();
     result.well_test_state = WellTestState::serializationTestObject();
 
     return result;
 }
 
-template<typename FluidSystem, typename Indices>
-void WGState<FluidSystem, Indices>::wtest_state(std::unique_ptr<WellTestState> wtest_state)
+template<typename Scalar, typename IndexTraits>
+void WGState<Scalar, IndexTraits>::wtest_state(std::unique_ptr<WellTestState> wtest_state)
 {
     wtest_state->filter_wells( this->well_state.wells() );
     this->well_test_state = std::move(*wtest_state);
 }
 
-template<typename FluidSystem, typename Indices>
-bool WGState<FluidSystem, Indices>::operator==(const WGState& rhs) const
+template<typename Scalar, typename IndexTraits>
+bool WGState<Scalar, IndexTraits>::operator==(const WGState& rhs) const
 {
     return this->well_state == rhs.well_state &&
            this->group_state == rhs.group_state &&
            this->well_test_state == rhs.well_test_state;
 }
 
-#include <opm/simulators/utils/InstantiationIndicesMacros.hpp>
-
-INSTANTIATE_TYPE_INDICES(WGState, double)
+template struct Opm::WGState<double, BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
-INSTANTIATE_TYPE_INDICES(WGState, float)
+template struct Opm::WGState<float, BlackOilDefaultFluidSystemIndices>;
 #endif
 
 }
