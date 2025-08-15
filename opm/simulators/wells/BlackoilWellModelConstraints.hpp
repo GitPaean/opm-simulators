@@ -29,18 +29,17 @@
 
 namespace Opm {
 
-template<typename FluidSystem, typename Indices> class BlackoilWellModelGeneric;
+template<typename Scalar, typename IndexTraits> class BlackoilWellModelGeneric;
 class DeferredLogger;
 template<class Scalar> class GroupState;
 class SummaryState;
-template<typename FluidSystem, typename Indices> class WellState;
+template<typename Scalar, typename IndexTraits> class WellState;
 
 /// Class for handling constraints for the blackoil well model.
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 class BlackoilWellModelConstraints
 {
 public:
-    using Scalar = typename FluidSystem::Scalar;
     //! \brief Constructor initializes reference to the well model.
     explicit BlackoilWellModelConstraints(const BlackoilWellModelGeneric<FluidSystem, Indices>& wellModel)
         : wellModel_(wellModel)

@@ -21,6 +21,8 @@
   copyright holders.
 */
 
+#include "opm/simulators/linalg/overlaptypes.hh"
+
 #include <config.h>
 
 #include <opm/simulators/flow/ActionHandler.hpp>
@@ -172,13 +174,13 @@ namespace {
 
 namespace Opm {
 
-template<typename FluidSystem, typename Indices>
-ActionHandler<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+ActionHandler<Scalar, IndexTraits>::
 ActionHandler(EclipseState& ecl_state,
               Schedule& schedule,
               Action::State& actionState,
               SummaryState& summaryState,
-              BlackoilWellModelGeneric<FluidSystem, Indices>& wellModel,
+              BlackoilWellModelGeneric<Scalar, IndexTraits>& wellModel,
               Parallel::Communication comm)
     : ecl_state_(ecl_state)
     , schedule_(schedule)
@@ -188,8 +190,8 @@ ActionHandler(EclipseState& ecl_state,
     , comm_(comm)
 {}
 
-template<typename FluidSystem, typename Indices>
-void ActionHandler<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void ActionHandler<Scalar, IndexTraits>::
 applyActions(const int reportStep,
              const double sim_time,
              const TransFunc& transUp)
@@ -271,8 +273,8 @@ applyActions(const int reportStep,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void ActionHandler<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void ActionHandler<Scalar, IndexTraits>::
 applySimulatorUpdate(const int report_step,
                      const SimulatorUpdate& sim_update,
                      const TransFunc& updateTrans,
@@ -296,8 +298,8 @@ applySimulatorUpdate(const int report_step,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void ActionHandler<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void ActionHandler<Scalar, IndexTraits>::
 evalUDQAssignments(const unsigned episodeIdx,
                    UDQState& udq_state)
 {
@@ -309,12 +311,12 @@ evalUDQAssignments(const unsigned episodeIdx,
                      udq_state);
 }
 
-#include <opm/simulators/utils/InstantiationIndicesMacros.hpp>
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 
-INSTANTIATE_TYPE_INDICES(ActionHandler, double)
+template class ActionHandler<double, BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
-INSTANTIATE_TYPE_INDICES(ActionHandler, float)
+template class ActionHandler<float, BlackOilDefaultFluidSystemIndices>;
 #endif
 
 } // namespace Opm
