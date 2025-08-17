@@ -21,6 +21,8 @@
 #ifndef OPM_WELLGROUPHELPERS_HEADER_INCLUDED
 #define OPM_WELLGROUPHELPERS_HEADER_INCLUDED
 
+#include "opm/material/fluidsystems/PhaseUsageInfo.hpp"
+
 #include <opm/input/eclipse/Schedule/Group/GuideRate.hpp>
 #include <opm/input/eclipse/Schedule/Group/GSatProd.hpp>
 #include <opm/input/eclipse/EclipseState/Grid/FieldPropsManager.hpp>
@@ -39,18 +41,17 @@ template<class Scalar> class GroupState;
 namespace Network { class ExtNetwork; }
 class Schedule;
 template<class Scalar> class VFPProdProperties;
-template<typename FluidSystem, typename Indices> class WellState;
+template<typename Scalar, typename IndexTraits> class WellState;
 class FieldPropsManager;
 
 namespace Network { class ExtNetwork; }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 class WellGroupHelpers
 {
 public:
 
-    using Scalar = typename FluidSystem::Scalar;
-    using WellStateType = WellState<FluidSystem, Indices>;
+    using WellStateType = WellState<Scalar, IndexTraits>;
 
     static Scalar sumWellPhaseRates(bool res_rates,
                                     const Opm::Group& group,
@@ -66,7 +67,7 @@ public:
                                       const GSatProd::GSatProdGroup::Rate rateComp);
 
     static std::optional<GSatProd::GSatProdGroup::Rate>
-    selectRateComponent(const int phasePos);
+    selectRateComponent(const PhaseUsageInfo<IndexTraits>& pu, const int phasePos);
 
     static void setCmodeGroup(const Group& group,
                               const Schedule& schedule,
@@ -196,6 +197,7 @@ public:
 
     static GuideRate::RateVector
     getProductionGroupRateVector(const GroupState<Scalar>& group_state,
+                                 const PhaseUsageInfo<IndexTraits>& pu,
                                  const std::string& group_name);
 
     static Scalar getGuideRate(const std::string& name,

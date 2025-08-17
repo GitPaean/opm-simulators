@@ -136,6 +136,7 @@ public:
     const Well& getWellEcl(const std::string& well_name) const;
     std::vector<Well> getLocalWells(const int timeStepIdx) const;
     const Schedule& schedule() const { return schedule_; }
+    const PhaseUsageInfo<IndexTraits>& phaseUsage() const { return phase_usage_info_; }
     const GroupState<Scalar>& groupState() const { return this->active_wgstate_.group_state; }
     std::vector<const WellInterfaceGeneric<Scalar, IndexTraits>*> genericWells() const
     { return {well_container_generic_.begin(), well_container_generic_.end()}; }

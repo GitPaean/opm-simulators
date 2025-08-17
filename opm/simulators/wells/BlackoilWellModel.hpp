@@ -116,7 +116,7 @@ template<class Scalar> class WellContributions;
 
             using WellConnectionModule = WellConnectionAuxiliaryModule<TypeTag, BlackoilWellModel<TypeTag>>;
 
-            using IndexTraits = typename FluidSystem::IndexTraits;
+            using IndexTraits = typename FluidSystem::IndexTraitsType;
 
             constexpr static std::size_t pressureVarIndex = GetPropType<TypeTag, Properties::Indices>::pressureSwitchIdx;
 

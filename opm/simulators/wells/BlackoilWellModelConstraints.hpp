@@ -23,6 +23,8 @@
 #ifndef OPM_BLACKOILWELLMODEL_CONSTRAINTS_HEADER_INCLUDED
 #define OPM_BLACKOILWELLMODEL_CONSTRAINTS_HEADER_INCLUDED
 
+#include "opm/simulators/linalg/overlaptypes.hh"
+
 #include <opm/input/eclipse/Schedule/Group/Group.hpp>
 #include <optional>
 #include <utility>
@@ -40,8 +42,13 @@ template<typename Scalar, typename IndexTraits>
 class BlackoilWellModelConstraints
 {
 public:
+
+    constexpr static int waterPhaseIdx = IndexTraits::waterPhaseIdx;
+    constexpr static int oilPhaseIdx = IndexTraits::oilPhaseIdx;
+    constexpr static int gasPhaseIdx = IndexTraits::gasPhaseIdx;
+
     //! \brief Constructor initializes reference to the well model.
-    explicit BlackoilWellModelConstraints(const BlackoilWellModelGeneric<FluidSystem, Indices>& wellModel)
+    explicit BlackoilWellModelConstraints(const BlackoilWellModelGeneric<Scalar, IndexTraits>& wellModel)
         : wellModel_(wellModel)
     {}
 
@@ -62,7 +69,7 @@ public:
                                    const int reportStepIdx,
                                    const Group::GroupLimitAction group_limit_action,
                                    const Group::ProductionCMode& newControl,
-                                   const WellState<FluidSystem, Indices>& well_state,
+                                   const WellState<Scalar, IndexTraits>& well_state,
                                    std::optional<std::string>& worst_offending_well,
                                    GroupState<Scalar>& group_state,
                                    DeferredLogger& deferred_logger) const;
@@ -75,7 +82,7 @@ public:
                                       std::map<std::string, std::vector<Group::ProductionCMode>>& switched_prod,
                                       std::map<std::string, std::pair<std::string, std::string>>& closed_offending_wells,
                                       GroupState<Scalar>& group_state,
-                                      WellState<FluidSystem, Indices>& well_state,
+                                      WellState<Scalar, IndexTraits>& well_state,
                                       DeferredLogger& deferred_logger) const;
 
 private:
@@ -91,7 +98,7 @@ private:
                                     const int reportStepIdx,
                                     DeferredLogger& deferred_logger) const;
 
-    const BlackoilWellModelGeneric<FluidSystem, Indices>& wellModel_; //!< Reference to well model
+    const BlackoilWellModelGeneric<Scalar, IndexTraits>& wellModel_; //!< Reference to well model
 };
 
 } // namespace Opm
