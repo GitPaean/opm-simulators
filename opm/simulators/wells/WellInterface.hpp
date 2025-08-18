@@ -81,13 +81,14 @@ public:
     using Simulator = GetPropType<TypeTag, Properties::Simulator>;
     using Scalar = GetPropType<TypeTag, Properties::Scalar>;
     using FluidSystem = GetPropType<TypeTag, Properties::FluidSystem>;
+    using IndexTraits = typename FluidSystem::IndexTraitsType;
     using Indices = GetPropType<TypeTag, Properties::Indices>;
     using IntensiveQuantities = GetPropType<TypeTag, Properties::IntensiveQuantities>;
     using MaterialLaw = GetPropType<TypeTag, Properties::MaterialLaw>;
     using SparseMatrixAdapter = GetPropType<TypeTag, Properties::SparseMatrixAdapter>;
     using RateVector = GetPropType<TypeTag, Properties::RateVector>;
     using GasLiftSingleWell = ::Opm::GasLiftSingleWell<TypeTag>;
-    using GLiftEclWells = typename GasLiftGroupInfo<FluidSystem, Indices>::GLiftEclWells;
+    using GLiftEclWells = typename GasLiftGroupInfo<Scalar, IndexTraits>::GLiftEclWells;
 
     using VectorBlockType = Dune::FieldVector<Scalar, Indices::numEq>;
     using MatrixBlockType = Dune::FieldMatrix<Scalar, Indices::numEq, Indices::numEq>;
@@ -95,7 +96,8 @@ public:
     using BVector = Dune::BlockVector<VectorBlockType>;
     using PressureMatrix = Dune::BCRSMatrix<Opm::MatrixBlock<Scalar, 1, 1>>;
 
-    using WellStateType = WellState<FluidSystem, Indices>;
+    using WellStateType = WellState<Scalar, IndexTraits>;
+    using SingleWellStateType = SingleWellState<Scalar, IndexTraits>;
 
     using RateConverterType =
     typename WellInterfaceFluidSystem<FluidSystem>::RateConverterType;
@@ -343,13 +345,13 @@ public:
     std::vector<Scalar> wellIndex(const int perf,
                                   const IntensiveQuantities& intQuants,
                                   const Scalar trans_mult,
-                                  const SingleWellState<FluidSystem, Indices>& ws) const;
+                                  const SingleWellStateType& ws) const;
 
     void updateConnectionDFactor(const Simulator& simulator,
-                                 SingleWellState<FluidSystem, Indices>& ws) const;
+                                 SingleWellStateType& ws) const;
 
     void updateConnectionTransmissibilityFactor(const Simulator& simulator,
-                                                SingleWellState<FluidSystem, Indices>& ws) const;
+                                                SingleWellStateType& ws) const;
 
     virtual bool iterateWellEqWithSwitching(const Simulator& simulator,
                                             const double dt,
@@ -483,7 +485,7 @@ protected:
 
     Scalar computeConnectionDFactor(const int perf,
                                     const IntensiveQuantities& intQuants,
-                                    const SingleWellState<FluidSystem, Indices>& ws) const;
+                                    const SingleWellStateType& ws) const;
 };
 
 } // namespace Opm

@@ -75,8 +75,8 @@ private:
 /// Class for handling the blackoil well model in a NLDD solver.
 template<typename TypeTag>
 class BlackoilWellModelNldd :
-    public BlackoilWellModelNlddGeneric<GetPropType<TypeTag, Properties::FluidSystem>,
-                                        GetPropType<TypeTag, Properties::Indices> >
+    public BlackoilWellModelNlddGeneric<GetPropType<TypeTag, Properties::Scalar>,
+                                        typename GetPropType<TypeTag, Properties::FluidSystem>::IndexTraitsType>
 {
 public:
     // ---------      Types      ---------

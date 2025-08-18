@@ -155,7 +155,7 @@ namespace Opm
     void
     MultisegmentWell<TypeTag>::
     updatePrimaryVariables(const Simulator& simulator,
-                           const WellState<FluidSystem, Indices>& well_state,
+                           const WellStateType& well_state,
                            DeferredLogger& deferred_logger)
     {
         const bool stop_or_zero_rate_target = this->stoppedOrZeroRateTarget(simulator, well_state, deferred_logger);
@@ -172,7 +172,7 @@ namespace Opm
     MultisegmentWell<TypeTag>::
     updateWellStateWithTarget(const Simulator& simulator,
                               const GroupState<Scalar>& group_state,
-                              WellState<FluidSystem, Indices>& well_state,
+                              WellStateType& well_state,
                               DeferredLogger&  deferred_logger) const
     {
         Base::updateWellStateWithTarget(simulator, group_state, well_state, deferred_logger);
@@ -192,7 +192,7 @@ namespace Opm
     ConvergenceReport
     MultisegmentWell<TypeTag>::
     getWellConvergence(const Simulator& /* simulator */,
-                       const WellState<FluidSystem, Indices>& well_state,
+                       const WellStateType& well_state,
                        const std::vector<Scalar>& B_avg,
                        DeferredLogger& deferred_logger,
                        const bool relax_tolerance) const
@@ -254,7 +254,7 @@ namespace Opm
     MultisegmentWell<TypeTag>::
     recoverWellSolutionAndUpdateWellState(const Simulator& simulator,
                                           const BVector& x,
-                                          WellState<FluidSystem, Indices>& well_state,
+                                          WellStateType& well_state,
                                           DeferredLogger& deferred_logger)
     {
         if (!this->isOperableAndSolvable() && !this->wellIsStopped()) {
@@ -285,7 +285,7 @@ namespace Opm
     void
     MultisegmentWell<TypeTag>::
     computeWellPotentials(const Simulator& simulator,
-                          const WellState<FluidSystem, Indices>& well_state,
+                          const WellStateType& well_state,
                           std::vector<Scalar>& well_potentials,
                           DeferredLogger& deferred_logger)
     {
@@ -355,7 +355,7 @@ namespace Opm
         well_flux.resize(np, 0.0);
         const bool allow_cf = this->getAllowCrossFlow();
         const int nseg = this->numberOfSegments();
-        const WellState<FluidSystem, Indices>& well_state = simulator.problem().wellModel().wellState();
+        const WellStateType& well_state = simulator.problem().wellModel().wellState();
         const auto& ws = well_state.well(this->indexOfWell());
         auto segments_copy = ws.segments;
         segments_copy.scale_pressure(bhp);
@@ -406,7 +406,7 @@ namespace Opm
         well_copy.debug_cost_counter_ = 0;
 
         // store a copy of the well state, we don't want to update the real well state
-        WellState<FluidSystem, Indices> well_state_copy = simulator.problem().wellModel().wellState();
+        WellStateType well_state_copy = simulator.problem().wellModel().wellState();
         const auto& group_state = simulator.problem().wellModel().groupState();
         auto& ws = well_state_copy.well(this->index_of_well_);
 
@@ -467,7 +467,7 @@ namespace Opm
     template<typename TypeTag>
     std::vector<typename MultisegmentWell<TypeTag>::Scalar>
     MultisegmentWell<TypeTag>::
-    computeWellPotentialWithTHP(const WellState<FluidSystem, Indices>& well_state,
+    computeWellPotentialWithTHP(const WellStateType& well_state,
                                 const Simulator& simulator,
                                 DeferredLogger& deferred_logger) const
     {
@@ -519,7 +519,7 @@ namespace Opm
     bool
     MultisegmentWell<TypeTag>::
     computeWellPotentialsImplicit(const Simulator& simulator,
-                                  const WellState<FluidSystem, Indices>& well_state,
+                                  const WellStateType& well_state,
                                   std::vector<Scalar>& well_potentials,
                                   DeferredLogger& deferred_logger) const
     {
@@ -530,7 +530,7 @@ namespace Opm
         well_copy.debug_cost_counter_ = 0;
 
         // store a copy of the well state, we don't want to update the real well state
-        WellState<FluidSystem, Indices> well_state_copy = well_state;
+        WellStateType well_state_copy = well_state;
         const auto& group_state = simulator.problem().wellModel().groupState();
         auto& ws = well_state_copy.well(this->index_of_well_);
         
@@ -589,7 +589,7 @@ namespace Opm
     void
     MultisegmentWell<TypeTag>::
     solveEqAndUpdateWellState(const Simulator& simulator,
-                              WellState<FluidSystem, Indices>& well_state,
+                              WellStateType& well_state,
                               DeferredLogger& deferred_logger)
     {
         if (!this->isOperableAndSolvable() && !this->wellIsStopped()) return;
@@ -694,7 +694,7 @@ namespace Opm
     MultisegmentWell<TypeTag>::
     updateWellState(const Simulator& simulator,
                     const BVectorWell& dwells,
-                    WellState<FluidSystem, Indices>& well_state,
+                    WellStateType& well_state,
                     DeferredLogger& deferred_logger,
                     const Scalar relaxation_factor)
     {
@@ -732,7 +732,7 @@ namespace Opm
     void
     MultisegmentWell<TypeTag>::
     calculateExplicitQuantities(const Simulator& simulator,
-                                const WellState<FluidSystem, Indices>& well_state,
+                                const WellStateType& well_state,
                                 DeferredLogger& deferred_logger)
     {
         updatePrimaryVariables(simulator, well_state, deferred_logger);
@@ -749,7 +749,7 @@ namespace Opm
     MultisegmentWell<TypeTag>::
     updateProductivityIndex(const Simulator& simulator,
                             const WellProdIndexCalculator<Scalar>& wellPICalc,
-                            WellState<FluidSystem, Indices>& well_state,
+                            WellStateType& well_state,
                             DeferredLogger& deferred_logger) const
     {
         auto fluidState = [&simulator, this](const int local_perf_index)
@@ -868,7 +868,7 @@ namespace Opm
                              const BVector& weights,
                              const int pressureVarIndex,
                              const bool use_well_weights,
-                             const WellState<FluidSystem, Indices>& well_state) const
+                             const WellStateType& well_state) const
     {
         if (this->number_of_local_perforations_ == 0) {
             // If there are no open perforations on this process, there are no contributions the cpr pressure matrix.
@@ -1186,7 +1186,7 @@ namespace Opm
     template<typename TypeTag>
     void
     MultisegmentWell<TypeTag>::
-    checkOperabilityUnderBHPLimit(const WellState<FluidSystem, Indices>& /*well_state*/,
+    checkOperabilityUnderBHPLimit(const WellStateType& /*well_state*/,
                                   const Simulator& simulator,
                                   DeferredLogger& deferred_logger)
     {
@@ -1352,7 +1352,7 @@ namespace Opm
     void
     MultisegmentWell<TypeTag>::
     updateIPRImplicit(const Simulator& simulator,
-                      WellState<FluidSystem, Indices>& well_state,
+                      WellStateType& well_state,
                       DeferredLogger& deferred_logger)
     {
         // Compute IPR based on *converged* well-equation:
@@ -1421,7 +1421,7 @@ namespace Opm
     void
     MultisegmentWell<TypeTag>::
     checkOperabilityUnderTHPLimit(const Simulator& simulator,
-                                  const WellState<FluidSystem, Indices>& well_state,
+                                  const WellStateType& well_state,
                                   DeferredLogger& deferred_logger)
     {
         const auto& summaryState = simulator.vanguard().summaryState();
@@ -1476,7 +1476,7 @@ namespace Opm
                              const double dt,
                              const Well::InjectionControls& inj_controls,
                              const Well::ProductionControls& prod_controls,
-                             WellState<FluidSystem, Indices>& well_state,
+                             WellStateType& well_state,
                              const GroupState<Scalar>& group_state,
                              DeferredLogger& deferred_logger)
     {
@@ -1600,7 +1600,7 @@ namespace Opm
                              const double dt,
                              const Well::InjectionControls& inj_controls,
                              const Well::ProductionControls& prod_controls,
-                             WellState<FluidSystem, Indices>& well_state,
+                             WellStateType& well_state,
                              const GroupState<Scalar>& group_state,
                              DeferredLogger& deferred_logger, 
                              const bool fixed_control /*false*/, 
@@ -1764,7 +1764,7 @@ namespace Opm
                                    const double dt,
                                    const Well::InjectionControls& inj_controls,
                                    const Well::ProductionControls& prod_controls,
-                                   WellState<FluidSystem, Indices>& well_state,
+                                   WellStateType& well_state,
                                    const GroupState<Scalar>& group_state,
                                    DeferredLogger& deferred_logger)
     {
@@ -2003,7 +2003,7 @@ namespace Opm
     template<typename TypeTag>
     void
     MultisegmentWell<TypeTag>::
-    updateWaterThroughput(const double /*dt*/, WellState<FluidSystem, Indices>& /*well_state*/) const
+    updateWaterThroughput(const double /*dt*/, WellStateType& /*well_state*/) const
     {
     }
 
@@ -2034,7 +2034,7 @@ namespace Opm
     template<typename TypeTag>
     std::optional<typename MultisegmentWell<TypeTag>::Scalar>
     MultisegmentWell<TypeTag>::
-    computeBhpAtThpLimitProd(const WellState<FluidSystem, Indices>& well_state,
+    computeBhpAtThpLimitProd(const WellStateType& well_state,
                              const Simulator& simulator,
                              const SummaryState& summary_state,
                              DeferredLogger& deferred_logger) const

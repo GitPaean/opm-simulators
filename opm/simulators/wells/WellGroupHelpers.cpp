@@ -440,7 +440,7 @@ updateGroupTargetReduction(const Group& group,
     // way as in sumWellPhaseRates (see comment there)
     if (wellState.isRank0()) {
         for (int phase = 0; phase < np; phase++) {
-            const auto rateComp = selectRateComponent(wellState.phaseUsage(), phase);
+            const auto rateComp = selectRateComponent(wellState.phaseUsageInfo(), phase);
             if (rateComp.has_value()) {
                 groupTargetReduction[phase] += satelliteProduction(schedule[reportStepIdx], group.groups(), *rateComp);
             }

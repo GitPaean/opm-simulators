@@ -119,7 +119,7 @@ namespace Opm
         using EvalWell = typename StdWellEval::EvalWell;
         using BVectorWell = typename StdWellEval::BVectorWell;
 
-        using IndexTraits = typename FluidSystem::IndexTraits;
+        using IndexTraits = typename FluidSystem::IndexTraitsType;
         using WellStateType = WellState<Scalar, IndexTraits>;
 
         StandardWell(const Well& well,

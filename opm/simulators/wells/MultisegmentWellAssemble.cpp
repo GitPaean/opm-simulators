@@ -126,7 +126,6 @@ assembleControlEq(const WellState<Scalar, IndexTraits>& well_state,
         // Find scaling factor to get injection rate,
         const InjectorType injectorType = inj_controls.injector_type;
         Scalar scaling;
-        const auto& pu = well_.phaseUsage();
         switch (injectorType) {
         case InjectorType::WATER:
         {

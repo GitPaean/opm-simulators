@@ -75,6 +75,7 @@ namespace Opm {
                                            gaslift_,
                                            simulator.vanguard().summaryState(),
                                            simulator.vanguard().eclState(),
+                                           FluidSystem::phaseUsage(),
                                            simulator.gridView().comm())
         , simulator_(simulator)
         , guide_rate_handler_{
@@ -197,7 +198,7 @@ namespace Opm {
         this->report_step_start_events_ = this->schedule()[timeStepIdx].wellgroup_events();
 
         this->rateConverter_ = std::make_unique<RateConverterType>
-            (std::vector<int>(this->local_num_cells_, 0));
+            (this->phase_usage_info_, std::vector<int>(this->local_num_cells_, 0));
 
         {
             // WELPI scaling runs at start of report step.
