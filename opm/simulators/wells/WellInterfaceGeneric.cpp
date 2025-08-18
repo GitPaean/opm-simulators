@@ -137,10 +137,11 @@ template<typename Scalar, typename IndexTraits>
 void WellInterfaceGeneric<Scalar, IndexTraits>::
 adaptRatesForVFP(std::vector<Scalar>& rates) const
 {
-    if (Indices::numPhases == 2) {
-        if ( FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)
-             && FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx)
-             && !FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx))
+    const auto& pu = this->phaseUsage();
+    if (pu.numActivePhases() == 2) {
+        if ( pu.phaseIsActive(IndexTraits::waterPhaseIdx)
+             && pu.phaseIsActive(IndexTraits::oilPhaseIdx)
+             && !pu.phaseIsActive(IndexTraits::gasPhaseIdx))
         {
             assert(rates.size() == 2);
             rates.push_back(0.0);  // set gas rate to zero
@@ -153,7 +154,7 @@ adaptRatesForVFP(std::vector<Scalar>& rates) const
 }
 
 template<typename Scalar, typename IndexTraits>
-const std::vector<PerforationData<typename FluidSystem::Scalar>>&
+const std::vector<PerforationData<Scalar>>&
 WellInterfaceGeneric<Scalar, IndexTraits>::perforationData() const
 {
     return *perf_data_;
@@ -203,14 +204,23 @@ Well& WellInterfaceGeneric<Scalar, IndexTraits>::wellEcl()
 }
 
 template<typename Scalar, typename IndexTraits>
-typename FluidSystem::Scalar
+const PhaseUsageInfo<IndexTraits>&
+WellInterfaceGeneric<Scalar, IndexTraits>::phaseUsage() const
+{
+    assert(phase_usage_ != nullptr);
+
+    return *phase_usage_;
+}
+
+template<typename Scalar, typename IndexTraits>
+Scalar
 WellInterfaceGeneric<Scalar, IndexTraits>::wsolvent() const
 {
     return wsolvent_;
 }
 
 template<typename Scalar, typename IndexTraits>
-typename FluidSystem::Scalar
+Scalar
 WellInterfaceGeneric<Scalar, IndexTraits>::rsRvInj() const
 {
     return well_ecl_.getInjectionProperties().rsRvInj;
@@ -246,7 +256,7 @@ updateInjMult(std::vector<Scalar>& inj_multipliers,
 }
 
 template<typename Scalar, typename IndexTraits>
-typename FluidSystem::Scalar
+Scalar
 WellInterfaceGeneric<Scalar, IndexTraits>::
 getInjMult(const int local_perf_index,
            const Scalar bhp,
@@ -347,7 +357,7 @@ updateWellTestState(const SingleWellState<Scalar, IndexTraits>& ws,
 }
 
 template<typename Scalar, typename IndexTraits>
-typename FluidSystem::Scalar WellInterfaceGeneric<Scalar, IndexTraits>::
+Scalar WellInterfaceGeneric<Scalar, IndexTraits>::
 getTHPConstraint(const SummaryState& summaryState) const
 {
     if (dynamic_thp_limit_) {
@@ -513,7 +523,7 @@ setDynamicThpLimit(const Scalar thp_limit)
 }
 
 template<typename Scalar, typename IndexTraits>
-std::optional<typename FluidSystem::Scalar>
+std::optional<Scalar>
 WellInterfaceGeneric<Scalar, IndexTraits>::getDynamicThpLimit() const
 {
     return dynamic_thp_limit_;
@@ -597,7 +607,7 @@ bool WellInterfaceGeneric<Scalar, IndexTraits>::thpLimitViolatedButNotSwitched()
 }
 
 template<typename Scalar, typename IndexTraits>
-typename FluidSystem::Scalar
+Scalar
 WellInterfaceGeneric<Scalar, IndexTraits>::
 getALQ(const WellState<Scalar, IndexTraits>& well_state) const
 {
@@ -709,7 +719,7 @@ void WellInterfaceGeneric<Scalar, IndexTraits>::addPerforations(const std::vecto
 }
 
 template<typename Scalar, typename IndexTraits>
-typename FluidSystem::Scalar
+Scalar
 WellInterfaceGeneric<Scalar, IndexTraits>::wmicrobes_() const
 {
     auto injectorType = this->well_ecl_.injectorType();
@@ -725,7 +735,7 @@ WellInterfaceGeneric<Scalar, IndexTraits>::wmicrobes_() const
 }
 
 template<typename Scalar, typename IndexTraits>
-typename FluidSystem::Scalar
+Scalar
 WellInterfaceGeneric<Scalar, IndexTraits>::wfoam_() const
 {
     auto injectorType = this->well_ecl_.injectorType();
@@ -740,7 +750,7 @@ WellInterfaceGeneric<Scalar, IndexTraits>::wfoam_() const
 }
 
 template<typename Scalar, typename IndexTraits>
-typename FluidSystem::Scalar
+Scalar
 WellInterfaceGeneric<Scalar, IndexTraits>::wsalt_() const
 {
     auto injectorType = this->well_ecl_.injectorType();
@@ -755,7 +765,7 @@ WellInterfaceGeneric<Scalar, IndexTraits>::wsalt_() const
 }
 
 template<typename Scalar, typename IndexTraits>
-typename FluidSystem::Scalar
+Scalar
 WellInterfaceGeneric<Scalar, IndexTraits>::woxygen_() const
 {
     auto injectorType = this->well_ecl_.injectorType();
@@ -771,7 +781,7 @@ WellInterfaceGeneric<Scalar, IndexTraits>::woxygen_() const
 }
 
 template<typename Scalar, typename IndexTraits>
-typename FluidSystem::Scalar
+Scalar
 WellInterfaceGeneric<Scalar, IndexTraits>::wpolymer_() const
 {
     auto injectorType = this->well_ecl_.injectorType();
@@ -787,7 +797,7 @@ WellInterfaceGeneric<Scalar, IndexTraits>::wpolymer_() const
 }
 
 template<typename Scalar, typename IndexTraits>
-typename FluidSystem::Scalar
+Scalar
 WellInterfaceGeneric<Scalar, IndexTraits>::wurea_() const
 {
     auto injectorType = this->well_ecl_.injectorType();

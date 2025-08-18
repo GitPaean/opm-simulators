@@ -37,23 +37,24 @@ class Group;
 template<class Scalar> class GroupState;
 class Schedule;
 class SummaryState;
-template<typename FluidSystem, typename Indices> class WellInterfaceFluidSystem;
-template<typename FluidSystem, typename Indices> class WellState;
+template<typename FluidSystem> class WellInterfaceFluidSystem;
+template<typename Scalar, typename IndexTraits> class WellState;
 struct WellInjectionControls;
 struct WellProductionControls;
 
-template<typename FluidSystem, typename Indices>
+template<typename FluidSystem>
 class WellAssemble {
     static constexpr int Water = FluidSystem::waterPhaseIdx;
     static constexpr int Oil = FluidSystem::oilPhaseIdx;
     static constexpr int Gas = FluidSystem::gasPhaseIdx;
     using Scalar = typename FluidSystem::Scalar;
+    using IndexTraits = typename FluidSystem::IndexTraitsType;
 
 public:
-    explicit WellAssemble(const WellInterfaceFluidSystem<FluidSystem, Indices>& well);
+    explicit WellAssemble(const WellInterfaceFluidSystem<FluidSystem>& well);
 
     template<class EvalWell>
-    void assembleControlEqProd(const WellState<FluidSystem, Indices>& well_state,
+    void assembleControlEqProd(const WellState<Scalar, IndexTraits>& well_state,
                                const GroupState<Scalar>& group_state,
                                const Schedule& schedule,
                                const SummaryState& summaryState,
@@ -65,7 +66,7 @@ public:
                                DeferredLogger& deferred_logger) const;
 
     template<class EvalWell>
-    void assembleControlEqInj(const WellState<FluidSystem, Indices>& well_state,
+    void assembleControlEqInj(const WellState<Scalar, IndexTraits>& well_state,
                               const GroupState<Scalar>& group_state,
                               const Schedule& schedule,
                               const SummaryState& summaryState,
@@ -77,7 +78,7 @@ public:
                               DeferredLogger& deferred_logger) const;
 
 private:
-    const WellInterfaceFluidSystem<FluidSystem, Indices>& well_;
+    const WellInterfaceFluidSystem<FluidSystem>& well_;
 };
 
 
@@ -85,5 +86,3 @@ private:
 }
 
 #endif // OPM_WELL_ASSEMBLE_HEADER_INCLUDED
-
-#include "WellAssemble.cpp"

@@ -28,10 +28,6 @@
 
 #include <opm/material/fluidsystems/BlackOilFluidSystem.hpp>
 
-#include <opm/models/blackoil/blackoilvariableandequationindices.hh>
-#include <opm/models/blackoil/blackoilonephaseindices.hh>
-#include <opm/models/blackoil/blackoiltwophaseindices.hh>
-
 #include <opm/simulators/utils/DeferredLogger.hpp>
 #include <opm/simulators/wells/GroupState.hpp>
 #include <opm/simulators/wells/ParallelWellInfo.hpp>
@@ -47,8 +43,8 @@
 namespace Opm
 {
 
-template<typename FluidSystem, typename Indices>
-WellInterfaceFluidSystem<FluidSystem, Indices>::
+template<typename FluidSystem>
+WellInterfaceFluidSystem<FluidSystem>::
 WellInterfaceFluidSystem(const Well& well,
                          const ParallelWellInfo<Scalar>& parallel_well_info,
                          const int time_step,
@@ -59,21 +55,22 @@ WellInterfaceFluidSystem(const Well& well,
                          const int num_phases,
                          const int index_of_well,
                          const std::vector<PerforationData<Scalar>>& perf_data)
-    : WellInterfaceGeneric<FluidSystem, Indices>(well, parallel_well_info, time_step, param,
+    : WellInterfaceGeneric<Scalar, IndexTraits>(well, parallel_well_info, time_step, param,
                                    pvtRegionIdx, num_components, num_phases,
                                    index_of_well, perf_data)
     , rateConverter_(rate_converter)
 {
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename FluidSystem>
 void
-WellInterfaceFluidSystem<FluidSystem, Indices>::
-calculateReservoirRates(const bool co2store, SingleWellState<FluidSystem, Indices>& ws) const
+WellInterfaceFluidSystem<FluidSystem>::
+calculateReservoirRates(const bool co2store, SingleWellState<Scalar, IndexTraits>& ws) const
 {
     const int np = this->number_of_phases_;
+    const auto& pu = this->phaseUsage();
     // Calculate reservoir rates from average pressure and temperature
-    if ( !(co2store || Indices::enableEnergy) || this->wellEcl().isProducer()) {
+    if ( !(co2store || pu.hasEnergy() || this->wellEcl().isProducer()) {
         const int fipreg = 0; // not considering the region for now
         this->rateConverter_
             .calcReservoirVoidageRates(fipreg,
@@ -155,10 +152,10 @@ calculateReservoirRates(const bool co2store, SingleWellState<FluidSystem, Indice
     }
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename FluidSystem>
 bool
-WellInterfaceFluidSystem<FluidSystem, Indices>::
-checkIndividualConstraints(SingleWellState<FluidSystem, Indices>& ws,
+WellInterfaceFluidSystem<FluidSystem>::
+checkIndividualConstraints(SingleWellState<Scalar, IndexTraits>& ws,
                            const SummaryState& summaryState,
                            DeferredLogger& deferred_logger,
                            const std::optional<Well::InjectionControls>& inj_controls,
@@ -179,10 +176,10 @@ checkIndividualConstraints(SingleWellState<FluidSystem, Indices>& ws,
                                        deferred_logger, inj_controls, prod_controls);
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename FluidSystem>
 bool
-WellInterfaceFluidSystem<FluidSystem, Indices>::
-checkGroupConstraints(WellState<FluidSystem, Indices>& well_state,
+WellInterfaceFluidSystem<FluidSystem>::
+checkGroupConstraints(WellState<Scalar, IndexTraits>& well_state,
                       const GroupState<Scalar>& group_state,
                       const Schedule& schedule,
                       const SummaryState& summaryState,
@@ -209,10 +206,10 @@ checkGroupConstraints(WellState<FluidSystem, Indices>& well_state,
                                                              rCoeff, check_guide_rate, deferred_logger);
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename FluidSystem>
 bool
-WellInterfaceFluidSystem<FluidSystem, Indices>::
-checkConstraints(WellState<FluidSystem, Indices>& well_state,
+WellInterfaceFluidSystem<FluidSystem>::
+checkConstraints(WellState<Scalar, IndexTraits>& well_state,
                  const GroupState<Scalar>& group_state,
                  const Schedule& schedule,
                  const SummaryState& summaryState,
@@ -228,11 +225,11 @@ checkConstraints(WellState<FluidSystem, Indices>& well_state,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-std::optional<typename WellInterfaceFluidSystem<FluidSystem, Indices>::Scalar>
-WellInterfaceFluidSystem<FluidSystem, Indices>::
+template<typename FluidSystem>
+std::optional<typename FluidSystem::Scalar>
+WellInterfaceFluidSystem<FluidSystem>::
 getGroupInjectionTargetRate(const Group& group,
-                            const WellState<FluidSystem, Indices>& well_state,
+                            const WellState<Scalar, IndexTraits>& well_state,
                             const GroupState<Scalar>& group_state,
                             const Schedule& schedule,
                             const SummaryState& summaryState,
@@ -262,11 +259,11 @@ getGroupInjectionTargetRate(const Group& group,
                                                                 deferred_logger);
 }
 
-template<typename FluidSystem, typename Indices>
-typename WellInterfaceFluidSystem<FluidSystem, Indices>::Scalar
-WellInterfaceFluidSystem<FluidSystem, Indices>::
+template<typename FluidSystem>
+typename FluidSystem::Scalar
+WellInterfaceFluidSystem<FluidSystem>::
 getGroupProductionTargetRate(const Group& group,
-                             const WellState<FluidSystem, Indices>& well_state,
+                             const WellState<Scalar, IndexTraits>& well_state,
                              const GroupState<Scalar>& group_state,
                              const Schedule& schedule,
                              const SummaryState& summaryState,
@@ -294,12 +291,12 @@ getGroupProductionTargetRate(const Group& group,
                                                                  deferred_logger);
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename FluidSystem>
 bool
-WellInterfaceFluidSystem<FluidSystem, Indices>::
+WellInterfaceFluidSystem<FluidSystem>::
 zeroGroupRateTarget(const SummaryState& summary_state,
                     const Schedule& schedule,
-                    const WellState<FluidSystem, Indices>& well_state,
+                    const WellState<Scalar, IndexTraits>& well_state,
                     const GroupState<Scalar>& group_state,
                     DeferredLogger& deferred_logger) const
 {
@@ -331,12 +328,13 @@ zeroGroupRateTarget(const SummaryState& summary_state,
     }
 }
 
-#include <opm/simulators/utils/InstantiationIndicesMacros.hpp>
+template<class Scalar>
+using FS = BlackOilFluidSystem<Scalar, BlackOilDefaultFluidSystemIndices>;
 
-INSTANTIATE_TYPE_INDICES(WellInterfaceFluidSystem, double)
+template class WellInterfaceFluidSystem<FS<double>>;
 
 #if FLOW_INSTANTIATE_FLOAT
-INSTANTIATE_TYPE_INDICES(WellInterfaceFluidSystem, float)
+template class WellInterfaceFluidSystem<FS<float>>;
 #endif
 
 } // namespace Opm

@@ -18,8 +18,7 @@
   You should have received a copy of the GNU General Public License
   along with OPM.  If not, see <http://www.gnu.org/licenses/>.
 */
-//#ifndef OPM_MULTISEGMENTWELL_EQUATIONS_CPP_INCLUDED
-//#define OPM_MULTISEGMENTWELL_EQUATIONS_CPP_INCLUDED
+
 #include <config.h>
 #include <opm/simulators/wells/MultisegmentWellEquations.hpp>
 
@@ -28,13 +27,9 @@
 #include <opm/common/ErrorMacros.hpp>
 #include <opm/common/TimingMacros.hpp>
 
-#include <opm/material/fluidsystems/BlackOilFluidSystem.hpp>
-
-#include <opm/models/blackoil/blackoilvariableandequationindices.hh>
-#include <opm/models/blackoil/blackoilonephaseindices.hh>
-#include <opm/models/blackoil/blackoiltwophaseindices.hh>
-
 #include <opm/input/eclipse/Schedule/MSW/WellSegments.hpp>
+
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 
 #if COMPILE_GPU_BRIDGE
 #include <opm/simulators/linalg/gpubridge/WellContributions.hpp>
@@ -54,17 +49,17 @@
 
 namespace Opm {
 
-template<typename FluidSystem, typename Indices>
-MultisegmentWellEquations<FluidSystem, Indices>::
-MultisegmentWellEquations(const  MultisegmentWellGeneric<FluidSystem, Indices>& well, const ParallelWellInfo<Scalar>& pw_info)
+template<class Scalar, typename IndexTraits, int numWellEq, int numEq>
+MultisegmentWellEquations<Scalar, IndexTraits, numWellEq, numEq>::
+MultisegmentWellEquations(const MultisegmentWellGeneric<Scalar>& well, const ParallelWellInfo<Scalar>& pw_info)
     : well_(well)
     , pw_info_(pw_info)
     , parallelB_(duneB_, pw_info)
 {
 }
 
-template<typename FluidSystem, typename Indices>
-void MultisegmentWellEquations<FluidSystem, Indices>::
+template<class Scalar, typename IndexTraits, int numWellEq, int numEq>
+void MultisegmentWellEquations<Scalar, IndexTraits, numWellEq, numEq>::
 init(const int numPerfs,
      const std::vector<int>& cells,
      const std::vector<std::vector<int>>& segment_inlets,
@@ -142,8 +137,8 @@ init(const int numPerfs,
     cells_ = cells;
 }
 
-template<typename FluidSystem, typename Indices>
-void MultisegmentWellEquations<FluidSystem, Indices>::clear()
+template<class Scalar, typename IndexTraits, int numWellEq, int numEq>
+void MultisegmentWellEquations<Scalar, IndexTraits, numWellEq, numEq>::clear()
 {
     duneB_ = 0.0;
     duneC_ = 0.0;
@@ -152,8 +147,8 @@ void MultisegmentWellEquations<FluidSystem, Indices>::clear()
     duneDSolver_.reset();
 }
 
-template<typename FluidSystem, typename Indices>
-void MultisegmentWellEquations<FluidSystem, Indices>::
+template<class Scalar, typename IndexTraits, int numWellEq, int numEq>
+void MultisegmentWellEquations<Scalar, IndexTraits, numWellEq, numEq>::
 apply(const BVector& x, BVector& Ax) const
 {
     BVectorWell Bx(duneB_.N());
@@ -173,8 +168,8 @@ apply(const BVector& x, BVector& Ax) const
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void MultisegmentWellEquations<FluidSystem, Indices>::
+template<class Scalar, typename IndexTraits, int numWellEq, int numEq>
+void MultisegmentWellEquations<Scalar, IndexTraits, numWellEq, numEq>::
 apply(BVector& r) const
 {
     // r.size() == 0 indicates that there are no active perforations on this process.
@@ -190,8 +185,8 @@ apply(BVector& r) const
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void MultisegmentWellEquations<FluidSystem, Indices>::createSolver()
+template<class Scalar, typename IndexTraits, int numWellEq, int numEq>
+void MultisegmentWellEquations<Scalar, IndexTraits, numWellEq, numEq>::createSolver()
 {
 #if HAVE_SUITESPARSE_UMFPACK
     if (duneDSolver_) {
@@ -210,9 +205,9 @@ void MultisegmentWellEquations<FluidSystem, Indices>::createSolver()
 #endif
 }
 
-template<typename FluidSystem, typename Indices>
-typename MultisegmentWellEquations<FluidSystem, Indices>::BVectorWell
-MultisegmentWellEquations<FluidSystem, Indices>::solve() const
+template<class Scalar, typename IndexTraits, int numWellEq, int numEq>
+typename MultisegmentWellEquations<Scalar, IndexTraits, numWellEq, numEq>::BVectorWell
+MultisegmentWellEquations<Scalar, IndexTraits, numWellEq, numEq>::solve() const
 {
     // It is ok to do this on each process instead of only on one,
     // because the other processes would remain idle while waiting for
@@ -220,9 +215,9 @@ MultisegmentWellEquations<FluidSystem, Indices>::solve() const
     return mswellhelpers::applyUMFPack(*duneDSolver_, resWell_);
 }
 
-template<typename FluidSystem, typename Indices>
-typename MultisegmentWellEquations<FluidSystem, Indices>::BVectorWell
-MultisegmentWellEquations<FluidSystem, Indices>::solve(const BVectorWell& rhs) const
+template<class Scalar, typename IndexTraits, int numWellEq, int numEq>
+typename MultisegmentWellEquations<Scalar, IndexTraits, numWellEq, numEq>::BVectorWell
+MultisegmentWellEquations<Scalar, IndexTraits, numWellEq, numEq>::solve(const BVectorWell& rhs) const
 {
     // It is ok to do this on each process instead of only on one,
     // because the other processes would remain idle while waiting for
@@ -230,8 +225,8 @@ MultisegmentWellEquations<FluidSystem, Indices>::solve(const BVectorWell& rhs) c
     return mswellhelpers::applyUMFPack(*duneDSolver_, rhs);
 }
 
-template<typename FluidSystem, typename Indices>
-void MultisegmentWellEquations<FluidSystem, Indices>::
+template<class Scalar, typename IndexTraits, int numWellEq, int numEq>
+void MultisegmentWellEquations<Scalar, IndexTraits, numWellEq, numEq>::
 recoverSolutionWell(const BVector& x, BVectorWell& xw) const
 {
     BVectorWell resWell = resWell_;
@@ -246,8 +241,8 @@ recoverSolutionWell(const BVector& x, BVectorWell& xw) const
 }
 
 #if COMPILE_GPU_BRIDGE
-template<typename FluidSystem, typename Indices>
-void MultisegmentWellEquations<FluidSystem, Indices>::
+template<class Scalar, typename IndexTraits, int numWellEq, int numEq>
+void MultisegmentWellEquations<Scalar, IndexTraits, numWellEq, numEq>::
 extract(WellContributions<Scalar>& wellContribs) const
 {
     unsigned int Mb = duneB_.N();       // number of blockrows in duneB_, duneC_ and duneD_
@@ -318,9 +313,9 @@ extract(WellContributions<Scalar>& wellContribs) const
 }
 #endif
 
-template<typename FluidSystem, typename Indices>
+template<class Scalar, typename IndexTraits, int numWellEq, int numEq>
 template<class SparseMatrixAdapter>
-void MultisegmentWellEquations<FluidSystem, Indices>::
+void MultisegmentWellEquations<Scalar, IndexTraits, numWellEq, numEq>::
 extract(SparseMatrixAdapter& jacobian) const
 {
     const auto invDuneD = mswellhelpers::invertWithUMFPack<BVectorWell>(duneD_.M(),
@@ -355,16 +350,16 @@ extract(SparseMatrixAdapter& jacobian) const
     }
 }
 
-template<typename FluidSystem, typename Indices>
+template<class Scalar, typename IndexTraits, int numWellEq, int numEq>
 template<class PressureMatrix>
-void MultisegmentWellEquations<FluidSystem, Indices>::
+void MultisegmentWellEquations<Scalar, IndexTraits, numWellEq, numEq>::
 extractCPRPressureMatrix(PressureMatrix& jacobian,
                          const BVector& weights,
                          const int pressureVarIndex,
                          const bool /*use_well_weights*/,
-                         const WellInterfaceGeneric<FluidSystem, Indices>& well,
+                         const WellInterfaceGeneric<Scalar, IndexTraits>& well,
                          const int seg_pressure_var_ind,
-                         const WellState<FluidSystem, Indices>& well_state) const
+                         const WellState<Scalar, IndexTraits>& well_state) const
 {
     // Add the pressure contribution to the cpr system for the well
 
@@ -441,8 +436,8 @@ extractCPRPressureMatrix(PressureMatrix& jacobian,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void MultisegmentWellEquations<FluidSystem, Indices>::
+template<class Scalar, typename IndexTraits, int numWellEq, int numEq>
+void MultisegmentWellEquations<Scalar, IndexTraits, numWellEq, numEq>::
 sumDistributed(Parallel::Communication comm)
 {
     // accumulate resWell_ and duneD_ in parallel to get effects of all perforations (might be distributed)
@@ -451,52 +446,34 @@ sumDistributed(Parallel::Communication comm)
         Opm::wellhelpers::sumDistributedWellEntries(duneD_[seg][seg], resWell_[seg], comm);
 }
 
-    template<class Scalar>
-    using FS = BlackOilFluidSystem<Scalar, BlackOilDefaultFluidSystemIndices>;
-
-#define INSTANTIATE(T, ...)  \
-    template class MultisegmentWellEquations<FS<T>, __VA_ARGS__>;                               \
-    template void MultisegmentWellEquations<FS<T>, __VA_ARGS__>::                               \
+#define INSTANTIATE(T, numWellEq, numEq)                                                       \
+    template class MultisegmentWellEquations<T,BlackOilDefaultFluidSystemIndices,numWellEq,numEq>;                               \
+    template void MultisegmentWellEquations<T,BlackOilDefaultFluidSystemIndices,numWellEq,numEq>::                               \
         extract(Linear::IstlSparseMatrixAdapter<MatrixBlock<T,numEq,numEq>>&) const;           \
-    template void MultisegmentWellEquations<FS<T>, __VA_ARGS__>::                                 \
+    template void MultisegmentWellEquations<T, BlackOilDefaultFluidSystemIndices, numWellEq,numEq>::                               \
         extractCPRPressureMatrix(Dune::BCRSMatrix<MatrixBlock<T,1,1>>&,                        \
-                                 const MultisegmentWellEquations<FS<T>, __VA_ARGS__>::BVector&,    \
+                                 const MultisegmentWellEquations<T,BlackOilDefaultFluidSystemIndices,numWellEq,numEq>::BVector&, \
                                  const int,                                                    \
                                  const bool,                                                   \
-                                 const WellInterfaceGeneric<FS<T>, __VA_ARGS__>&,                               \
+                                 const WellInterfaceGeneric<T,BlackOilDefaultFluidSystemIndices>&,                               \
                                  const int,                                                    \
-                                 const WellState<FS<T>, __VA_ARGS__>&) const;
-#define INSTANTIATE_TYPE(T)                                                  \
-    INSTANTIATE(T,BlackOilOnePhaseIndices<0u,0u,0u,0u,false,false,0u,1u,0u>) \
-    INSTANTIATE(T,BlackOilOnePhaseIndices<0u,0u,0u,1u,false,false,0u,1u,0u>) \
-    INSTANTIATE(T,BlackOilOnePhaseIndices<0u,0u,0u,0u,false,false,0u,1u,5u>) \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<0u,0u,0u,0u,false,false,0u,0u,0u>) \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<0u,0u,0u,0u,false,false,0u,1u,0u>) \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<0u,0u,0u,0u,false,false,0u,2u,0u>) \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<0u,0u,1u,0u,false,false,0u,2u,0u>) \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<0u,0u,2u,0u,false,false,0u,2u,0u>) \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<0u,0u,0u,0u,false,true,0u,2u,0u>)  \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<0u,0u,0u,1u,false,false,0u,1u,0u>) \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<0u,0u,0u,0u,false,true,0u,0u,0u>)  \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<0u,0u,0u,1u,false,false,0u,0u,0u>) \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<0u,0u,0u,1u,false,true,0u,0u,0u>)  \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<1u,0u,0u,0u,false,false,0u,0u,0u>) \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<0u,0u,0u,0u,false,false,0u,0u>)            \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<0u,0u,0u,0u,false,false,1u,0u>)            \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<0u,0u,0u,0u,true,false,0u,0u>)             \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<0u,0u,0u,0u,false,true,0u,0u>)             \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<0u,0u,0u,0u,false,true,2u,0u>)             \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<1u,0u,0u,0u,false,false,0u,0u>)            \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<0u,1u,0u,0u,false,false,0u,0u>)            \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<0u,0u,1u,0u,false,false,0u,0u>)            \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<0u,0u,0u,1u,false,false,0u,0u>)            \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<0u,0u,0u,1u,false,true,0u,0u>)             \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<1u,0u,0u,0u,true,false,0u,0u>)
+                                 const WellState<T,BlackOilDefaultFluidSystemIndices>&) const;
+
+#define INSTANTIATE_TYPE(T) \
+    INSTANTIATE(T,2,1)      \
+    INSTANTIATE(T,2,2)      \
+    INSTANTIATE(T,2,6)      \
+    INSTANTIATE(T,3,2)      \
+    INSTANTIATE(T,3,3)      \
+    INSTANTIATE(T,3,4)      \
+    INSTANTIATE(T,4,3)      \
+    INSTANTIATE(T,4,4)      \
+    INSTANTIATE(T,4,5)
 
 INSTANTIATE_TYPE(double)
 
 #if FLOW_INSTANTIATE_FLOAT
 INSTANTIATE_TYPE(float)
 #endif
+
 }
-// #endif

@@ -34,8 +34,8 @@ class Schedule;
 template<typename FluidSystem, typename Indices> class StandardWellEquations;
 template<class FluidSystem, class Indices> class StandardWellPrimaryVariables;
 class SummaryState;
-template<typename FluidSystem, typename Indices> class WellInterfaceFluidSystem;
-template<typename FluidSystem, typename Indices> class WellState;
+template<typename FluidSystem> class WellInterfaceFluidSystem;
+template<typename Scalar, typename IndexTraits> class WellState;
 
 //! \brief Class handling assemble of the equation system for StandardWell.
 template<class FluidSystem, class Indices>
@@ -45,14 +45,16 @@ public:
     using Scalar = typename FluidSystem::Scalar;
     using PrimaryVariables = StandardWellPrimaryVariables<FluidSystem,Indices>;
     using EvalWell = typename PrimaryVariables::EvalWell;
+    using IndexTraits = typename FluidSystem::IndexTraitsType;
+    using WellStateType = WellState<Scalar, IndexTraits>;
 
     //! \brief Constructor initializes reference to well.
-    explicit StandardWellAssemble(const WellInterfaceFluidSystem<FluidSystem, Indices>& well)
+    explicit StandardWellAssemble(const WellInterfaceFluidSystem<FluidSystem>& well)
         : well_(well)
     {}
 
     //! \brief Assemble control equation.
-    void assembleControlEq(const WellState<FluidSystem, Indices>& well_state,
+    void assembleControlEq(const WellState<Scalar, IndexTraits>& well_state,
                            const GroupState<Scalar>& group_state,
                            const Schedule& schedule,
                            const SummaryState& summaryState,
@@ -93,7 +95,7 @@ public:
                           StandardWellEquations<FluidSystem, Indices>& eqns) const;
 
 private:
-    const WellInterfaceFluidSystem<FluidSystem, Indices>& well_; //!< Reference to well
+    const WellInterfaceFluidSystem<FluidSystem>& well_; //!< Reference to well
 };
 
 }

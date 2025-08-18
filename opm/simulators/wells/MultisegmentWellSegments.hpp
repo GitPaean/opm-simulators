@@ -33,7 +33,7 @@ namespace Opm {
     class  AutoICD;
     template<class Scalar> class SegmentState;
     class  UnitSystem;
-    template<typename FluidSystem, typename Indices> class WellInterfaceGeneric;
+    template<typename Scalar, typename IndexTraits> class WellInterfaceGeneric;
     class  SummaryState;
 
 } // namespace Opm
@@ -46,11 +46,12 @@ class MultisegmentWellSegments
     using PrimaryVariables = MultisegmentWellPrimaryVariables<FluidSystem,Indices>;
     using Scalar = typename FluidSystem::Scalar;
     using EvalWell = typename PrimaryVariables::EvalWell;
+    using IndexTraits = typename FluidSystem::IndexTraitsType;
 
 public:
     MultisegmentWellSegments(const int numSegments,
                              const ParallelWellInfo<Scalar>& parallel_well_info,
-                             WellInterfaceGeneric<FluidSystem, Indices>& well);
+                             WellInterfaceGeneric<Scalar, IndexTraits>& well);
 
     void computeFluidProperties(const EvalWell& temperature,
                                 const EvalWell& saltConcentration,
@@ -175,7 +176,7 @@ private:
     std::vector<std::vector<EvalWell>> phase_fractions_;
     std::vector<std::vector<EvalWell>> phase_viscosities_;
 
-    WellInterfaceGeneric<FluidSystem, Indices>& well_;
+    WellInterfaceGeneric<Scalar, IndexTraits>& well_;
 
     void copyPhaseDensities(const unsigned    phaseIdx,
                             const std::size_t stride,

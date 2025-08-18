@@ -34,32 +34,33 @@ namespace Opm
 {
 namespace RateConverter
 {
-  template <class FluidSystem, class Indices, class Region> class SurfaceToReservoirVoidage;
+  template <class FluidSystem, class Region> class SurfaceToReservoirVoidage;
 }
 
 class Group;
 template<class Scalar> class GroupState;
 class Schedule;
 struct RatioLimitCheckReport;
-template<typename FluidSystem, typename Indices> class SingleWellState;
-template<typename FluidSystem, typename Indices> class WellState;
+template<typename Scalar, typename IndexTraits> class SingleWellState;
+template<typename Scalar, typename IndexTraits> class WellState;
 
-template<typename FluidSystem, typename Indices>
-class WellInterfaceFluidSystem : public WellInterfaceGeneric<FluidSystem, Indices>
+template<class FluidSystem>
+class WellInterfaceFluidSystem : public WellInterfaceGeneric<typename FluidSystem::Scalar, typename FluidSystem::IndexTraitsType>
 {
 protected:
     using RateConverterType = RateConverter::
-    SurfaceToReservoirVoidage<FluidSystem, Indices, std::vector<int>>;
+    SurfaceToReservoirVoidage<FluidSystem, std::vector<int>>;
     // to indicate a invalid completion
     static constexpr int INVALIDCOMPLETION = std::numeric_limits<int>::max();
 
 public:
     using Scalar = typename FluidSystem::Scalar;
-    using ModelParameters = typename WellInterfaceGeneric<FluidSystem, Indices>::ModelParameters;
+    using IndexTraits = typename FluidSystem::IndexTraitsType;
+    using ModelParameters = typename WellInterfaceGeneric<Scalar, IndexTraits>::ModelParameters;
 
-    static constexpr int Water = FluidSystem::waterPhaseIdx;
-    static constexpr int Oil = FluidSystem::oilPhaseIdx;
-    static constexpr int Gas = FluidSystem::gasPhaseIdx;
+    static constexpr int Water = IndexTraits::waterPhaseIdx;
+    static constexpr int Oil = IndexTraits::oilPhaseIdx;
+    static constexpr int Gas = IndexTraits::gasPhaseIdx;
 
     const RateConverterType& rateConverter() const
     {
@@ -79,22 +80,22 @@ protected:
                              const std::vector<PerforationData<Scalar>>& perf_data);
 
     // updating the voidage rates in well_state when requested
-    void calculateReservoirRates(const bool co2store, SingleWellState<FluidSystem, Indices>& ws) const;
+    void calculateReservoirRates(const bool co2store, SingleWellState<Scalar, IndexTraits>& ws) const;
 
-    bool checkIndividualConstraints(SingleWellState<FluidSystem, Indices>& ws,
+    bool checkIndividualConstraints(SingleWellState<Scalar, IndexTraits>& ws,
                                     const SummaryState& summaryState,
                                     DeferredLogger& deferred_logger,
                                     const std::optional<Well::InjectionControls>& inj_controls = std::nullopt,
                                     const std::optional<Well::ProductionControls>& prod_controls = std::nullopt) const;
 
-    bool checkGroupConstraints(WellState<FluidSystem, Indices>& well_state,
+    bool checkGroupConstraints(WellState<Scalar, IndexTraits>& well_state,
                                const GroupState<Scalar>& group_state,
                                const Schedule& schedule,
                                const SummaryState& summaryState,
                                const bool check_guide_rate,
                                DeferredLogger& deferred_logger) const;
 
-    bool checkConstraints(WellState<FluidSystem, Indices>& well_state,
+    bool checkConstraints(WellState<Scalar, IndexTraits>& well_state,
                           const GroupState<Scalar>& group_state,
                           const Schedule& schedule,
                           const SummaryState& summaryState,
@@ -102,7 +103,7 @@ protected:
 
     std::optional<Scalar>
     getGroupInjectionTargetRate(const Group& group,
-                                const WellState<FluidSystem, Indices>& well_state,
+                                const WellState<Scalar, IndexTraits>& well_state,
                                 const GroupState<Scalar>& group_state,
                                 const Schedule& schedule,
                                 const SummaryState& summaryState,
@@ -112,7 +113,7 @@ protected:
 
     Scalar
     getGroupProductionTargetRate(const Group& group,
-                                 const WellState<FluidSystem, Indices>& well_state,
+                                 const WellState<Scalar, IndexTraits>& well_state,
                                  const GroupState<Scalar>& group_state,
                                  const Schedule& schedule,
                                  const SummaryState& summaryState,
@@ -121,7 +122,7 @@ protected:
 
     bool zeroGroupRateTarget(const SummaryState& summary_state,
                              const Schedule& schedule,
-                             const WellState<FluidSystem, Indices>& well_state,
+                             const WellState<Scalar, IndexTraits>& well_state,
                              const GroupState<Scalar>& group_state,
                              DeferredLogger& deferredLogger) const;
 

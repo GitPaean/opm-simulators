@@ -46,6 +46,7 @@ class StandardWellEval
 {
 protected:
     using Scalar = typename FluidSystem::Scalar;
+    using IndexTraits = typename FluidSystem::IndexTraitsType;
     using PrimaryVariables = StandardWellPrimaryVariables<FluidSystem,Indices>;
     using StdWellConnections = StandardWellConnections<FluidSystem,Indices>;
     static constexpr int Bhp = PrimaryVariables::Bhp;
@@ -77,7 +78,7 @@ protected:
     // computing the accumulation term for later use in well mass equations
     void computeAccumWell();
 
-    ConvergenceReport getWellConvergence(const WellState<FluidSystem, Indices>& well_state,
+    ConvergenceReport getWellConvergence(const WellState<Scalar, IndexTraits>& well_state,
                                          const std::vector<Scalar>& B_avg,
                                          const Scalar maxResidualAllowed,
                                          const Scalar tol_wells,
@@ -91,7 +92,7 @@ protected:
               const std::vector<Scalar>& depth_arg,
               const bool has_polymermw);
 
-    void updateWellStateFromPrimaryVariables(WellState<FluidSystem, Indices>& well_state,
+    void updateWellStateFromPrimaryVariables(WellState<Scalar, IndexTraits>& well_state,
                                              const SummaryState& summary_state,
                                              DeferredLogger& deferred_logger) const;
 

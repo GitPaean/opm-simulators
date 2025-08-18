@@ -119,7 +119,7 @@ resize(const int numWellEq)
 
 template<class FluidSystem, class Indices>
 void StandardWellPrimaryVariables<FluidSystem,Indices>::
-update(const WellState<FluidSystem, Indices>& well_state,
+update(const WellState<Scalar, IndexTraits>& well_state,
        const bool stop_or_zero_rate_target,
        DeferredLogger& deferred_logger)
 {
@@ -240,7 +240,7 @@ update(const WellState<FluidSystem, Indices>& well_state,
 
 template<class FluidSystem, class Indices>
 void StandardWellPrimaryVariables<FluidSystem,Indices>::
-updatePolyMW(const WellState<FluidSystem, Indices>& well_state)
+updatePolyMW(const WellState<Scalar, IndexTraits>& well_state)
 {
     if (well_.isInjector()) {
         const auto& ws = well_state.well(well_.indexOfWell());
@@ -340,7 +340,7 @@ updateNewtonPolyMW(const BVectorWell& dwells)
 
 template<class FluidSystem, class Indices>
 void StandardWellPrimaryVariables<FluidSystem,Indices>::
-copyToWellState(WellState<FluidSystem, Indices>& well_state,
+copyToWellState(WellState<Scalar, IndexTraits>& well_state,
                 DeferredLogger& deferred_logger) const
 {
     std::vector<Scalar> F(well_.numPhases(), 0.0);
@@ -448,7 +448,7 @@ copyToWellState(WellState<FluidSystem, Indices>& well_state,
 
 template<class FluidSystem, class Indices>
 void StandardWellPrimaryVariables<FluidSystem,Indices>::
-copyToWellStatePolyMW(WellState<FluidSystem, Indices>& well_state) const
+copyToWellStatePolyMW(WellState<Scalar, IndexTraits>& well_state) const
 {
     if (well_.isInjector()) {
         auto& ws = well_state.well(well_.indexOfWell());

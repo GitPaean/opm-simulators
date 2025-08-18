@@ -62,8 +62,8 @@ dissolvedVaporisedRatio(const int    io,
 namespace Opm {
 namespace RateConverter {
 
-template <class FluidSystem, class Indices, class Region>
-void SurfaceToReservoirVoidage<FluidSystem, Indices, Region>::
+template <class FluidSystem, class Region>
+void SurfaceToReservoirVoidage<FluidSystem, Region>::
 sumRates(std::unordered_map<RegionId,Attributes>& attributes_hpv,
          std::unordered_map<RegionId,Attributes>& attributes_pv,
          Parallel::Communication comm)
@@ -90,11 +90,12 @@ sumRates(std::unordered_map<RegionId,Attributes>& attributes_hpv,
     }
 }
 
-template <class FluidSystem, class Indices, class Region>
+template <class FluidSystem, class Region>
 template <class Coeff>
-void SurfaceToReservoirVoidage<FluidSystem, Indices, Region>::
+void SurfaceToReservoirVoidage<FluidSystem,  Region>::
 calcInjCoeff(const RegionId r, const int pvtRegionIdx, Coeff& coeff) const
 {
+    const auto& pu = phaseUsage_;
     const auto& ra = attr_.attributes(r);
     const Scalar p = ra.pressure;
     const Scalar T = ra.temperature;
@@ -104,7 +105,7 @@ calcInjCoeff(const RegionId r, const int pvtRegionIdx, Coeff& coeff) const
     const int   io = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx);
     const int   ig = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
 
-    std::fill(& coeff[0], & coeff[0] + Indices::numPhases, 0.0);
+    std::fill(& coeff[0], & coeff[0] + pu.numActivePhases(), 0.0);
 
     if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
         // q[w]_r = q[w]_s / bw
@@ -136,24 +137,25 @@ calcInjCoeff(const RegionId r, const int pvtRegionIdx, Coeff& coeff) const
     }
 }
 
-template <class FluidSystem, class Indices, class Region>
+template <class FluidSystem, class Region>
 template <class Coeff>
-void SurfaceToReservoirVoidage<FluidSystem, Indices, Region>::
+void SurfaceToReservoirVoidage<FluidSystem,  Region>::
 calcCoeff(const RegionId r, const int pvtRegionIdx, Coeff& coeff) const
 {
     const auto& ra = attr_.attributes(r);
     calcCoeff(pvtRegionIdx, ra.pressure, ra.rs, ra.rv, ra.rsw, ra.rvw, ra.temperature, ra.saltConcentration, coeff);
 }
 
-template <class FluidSystem, class Indices, class Region>
+template <class FluidSystem, class Region>
 template <class Coeff, class Rates>
-void SurfaceToReservoirVoidage<FluidSystem, Indices, Region>::
+void SurfaceToReservoirVoidage<FluidSystem,  Region>::
 calcCoeff(const RegionId r, const int pvtRegionIdx, const Rates& surface_rates, Coeff& coeff) const
 {
     const auto& ra = attr_.attributes(r);
-    const int   iw = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
-    const int   io = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx);
-    const int   ig = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
+    const auto& pu = phaseUsage_;
+    const int   iw = pu.canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
+    const int   io = pu.canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx);
+    const int   ig = pu.canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
     const auto [Rs, Rv] =
         dissolvedVaporisedRatio(io, ig, ra.rs, ra.rv, surface_rates);
 
@@ -163,9 +165,9 @@ calcCoeff(const RegionId r, const int pvtRegionIdx, const Rates& surface_rates, 
     calcCoeff(pvtRegionIdx, ra.pressure, Rs, Rv, Rsw, Rvw, ra.temperature, ra.saltConcentration, coeff);
 }
 
-template <class FluidSystem, class Indices, class Region>
+template <class FluidSystem, class Region>
 template <class Coeff>
-void SurfaceToReservoirVoidage<FluidSystem, Indices, Region>::
+void SurfaceToReservoirVoidage<FluidSystem,  Region>::
 calcCoeff(const int pvtRegionIdx,
           const Scalar p,
           const Scalar Rs,
@@ -176,12 +178,13 @@ calcCoeff(const int pvtRegionIdx,
           const Scalar saltConcentration,
           Coeff& coeff) const
 {
+    const auto& pu = phaseUsage_;
 
     const int   iw = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
     const int   io = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx);
     const int   ig = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
 
-    std::fill(& coeff[0], & coeff[0] + Indices::numPhases, 0.0);
+    std::fill(& coeff[0], & coeff[0] + pu.numActivePhases(), 0.0);
 
     // Determinant of 'R' matrix
     const Scalar detRw = 1.0 - (Rsw * Rvw);
@@ -245,9 +248,9 @@ calcCoeff(const int pvtRegionIdx,
 }
 
 
-template <class FluidSystem, class Indices, class Region>
+template <class FluidSystem, class Region>
 template <typename SurfaceRates, typename VoidageRates>
-void SurfaceToReservoirVoidage<FluidSystem, Indices, Region>::
+void SurfaceToReservoirVoidage<FluidSystem,  Region>::
 calcReservoirVoidageRates(const int           pvtRegionIdx,
                           const Scalar        p,
                           const Scalar        rs,
@@ -259,6 +262,7 @@ calcReservoirVoidageRates(const int           pvtRegionIdx,
                           const SurfaceRates& surface_rates,
                           VoidageRates&       voidage_rates) const
 {
+    const auto& pu = this->phaseUsage_;
     const int   iw = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
     const int   io = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx);
     const int   ig = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
@@ -270,7 +274,7 @@ calcReservoirVoidageRates(const int           pvtRegionIdx,
         dissolvedVaporisedRatio(iw, ig, rsw, rvw, surface_rates);
 
 
-    std::fill_n(&voidage_rates[0], Indices::numPhases, 0.0);
+    std::fill_n(&voidage_rates[0], pu.numActivePhases(), 0.0);
 
 
     // Determinant of 'R' matrix
@@ -337,9 +341,9 @@ calcReservoirVoidageRates(const int           pvtRegionIdx,
     }
 }
 
-template <class FluidSystem, class Indices, class Region>
+template <class FluidSystem, class Region>
 template <class Rates>
-void SurfaceToReservoirVoidage<FluidSystem, Indices, Region>::
+void SurfaceToReservoirVoidage<FluidSystem,  Region>::
 calcReservoirVoidageRates(const RegionId r,
                           const int      pvtRegionIdx,
                           const Rates&   surface_rates,
@@ -356,10 +360,10 @@ calcReservoirVoidageRates(const RegionId r,
                                     voidage_rates);
 }
 
-template <class FluidSystem, class Indices, class Region>
+template <class FluidSystem, class Region>
 template <class Rates>
 std::pair<typename FluidSystem::Scalar, typename FluidSystem::Scalar>
-SurfaceToReservoirVoidage<FluidSystem, Indices, Region>::
+SurfaceToReservoirVoidage<FluidSystem, Region>::
 inferDissolvedVaporisedRatio(const Scalar rsMax,
                              const Scalar rvMax,
                              const Rates& surface_rates) const
@@ -370,7 +374,7 @@ inferDissolvedVaporisedRatio(const Scalar rsMax,
     return dissolvedVaporisedRatio(io, ig, rsMax, rvMax, surface_rates);
 }
 
-/* template<class Scalar>
+template<class Scalar>
 using FS = BlackOilFluidSystem<Scalar, BlackOilDefaultFluidSystemIndices>;
 
 #define INSTANTIATE_TYPE(T)                                              \
@@ -421,11 +425,11 @@ using FS = BlackOilFluidSystem<Scalar, BlackOilDefaultFluidSystemIndices>;
                                      const T,                            \
                                      const std::vector<T>::iterator&) const;
 
-INSTANTIATE_TYPE(double)
+    INSTANTIATE_TYPE(double)
 
 #if FLOW_INSTANTIATE_FLOAT
-INSTANTIATE_TYPE(float)
-#endif */
+    INSTANTIATE_TYPE(float)
+#endif
 
 } // namespace RateConverter
 } // namespace Opm

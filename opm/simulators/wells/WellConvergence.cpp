@@ -21,12 +21,6 @@
 
 #include <config.h>
 
-#include <opm/material/fluidsystems/BlackOilFluidSystem.hpp>
-
-#include <opm/models/blackoil/blackoilvariableandequationindices.hh>
-#include <opm/models/blackoil/blackoilonephaseindices.hh>
-#include <opm/models/blackoil/blackoiltwophaseindices.hh>
-
 #include <opm/simulators/wells/WellConvergence.hpp>
 
 #include <opm/simulators/timestepping/ConvergenceReport.hpp>
@@ -39,9 +33,9 @@
 
 namespace Opm {
 
-template<typename FluidSystem, typename Indices>
-void WellConvergence<FluidSystem, Indices>::
-checkConvergenceControlEq(const WellState<FluidSystem, Indices>& well_state,
+template<typename Scalar, typename IndexTraits>
+void WellConvergence<Scalar, IndexTraits>::
+checkConvergenceControlEq(const WellState<Scalar, IndexTraits>& well_state,
                           const Tolerances& tolerances,
                           const Scalar well_control_residual,
                           const bool well_is_stopped, 
@@ -127,8 +121,8 @@ checkConvergenceControlEq(const WellState<FluidSystem, Indices>& well_state,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void WellConvergence<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void WellConvergence<Scalar, IndexTraits>::
 checkConvergencePolyMW(const std::vector<Scalar>& res,
                        const int Bhp,
                        const Scalar maxResidualAllowed,
@@ -167,12 +161,12 @@ checkConvergencePolyMW(const std::vector<Scalar>& res,
   }
 }
 
-#include <opm/simulators/utils/InstantiationIndicesMacros.hpp>
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 
-INSTANTIATE_TYPE_INDICES(WellConvergence, double)
+template class WellState<double, Opm::BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
-INSTANTIATE_TYPE_INDICES(WellConvergence, float)
+template class WellState<float, Opm::BlackOilDefaultFluidSystemIndices>;
 #endif
 
 }

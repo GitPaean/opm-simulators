@@ -47,6 +47,7 @@ template<typename Scalar, typename IndexTraits> class WellState;
 template<typename Scalar, typename IndexTraits> class SingleWellState;
 class Group;
 class Schedule;
+template<typename IndexTraits> class PhaseUsageInfo;
 
 template<typename Scalar, typename IndexTraits>
 class WellInterfaceGeneric {
@@ -87,6 +88,7 @@ public:
 
     const Well& wellEcl() const;
     Well& wellEcl();
+    const PhaseUsageInfo<IndexTraits>& phaseUsage() const;
 
     /// Returns true if the well is currently in prediction mode (i.e. not history mode).
     bool underPredictionMode() const;
@@ -366,6 +368,8 @@ protected:
     std::vector<int> saturation_table_number_;
 
     Well::Status wellStatus_;
+
+    const PhaseUsageInfo<IndexTraits>* phase_usage_;
 
     Scalar gravity_;
     Scalar wsolvent_;

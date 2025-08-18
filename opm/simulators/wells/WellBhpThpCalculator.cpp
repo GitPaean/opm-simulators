@@ -52,8 +52,8 @@ static constexpr bool extraThpFromBhpOutput = false;
 
 namespace Opm {
 
-template<typename FluidSystem, typename Indices>
-bool WellBhpThpCalculator<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+bool WellBhpThpCalculator<Scalar, IndexTraits>::
 wellHasTHPConstraints(const SummaryState& summaryState) const
 {
     const auto& well_ecl = well_.wellEcl();
@@ -72,8 +72,8 @@ wellHasTHPConstraints(const SummaryState& summaryState) const
     return false;
 }
 
-template<typename FluidSystem, typename Indices>
-typename FluidSystem::Scalar WellBhpThpCalculator<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+Scalar WellBhpThpCalculator<Scalar, IndexTraits>::
 getTHPConstraint(const SummaryState& summaryState) const
 {
     const auto& well_ecl = well_.wellEcl();
@@ -90,8 +90,8 @@ getTHPConstraint(const SummaryState& summaryState) const
     return 0.0;
 }
 
-template<typename FluidSystem, typename Indices>
-typename FluidSystem::Scalar WellBhpThpCalculator<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+Scalar WellBhpThpCalculator<Scalar, IndexTraits>::
 mostStrictBhpFromBhpLimits(const SummaryState& summaryState) const
 {
     const auto& well_ecl = well_.wellEcl();
@@ -108,8 +108,8 @@ mostStrictBhpFromBhpLimits(const SummaryState& summaryState) const
     return 0.0;
 }
 
-template<typename FluidSystem, typename Indices>
-typename FluidSystem::Scalar WellBhpThpCalculator<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+Scalar WellBhpThpCalculator<Scalar, IndexTraits>::
 calculateThpFromBhp(const std::vector<Scalar>& rates,
                     const Scalar bhp,
                     const Scalar rho,
@@ -119,9 +119,9 @@ calculateThpFromBhp(const std::vector<Scalar>& rates,
 {
     assert(int(rates.size()) == 3); // the vfp related only supports three phases now.
 
-    const Scalar aqua = rates[FluidSystem::waterPhaseIdx];
-    const Scalar liquid = rates[FluidSystem::oilPhaseIdx];
-    const Scalar vapour = rates[FluidSystem::gasPhaseIdx];
+    const Scalar aqua = rates[IndexTraits::waterPhaseIdx];
+    const Scalar liquid = rates[IndexTraits::oilPhaseIdx];
+    const Scalar vapour = rates[IndexTraits::gasPhaseIdx];
 
     // pick the density in the top layer
     Scalar thp = 0.0;
@@ -158,8 +158,8 @@ calculateThpFromBhp(const std::vector<Scalar>& rates,
     return thp;
 }
 
-template<typename FluidSystem, typename Indices>
-typename FluidSystem::Scalar WellBhpThpCalculator<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+Scalar WellBhpThpCalculator<Scalar, IndexTraits>::
 findThpFromBhpIteratively(const std::function<Scalar(const Scalar, const Scalar)>& thp_func,
                           const Scalar bhp,
                           const Scalar thp_limit,
@@ -193,9 +193,9 @@ findThpFromBhpIteratively(const std::function<Scalar(const Scalar, const Scalar)
     return thp;
 }
 
-template<typename FluidSystem, typename Indices>
-std::optional<typename FluidSystem::Scalar>
-WellBhpThpCalculator<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+std::optional<Scalar>
+WellBhpThpCalculator<Scalar, IndexTraits>::
 computeBhpAtThpLimitProd(const std::function<std::vector<Scalar>(const Scalar)>& frates,
                          const SummaryState& summary_state,
                          const Scalar maxPerfPress,
@@ -220,9 +220,9 @@ computeBhpAtThpLimitProd(const std::function<std::vector<Scalar>(const Scalar)>&
     // the one corresponding to the lowest bhp (and therefore
     // highest rate) should be returned.
 
-    static constexpr int Water = FluidSystem::waterPhaseIdx;
-    static constexpr int Oil = FluidSystem::oilPhaseIdx;
-    static constexpr int Gas = FluidSystem::gasPhaseIdx;
+    static constexpr int Water = IndexTraits::waterPhaseIdx;
+    static constexpr int Oil = IndexTraits::oilPhaseIdx;
+    static constexpr int Gas = IndexTraits::gasPhaseIdx;
 
     // Make the fbhp() function.
     const auto& controls = well_.wellEcl().productionControls(summary_state);
@@ -276,9 +276,9 @@ computeBhpAtThpLimitProd(const std::function<std::vector<Scalar>(const Scalar)>&
     return this->computeBhpAtThpLimit(frates, fbhp, range, deferred_logger);
 }
 
-template<typename FluidSystem, typename Indices>
-std::optional<typename FluidSystem::Scalar>
-WellBhpThpCalculator<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+std::optional<Scalar>
+WellBhpThpCalculator<Scalar, IndexTraits>::
 computeBhpAtThpLimitInj(const std::function<std::vector<Scalar>(const Scalar)>& frates,
                         const SummaryState& summary_state,
                         const Scalar rho,
@@ -298,11 +298,11 @@ computeBhpAtThpLimitInj(const std::function<std::vector<Scalar>(const Scalar)>& 
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void WellBhpThpCalculator<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void WellBhpThpCalculator<Scalar, IndexTraits>::
 updateThp(const Scalar rho,
           const std::function<Scalar()>& alq_value,
-          WellState<FluidSystem, Indices>& well_state,
+          WellState<Scalar, IndexTraits>& well_state,
           const SummaryState& summary_state,
           DeferredLogger& deferred_logger) const
 {
@@ -323,28 +323,29 @@ updateThp(const Scalar rho,
     // the well is under other control types, we calculate the thp based on bhp and rates
     std::vector<Scalar> rates(3, 0.0);
 
+    const auto& pu = well_.phaseUsage();
     //TODO: the following code should be able to make a for loop
-    if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
-        const int water_pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
-        rates[FluidSystem::waterPhaseIdx] = ws.surface_rates[water_pos];
+    if (pu.phaseIsActive(IndexTraits::waterPhaseIdx)) {
+        const int water_pos = pu.canonicalToActivePhaseIdx(IndexTraits::waterPhaseIdx);
+        rates[IndexTraits::waterPhaseIdx] = ws.surface_rates[water_pos];
     }
-    if (FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx)) {
-        const int oil_pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx);
-        rates[FluidSystem::oilPhaseIdx] = ws.surface_rates[oil_pos];
+    if (pu.phaseIsActive(IndexTraits::oilPhaseIdx)) {
+        const int oil_pos = pu.canonicalToActivePhaseIdx(IndexTraits::oilPhaseIdx);
+        rates[IndexTraits::oilPhaseIdx] = ws.surface_rates[oil_pos];
     }
-    if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
-        const int gas_pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
-        rates[FluidSystem::gasPhaseIdx] = ws.surface_rates[gas_pos];
+    if (pu.phaseIsActive(IndexTraits::gasPhaseIdx)) {
+        const int gas_pos = pu.canonicalToActivePhaseIdx(IndexTraits::gasPhaseIdx);
+        rates[IndexTraits::gasPhaseIdx] = ws.surface_rates[gas_pos];
     }
     const std::optional<Scalar> alq = this->well_.isProducer() ? std::optional<Scalar>(alq_value()) : std::nullopt;
     const Scalar thp_limit = well_.getTHPConstraint(summary_state);
     ws.thp = this->calculateThpFromBhp(rates, ws.bhp, rho, alq, thp_limit, deferred_logger);
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 template<class EvalWell>
-EvalWell WellBhpThpCalculator<FluidSystem, Indices>::
-calculateBhpFromThp(const WellState<FluidSystem, Indices>& well_state,
+EvalWell WellBhpThpCalculator<Scalar, IndexTraits>::
+calculateBhpFromThp(const WellState<Scalar, IndexTraits>& well_state,
                     const std::vector<EvalWell>& rates,
                     const Well& well,
                     const SummaryState& summaryState,
@@ -359,9 +360,9 @@ calculateBhpFromThp(const WellState<FluidSystem, Indices>& well_state,
 
     assert(int(rates.size()) == 3); // the vfp related only supports three phases now.
 
-    static constexpr int Water = FluidSystem::waterPhaseIdx;
-    static constexpr int Oil = FluidSystem::oilPhaseIdx;
-    static constexpr int Gas = FluidSystem::gasPhaseIdx;
+    static constexpr int Water = IndexTraits::waterPhaseIdx;
+    static constexpr int Oil = IndexTraits::oilPhaseIdx;
+    static constexpr int Gas = IndexTraits::gasPhaseIdx;
 
     const EvalWell aqua = rates[Water];
     const EvalWell liquid = rates[Oil];
@@ -407,9 +408,9 @@ calculateBhpFromThp(const WellState<FluidSystem, Indices>& well_state,
     return bhp_tab - dp_hydro + bhp_adjustment;
 }
 
-template<typename FluidSystem, typename Indices>
-typename FluidSystem::Scalar WellBhpThpCalculator<FluidSystem, Indices>::
-calculateMinimumBhpFromThp(const WellState<FluidSystem, Indices>& well_state,
+template<typename Scalar, typename IndexTraits>
+Scalar WellBhpThpCalculator<Scalar, IndexTraits>::
+calculateMinimumBhpFromThp(const WellState<Scalar, IndexTraits>& well_state,
                            const Well& well,
                            const SummaryState& summaryState,
                            const Scalar rho) const
@@ -433,17 +434,17 @@ calculateMinimumBhpFromThp(const WellState<FluidSystem, Indices>& well_state,
     return bhp_min - dp_hydro + bhp_adjustment;
 }
 
-template<typename FluidSystem, typename Indices>
-typename FluidSystem::Scalar WellBhpThpCalculator<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+Scalar WellBhpThpCalculator<Scalar, IndexTraits>::
 getVfpBhpAdjustment(const Scalar bhp_tab, const Scalar thp_limit) const
 {
     return well_.wellEcl().getWVFPDP().getPressureLoss(bhp_tab, thp_limit);
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 template<class ErrorPolicy>
-std::optional<typename FluidSystem::Scalar>
-WellBhpThpCalculator<FluidSystem, Indices>::
+std::optional<Scalar>
+WellBhpThpCalculator<Scalar, IndexTraits>::
 computeBhpAtThpLimitInjImpl(const std::function<std::vector<Scalar>(const Scalar)>& frates,
                             const SummaryState& summary_state,
                             const Scalar rho,
@@ -490,9 +491,9 @@ computeBhpAtThpLimitInjImpl(const std::function<std::vector<Scalar>(const Scalar
     // in which to solve for the solution we want (with highest
     // flow in case of 2 solutions).
 
-    static constexpr int Water = FluidSystem::waterPhaseIdx;
-    static constexpr int Oil = FluidSystem::oilPhaseIdx;
-    static constexpr int Gas = FluidSystem::gasPhaseIdx;
+    static constexpr int Water = IndexTraits::waterPhaseIdx;
+    static constexpr int Oil = IndexTraits::oilPhaseIdx;
+    static constexpr int Gas = IndexTraits::gasPhaseIdx;
 
     // Make the fbhp() function.
     const auto& controls = well_.wellEcl().injectionControls(summary_state);
@@ -632,9 +633,9 @@ computeBhpAtThpLimitInjImpl(const std::function<std::vector<Scalar>(const Scalar
     }
 }
 
-template<typename FluidSystem, typename Indices>
-std::optional<typename FluidSystem::Scalar>
-WellBhpThpCalculator<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+std::optional<Scalar>
+WellBhpThpCalculator<Scalar, IndexTraits>::
 bhpMax(const std::function<Scalar(const Scalar)>& fflo,
        const Scalar bhp_limit,
        const Scalar maxPerfPress,
@@ -713,9 +714,9 @@ bhpMax(const std::function<Scalar(const Scalar)>& fflo,
     return bhp_max;
 }
 
-template<typename FluidSystem, typename Indices>
-std::optional<typename FluidSystem::Scalar>
-WellBhpThpCalculator<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+std::optional<Scalar>
+WellBhpThpCalculator<Scalar, IndexTraits>::
 computeBhpAtThpLimit(const std::function<std::vector<Scalar>(const Scalar)>& frates,
                      const std::function<Scalar(const std::vector<Scalar>)>& fbhp,
                      const std::array<Scalar, 2>& range,
@@ -783,8 +784,8 @@ computeBhpAtThpLimit(const std::function<std::vector<Scalar>(const Scalar)>& fra
     }
 }
 
-template<typename FluidSystem, typename Indices>
-bool WellBhpThpCalculator<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+bool WellBhpThpCalculator<Scalar, IndexTraits>::
 bisectBracket(const std::function<Scalar(const Scalar)>& eq,
               const std::array<Scalar, 2>& range,
               Scalar& low, Scalar& high,
@@ -859,8 +860,8 @@ bisectBracket(const std::function<Scalar(const Scalar)>& eq,
     return finding_bracket;
 }
 
-template<typename FluidSystem, typename Indices>
-bool WellBhpThpCalculator<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+bool WellBhpThpCalculator<Scalar, IndexTraits>::
 bruteForceBracket(const std::function<Scalar(const Scalar)>& eq,
                   const std::array<Scalar, 2>& range,
                   Scalar& low, Scalar& high,
@@ -891,9 +892,9 @@ bruteForceBracket(const std::function<Scalar(const Scalar)>& eq,
     return bracket_found;
 }
 
-template<typename FluidSystem, typename Indices>
-bool WellBhpThpCalculator<FluidSystem, Indices>::
-isStableSolution(const WellState<FluidSystem, Indices>& well_state,
+template<typename Scalar, typename IndexTraits>
+bool WellBhpThpCalculator<Scalar, IndexTraits>::
+isStableSolution(const WellState<Scalar, IndexTraits>& well_state,
                  const Well& well,
                  const std::vector<Scalar>& rates,
                  const SummaryState& summaryState) const
@@ -901,9 +902,9 @@ isStableSolution(const WellState<FluidSystem, Indices>& well_state,
     assert(int(rates.size()) == 3); // the vfp related only supports three phases now.
     assert(well_.isProducer()); // only valid for producers 
 
-    static constexpr int Water = FluidSystem::waterPhaseIdx;
-    static constexpr int Oil = FluidSystem::oilPhaseIdx;
-    static constexpr int Gas = FluidSystem::gasPhaseIdx;
+    static constexpr int Water = IndexTraits::waterPhaseIdx;
+    static constexpr int Oil = IndexTraits::oilPhaseIdx;
+    static constexpr int Gas = IndexTraits::gasPhaseIdx;
 
     const Scalar aqua = rates[Water];
     const Scalar liquid = rates[Oil];
@@ -929,9 +930,9 @@ isStableSolution(const WellState<FluidSystem, Indices>& well_state,
     }                  
 }
 
-template<typename FluidSystem, typename Indices>
-std::optional<typename FluidSystem::Scalar> WellBhpThpCalculator<FluidSystem, Indices>::
-estimateStableBhp(const WellState<FluidSystem, Indices>& well_state,
+template<typename Scalar, typename IndexTraits>
+std::optional<Scalar> WellBhpThpCalculator<Scalar, IndexTraits>::
+estimateStableBhp(const WellState<Scalar, IndexTraits>& well_state,
                   const Well& well,
                   const std::vector<Scalar>& rates,
                   const Scalar rho,
@@ -942,9 +943,9 @@ estimateStableBhp(const WellState<FluidSystem, Indices>& well_state,
     const Scalar thp = well_.getTHPConstraint(summaryState);
     const auto& table = well_.vfpProperties()->getProd()->getTable(controls.vfp_table_number);
 
-    const Scalar aqua = rates[FluidSystem::waterPhaseIdx];
-    const Scalar liquid = rates[FluidSystem::oilPhaseIdx];
-    const Scalar vapour = rates[FluidSystem::gasPhaseIdx];
+    const Scalar aqua = rates[IndexTraits::waterPhaseIdx];
+    const Scalar liquid = rates[IndexTraits::oilPhaseIdx];
+    const Scalar vapour = rates[IndexTraits::gasPhaseIdx];
     Scalar flo = detail::getFlo(table, aqua, liquid, vapour);
     Scalar wfr, gfr;
     if (well_.useVfpExplicit() || -flo < table.getFloAxis().front()) {
@@ -976,9 +977,9 @@ estimateStableBhp(const WellState<FluidSystem, Indices>& well_state,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-std::pair<typename FluidSystem::Scalar, typename FluidSystem::Scalar> WellBhpThpCalculator<FluidSystem, Indices>::
-getFloIPR(const WellState<FluidSystem, Indices>& well_state,
+template<typename Scalar, typename IndexTraits>
+std::pair<Scalar, Scalar> WellBhpThpCalculator<Scalar, IndexTraits>::
+getFloIPR(const WellState<Scalar, IndexTraits>& well_state,
           const Well& well, 
           const SummaryState& summary_state) const 
 {
@@ -986,28 +987,29 @@ getFloIPR(const WellState<FluidSystem, Indices>& well_state,
     const auto& controls = well.productionControls(summary_state);
     const auto& table = well_.vfpProperties()->getProd()->getTable(controls.vfp_table_number);
     const auto& ipr_a = well_state.well(well_.indexOfWell()).implicit_ipr_a;
-    const Scalar& aqua_a = FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx) ?
-                       ipr_a[FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx)] : 0.0;
-    const Scalar& liquid_a = FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx) ?
-                           ipr_a[FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx)] : 0.0;
-    const Scalar& vapour_a = FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx) ?
-                             ipr_a[FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx)] : 0.0;
+    const auto& pu = well_.phaseUsage();
+    const Scalar& aqua_a = pu.phaseIsActive(IndexTraits::waterPhaseIdx) ?
+                       ipr_a[pu.canonicalToActivePhaseIdx(IndexTraits::waterPhaseIdx)] : 0.0;
+    const Scalar& liquid_a = pu.phaseIsActive(IndexTraits::oilPhaseIdx) ?
+                           ipr_a[pu.canonicalToActivePhaseIdx(IndexTraits::oilPhaseIdx)] : 0.0;
+    const Scalar& vapour_a = pu.phaseIsActive(IndexTraits::gasPhaseIdx) ?
+                             ipr_a[pu.canonicalToActivePhaseIdx(IndexTraits::gasPhaseIdx)] : 0.0;
     const auto& ipr_b = well_state.well(well_.indexOfWell()).implicit_ipr_b;
-    const Scalar& aqua_b = FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx) ?
-                           ipr_b[FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx)] : 0.0;
-    const Scalar& liquid_b = FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx) ?
-                           ipr_b[FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx)] : 0.0;
-    const Scalar& vapour_b = FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx) ?
-                             ipr_b[FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx)] : 0.0;
+    const Scalar& aqua_b = pu.phaseIsActive(IndexTraits::waterPhaseIdx) ?
+                           ipr_b[pu.canonicalToActivePhaseIdx(IndexTraits::waterPhaseIdx)] : 0.0;
+    const Scalar& liquid_b = pu.phaseIsActive(IndexTraits::oilPhaseIdx) ?
+                           ipr_b[pu.canonicalToActivePhaseIdx(IndexTraits::oilPhaseIdx)] : 0.0;
+    const Scalar& vapour_b = pu.phaseIsActive(IndexTraits::gasPhaseIdx) ?
+                             ipr_b[pu.canonicalToActivePhaseIdx(IndexTraits::gasPhaseIdx)] : 0.0;
     // The getFlo helper is indended to pick one or add two of the phase rates (depending on FLO-type),
     // but we can equally use it to pick/add the corresponding ipr_a, ipr_b  
     return std::make_pair(detail::getFlo(table, aqua_a, liquid_a, vapour_a), 
                           detail::getFlo(table, aqua_b, liquid_b, vapour_b));
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 bool
-WellBhpThpCalculator<FluidSystem, Indices>::
+WellBhpThpCalculator<Scalar, IndexTraits>::
 bruteForceBracketCommonTHP(const std::function<Scalar(const Scalar)>& eq,
                            const std::array<Scalar, 2>& range,
                            Scalar& low, Scalar& high,
@@ -1045,9 +1047,9 @@ bruteForceBracketCommonTHP(const std::function<Scalar(const Scalar)>& eq,
     return bracket_found;
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 bool
-WellBhpThpCalculator<FluidSystem, Indices>::
+WellBhpThpCalculator<Scalar, IndexTraits>::
 bruteForceBracketCommonTHP(const std::function<Scalar(const Scalar)>& eq,
                            Scalar& min_thp, Scalar& max_thp)
 {
@@ -1068,11 +1070,12 @@ bruteForceBracketCommonTHP(const std::function<Scalar(const Scalar)>& eq,
     }
     return bracket_found;
 }
-/*
+
+
 #define INSTANTIATE(T,...)                                   \
     template __VA_ARGS__                                     \
-    WellBhpThpCalculator<T>::                                \
-        calculateBhpFromThp(const WellState<T>&,             \
+    WellBhpThpCalculator<T, BlackOilDefaultFluidSystemIndices>::                                \
+        calculateBhpFromThp(const WellState<T, BlackOilDefaultFluidSystemIndices>&,             \
                             const std::vector<__VA_ARGS__>&, \
                             const Well&,                     \
                             const SummaryState&,             \
@@ -1080,7 +1083,7 @@ bruteForceBracketCommonTHP(const std::function<Scalar(const Scalar)>& eq,
                             DeferredLogger&) const;
 
 #define INSTANTIATE_TYPE(T)                      \
-    template class WellBhpThpCalculator<T>;      \
+    template class WellBhpThpCalculator<T, BlackOilDefaultFluidSystemIndices>;      \
     INSTANTIATE(T,T)                             \
     INSTANTIATE(T,DenseAd::Evaluation<T,3,0u>)   \
     INSTANTIATE(T,DenseAd::Evaluation<T,4,0u>)   \
@@ -1104,7 +1107,6 @@ INSTANTIATE_TYPE(double)
 #if FLOW_INSTANTIATE_FLOAT
 INSTANTIATE_TYPE(float)
 #endif
-*/
 
 } // namespace Opm
 

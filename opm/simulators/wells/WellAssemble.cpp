@@ -46,17 +46,17 @@
 namespace Opm
 {
 
-template<typename FluidSystem, typename Indices>
-WellAssemble<FluidSystem, Indices>::
-WellAssemble(const WellInterfaceFluidSystem<FluidSystem, Indices>& well)
+template<typename FluidSystem>
+WellAssemble<FluidSystem>::
+WellAssemble(const WellInterfaceFluidSystem<FluidSystem>& well)
     : well_(well)
 {}
 
-template<typename FluidSystem, typename Indices>
+template<typename FluidSystem>
 template<class EvalWell>
 void
-WellAssemble<FluidSystem, Indices>::
-assembleControlEqProd(const WellState<FluidSystem, Indices>& well_state,
+WellAssemble<FluidSystem>::
+assembleControlEqProd(const WellState<Scalar, IndexTraits>& well_state,
                       const GroupState<Scalar>& group_state,
                       const Schedule& schedule,
                       const SummaryState& summaryState,
@@ -153,7 +153,8 @@ assembleControlEqProd(const WellState<FluidSystem, Indices>& well_state,
         // they are required (THP controlled well). But for the
         // group production control things we must pass only the
         // active phases' rates.
-        std::vector<EvalWell> active_rates(Indices::numPhases);
+        const auto& pu = well_.phaseUsage();
+        std::vector<EvalWell> active_rates(pu.numActivePhases());
         for (int canonical_phase = 0; canonical_phase < 3; ++canonical_phase) {
             if (FluidSystem::phaseIsActive(canonical_phase)) {
                 const int phase_pos = FluidSystem::canonicalToActivePhaseIdx(canonical_phase);
@@ -197,11 +198,11 @@ assembleControlEqProd(const WellState<FluidSystem, Indices>& well_state,
     }
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename FluidSystem>
 template<class EvalWell>
 void
-WellAssemble<FluidSystem, Indices>::
-assembleControlEqInj(const WellState<FluidSystem, Indices>& well_state,
+WellAssemble<FluidSystem>::
+assembleControlEqInj(const WellState<Scalar, IndexTraits>& well_state,
                      const GroupState<Scalar>& group_state,
                      const Schedule& schedule,
                      const SummaryState& summaryState,
@@ -293,9 +294,9 @@ assembleControlEqInj(const WellState<FluidSystem, Indices>& well_state,
     }
 }
 
-/* #define INSTANTIATE_METHODS(A,...)                                        \
+#define INSTANTIATE_METHODS(A,...)                                        \
 template void WellAssemble<A>::                                           \
-assembleControlEqProd<__VA_ARGS__>(const WellState<typename A::Scalar>&,  \
+assembleControlEqProd<__VA_ARGS__>(const WellState<typename A::Scalar, BlackOilDefaultFluidSystemIndices>&,  \
                                    const GroupState<typename A::Scalar>&, \
                                    const Schedule&,                       \
                                    const SummaryState&,                   \
@@ -306,7 +307,7 @@ assembleControlEqProd<__VA_ARGS__>(const WellState<typename A::Scalar>&,  \
                                    __VA_ARGS__&,                          \
                                    DeferredLogger&) const;                \
 template void WellAssemble<A>::                                           \
-assembleControlEqInj<__VA_ARGS__>(const WellState<typename A::Scalar>&,   \
+assembleControlEqInj<__VA_ARGS__>(const WellState<typename A::Scalar, BlackOilDefaultFluidSystemIndices>&,   \
                                   const GroupState<typename A::Scalar>&,  \
                                   const Schedule&,                        \
                                   const SummaryState&,                    \
@@ -342,7 +343,7 @@ INSTANTIATE_TYPE(double)
 
 #if FLOW_INSTANTIATE_FLOAT
 INSTANTIATE_TYPE(float)
-#endif */
+#endif
 
 } // namespace Opm
 

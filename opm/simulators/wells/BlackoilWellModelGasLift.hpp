@@ -34,19 +34,18 @@ namespace Opm {
 
 class DeferredLogger;
 template<class Scalar> class GroupState;
-template<typename FluidSystem, typename Indices> class WellState;
+template<typename Scalar, typename IndexTraits> class WellState;
 template<class TypeTag> class WellInterface;
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 class BlackoilWellModelGasLiftGeneric
 {
 public:
-    using Scalar = typename FluidSystem::Scalar;
-    using GLiftOptWells = std::map<std::string, std::unique_ptr<GasLiftSingleWellGeneric<FluidSystem, Indices>>>;
-    using GLiftProdWells = std::map<std::string, const WellInterfaceGeneric<FluidSystem, Indices>*>;
+    using GLiftOptWells = std::map<std::string, std::unique_ptr<GasLiftSingleWellGeneric<Scalar, IndexTraits>>>;
+    using GLiftProdWells = std::map<std::string, const WellInterfaceGeneric<Scalar, IndexTraits>*>;
     using GLiftWellStateMap = std::map<std::string, std::unique_ptr<GasLiftWellState<Scalar>>>;
-    using GLiftEclWells = typename GasLiftGroupInfo<FluidSystem, Indices>::GLiftEclWells;
-    using GLiftSyncGroups = typename GasLiftSingleWellGeneric<FluidSystem, Indices>::GLiftSyncGroups;
+    using GLiftEclWells = typename GasLiftGroupInfo<Scalar, IndexTraits>::GLiftEclWells;
+    using GLiftSyncGroups = typename GasLiftSingleWellGeneric<Scalar, IndexTraits>::GLiftSyncGroups;
 
     explicit BlackoilWellModelGasLiftGeneric(bool terminal_output)
         : terminal_output_(terminal_output)
@@ -69,18 +68,18 @@ public:
     { return this->last_glift_opt_time_ == that.last_glift_opt_time_; }
 
 protected:
-    void gliftDebugShowALQ(const std::vector<WellInterfaceGeneric<FluidSystem, Indices>*>& well_container,
-                           const WellState<FluidSystem, Indices>& wellState,
+    void gliftDebugShowALQ(const std::vector<WellInterfaceGeneric<Scalar, IndexTraits>*>& well_container,
+                           const WellState<Scalar, IndexTraits>& wellState,
                            DeferredLogger& deferred_logger);
 
     void gasLiftOptimizationStage2(const Parallel::Communication& comm,
                                    const Schedule& schedule,
                                    const SummaryState& summaryState,
-                                   WellState<FluidSystem, Indices>& wellState,
+                                   WellState<Scalar, IndexTraits>& wellState,
                                    GroupState<Scalar>& groupState,
                                    GLiftProdWells& prod_wells,
                                    GLiftOptWells& glift_wells,
-                                   GasLiftGroupInfo<FluidSystem, Indices>& group_info,
+                                   GasLiftGroupInfo<Scalar, IndexTraits>& group_info,
                                    GLiftWellStateMap& map,
                                    const int episodeIndex,
                                    DeferredLogger& deferred_logger);
@@ -92,24 +91,24 @@ protected:
 /// Class for handling the gaslift in the blackoil well model.
 template<typename TypeTag>
 class BlackoilWellModelGasLift :
-    public BlackoilWellModelGasLiftGeneric<GetPropType<TypeTag, Properties::FluidSystem>, GetPropType<TypeTag, Properties::Indices>>
+    public BlackoilWellModelGasLiftGeneric<GetPropType<TypeTag, Properties::Scalar>,
+                                           typename GetPropType<TypeTag, Properties::FluidSystem>::IndexTraitsType>
 {
-    // using Base = BlackoilWellModelGasLiftGeneric<GetPropType<TypeTag, Properties::FluidSystem>, GetPropType<TypeTag, Properties::Indices>;
-
 public:
     using Scalar = GetPropType<TypeTag, Properties::Scalar>;
     using FluidSystem = GetPropType<TypeTag, Properties::FluidSystem>;
+    using IndexTraits = typename FluidSystem::IndexTraitsType;
     using Indices = GetPropType<TypeTag, Properties::Indices>;
-    using Base = BlackoilWellModelGasLiftGeneric<FluidSystem, Indices>;
+    using Base = BlackoilWellModelGasLiftGeneric<Scalar, IndexTraits>;
     using Base::glift_debug;
-    using GLiftEclWells = typename GasLiftGroupInfo<FluidSystem, Indices>::GLiftEclWells;
+    using GLiftEclWells = typename GasLiftGroupInfo<Scalar, IndexTraits>::GLiftEclWells;
     using GLiftOptWells = typename Base::GLiftOptWells;
     using GLiftProdWells = typename Base::GLiftProdWells;
-    using GLiftSyncGroups = typename GasLiftSingleWellGeneric<FluidSystem, Indices>::GLiftSyncGroups;
+    using GLiftSyncGroups = typename GasLiftSingleWellGeneric<Scalar, IndexTraits>::GLiftSyncGroups;
     using GLiftWellStateMap =  typename Base::GLiftWellStateMap;
     using Simulator = GetPropType<TypeTag, Properties::Simulator>;
     using WellInterfacePtr = std::shared_ptr<WellInterface<TypeTag>>;
-    using WellStateType = WellState<FluidSystem, Indices>;
+    using WellStateType = WellState<Scalar, IndexTraits>;
 
     explicit BlackoilWellModelGasLift(bool terminal_output)
         : Base(terminal_output)
@@ -133,7 +132,7 @@ private:
                                    GroupState<Scalar>& groupState,
                                    GLiftProdWells& prod_wells,
                                    GLiftOptWells& glift_wells,
-                                   GasLiftGroupInfo<FluidSystem, Indices>& group_info,
+                                   GasLiftGroupInfo<Scalar, IndexTraits>& group_info,
                                    GLiftWellStateMap& state_map,
                                    DeferredLogger& deferred_logger);
 
@@ -144,7 +143,7 @@ private:
                                              GroupState<Scalar>& groupState,
                                              GLiftProdWells& prod_wells,
                                              GLiftOptWells& glift_wells,
-                                             GasLiftGroupInfo<FluidSystem, Indices>& group_info,
+                                             GasLiftGroupInfo<Scalar, IndexTraits>& group_info,
                                              GLiftWellStateMap& state_map,
                                              GLiftSyncGroups& groups_to_sync,
                                              DeferredLogger& deferred_logger);

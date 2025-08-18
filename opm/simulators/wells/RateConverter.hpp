@@ -66,10 +66,11 @@ namespace Opm {
          *    well as inner types \c value_type, \c size_type, and \c
          *    const_iterator.  Typically \code std::vector<int> \endcode.
          */
-        template <class FluidSystem, class Indices, class Region>
+        template <class FluidSystem, class Region>
         class SurfaceToReservoirVoidage {
         public:
             using Scalar = typename FluidSystem::Scalar;
+            using PhaseUsageInfoType = PhaseUsageInfo<typename FluidSystem::IndexTraitsType>;
 
             /**
              * Constructor.
@@ -77,8 +78,10 @@ namespace Opm {
              * \param[in] region Forward region mapping.  Often corresponds
              * to the "FIPNUM" mapping of an ECLIPSE input deck.
              */
-            SurfaceToReservoirVoidage(const Region&     region)
-                : rmap_      (region)
+            SurfaceToReservoirVoidage(const PhaseUsageInfoType& phaseUsage,
+                                      const Region&     region)
+                : phaseUsage_(phaseUsage)
+                , rmap_      (region)
                 , attr_      (rmap_, Attributes())
             {}
 
@@ -368,6 +371,11 @@ namespace Opm {
 
         private:
             /**
+             * Fluid property object.
+             */
+            const PhaseUsageInfoType& phaseUsage_;
+
+            /**
              * "Fluid-in-place" region mapping (forward and reverse).
              */
             const RegionMapping<Region> rmap_;
@@ -422,4 +430,3 @@ namespace Opm {
 } // namespace Opm
 
 #endif  /* OPM_RATECONVERTER_HPP_HEADER_INCLUDED */
-#include "RateConverter.cpp"
