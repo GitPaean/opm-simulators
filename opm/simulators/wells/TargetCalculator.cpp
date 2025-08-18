@@ -22,6 +22,9 @@
 #include <config.h>
 #include <opm/simulators/wells/TargetCalculator.hpp>
 
+#include <opm/material/fluidsystems/PhaseUsageInfo.hpp>
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
+
 #include <opm/common/ErrorMacros.hpp>
 #include <opm/material/densead/Evaluation.hpp>
 #include <opm/simulators/utils/DeferredLogger.hpp>
@@ -33,15 +36,17 @@
 
 namespace Opm::WGHelpers {
 
-template<typename FluidSystem, typename Indices>
-TargetCalculator<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+TargetCalculator<Scalar, IndexTraits>::
 TargetCalculator(const Group::ProductionCMode cmode,
+                 const PhaseUsageInfo<IndexTraits>& pu,
                  const std::vector<Scalar>& resv_coeff,
                  const Scalar group_grat_target_from_sales,
                  const std::string& group_name,
                  const GroupState<Scalar>& group_state,
                  const bool use_gpmaint)
     : cmode_(cmode)
+    , pu_(pu)
     , resv_coeff_(resv_coeff)
     , group_grat_target_from_sales_(group_grat_target_from_sales)
     , group_name_(group_name)
@@ -51,37 +56,37 @@ TargetCalculator(const Group::ProductionCMode cmode,
 {
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 template <typename RateType>
-RateType TargetCalculator<FluidSystem, Indices>::calcModeRateFromRates(const RateType* rates) const
+RateType TargetCalculator<Scalar, IndexTraits>::calcModeRateFromRates(const RateType* rates) const
 {
     switch (cmode_) {
     case Group::ProductionCMode::ORAT: {
-        assert(FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx));
-        const int pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx);
+        assert(pu_.phaseIsActive(IndexTraits::oilPhaseIdx));
+        const int pos = pu_.canonicalToActivePhaseIdx(IndexTraits::oilPhaseIdx);
         return rates[pos];
     }
     case Group::ProductionCMode::WRAT: {
-        assert(FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx));
-        const int pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
+        assert(pu_.phaseIsActive(IndexTraits::waterPhaseIdx));
+        const int pos = pu_.canonicalToActivePhaseIdx(IndexTraits::waterPhaseIdx);
         return rates[pos];
     }
     case Group::ProductionCMode::GRAT: {
-        assert(FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx));
-        const int pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
+        assert(pu_.phaseIsActive(IndexTraits::gasPhaseIdx));
+        const int pos = pu_.canonicalToActivePhaseIdx(IndexTraits::gasPhaseIdx);
         return rates[pos];
     }
     case Group::ProductionCMode::LRAT: {
         // TODO: do need both oil and water activate to use LRAT?
-        assert(FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx));
-        assert(FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx));
-        const int opos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx);
-        const int wpos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
+        assert(pu_.phaseIsActive(IndexTraits::oilPhaseIdx));
+        assert(pu_.phaseIsActive(IndexTraits::waterPhaseIdx));
+        const int opos = pu_.canonicalToActivePhaseIdx(IndexTraits::oilPhaseIdx);
+        const int wpos = pu_.canonicalToActivePhaseIdx(IndexTraits::waterPhaseIdx);
         return rates[opos] + rates[wpos];
     }
     case Group::ProductionCMode::RESV: {
         auto mode_rate = rates[0] * resv_coeff_[0];
-        const int num_phases = Indices::numPhases;
+        const int num_phases = pu_.numActivePhases();
         for (int phase = 1; phase < num_phases; ++phase) {
             mode_rate += rates[phase] * resv_coeff_[phase];
         }
@@ -94,9 +99,9 @@ RateType TargetCalculator<FluidSystem, Indices>::calcModeRateFromRates(const Rat
     }
 }
 
-template<typename FluidSystem, typename Indices>
-typename FluidSystem::Scalar
-TargetCalculator<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+Scalar
+TargetCalculator<Scalar, IndexTraits>::
 groupTarget(const std::optional<Group::ProductionControls>& ctrl,
             DeferredLogger& deferred_logger) const
 {
@@ -135,9 +140,9 @@ groupTarget(const std::optional<Group::ProductionControls>& ctrl,
     }
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 GuideRateModel::Target
-TargetCalculator<FluidSystem, Indices>::guideTargetMode() const
+TargetCalculator<Scalar, IndexTraits>::guideTargetMode() const
 {
     switch (cmode_) {
     case Group::ProductionCMode::ORAT:
@@ -157,9 +162,10 @@ TargetCalculator<FluidSystem, Indices>::guideTargetMode() const
     }
 }
 
-template<typename FluidSystem, typename Indices>
-InjectionTargetCalculator<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+InjectionTargetCalculator<Scalar, IndexTraits>::
 InjectionTargetCalculator(const Group::InjectionCMode& cmode,
+                          const PhaseUsageInfo<IndexTraits>& pu,
                           const std::vector<Scalar>& resv_coeff,
                           const std::string& group_name,
                           const Scalar sales_target,
@@ -168,6 +174,7 @@ InjectionTargetCalculator(const Group::InjectionCMode& cmode,
                           const bool use_gpmaint,
                           DeferredLogger& deferred_logger)
     : cmode_(cmode)
+    , pu_(pu)
     , resv_coeff_(resv_coeff)
     , group_name_(group_name)
     , sales_target_(sales_target)
@@ -176,22 +183,22 @@ InjectionTargetCalculator(const Group::InjectionCMode& cmode,
 
 {
     // initialize to avoid warning
-    pos_ =  FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
+    pos_ =  pu_.canonicalToActivePhaseIdx(IndexTraits::waterPhaseIdx);
     target_ = GuideRateModel::Target::WAT;
 
     switch (injection_phase) {
     case Phase::WATER: {
-        pos_ =  FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
+        pos_ =  pu_.canonicalToActivePhaseIdx(IndexTraits::waterPhaseIdx);
         target_ = GuideRateModel::Target::WAT;
         break;
     }
     case Phase::OIL: {
-        pos_ =  FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx);
+        pos_ =  pu_.canonicalToActivePhaseIdx(IndexTraits::oilPhaseIdx);
         target_ = GuideRateModel::Target::OIL;
         break;
     }
     case Phase::GAS: {
-        pos_ =  FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
+        pos_ =  pu_.canonicalToActivePhaseIdx(IndexTraits::gasPhaseIdx);
         target_ = GuideRateModel::Target::GAS;
         break;
     }
@@ -202,9 +209,9 @@ InjectionTargetCalculator(const Group::InjectionCMode& cmode,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-typename FluidSystem::Scalar
-InjectionTargetCalculator<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+Scalar
+InjectionTargetCalculator<Scalar, IndexTraits>::
 groupTarget(const std::optional<Group::InjectionControls>& ctrl,
             DeferredLogger& deferred_logger) const
 {
@@ -235,21 +242,21 @@ groupTarget(const std::optional<Group::InjectionControls>& ctrl,
         const std::vector<Scalar>& group_injection_reservoir_rates = this->group_state_.injection_reservoir_rates(this->group_name_);
         Scalar voidage_rate = group_state_.injection_vrep_rate(ctrl->voidage_group) * ctrl->target_void_fraction;
         if (ctrl->phase != Phase::WATER) {
-            const int pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
+            const int pos = pu_.canonicalToActivePhaseIdx(IndexTraits::waterPhaseIdx);
             voidage_rate -= group_injection_reservoir_rates[pos];
         }
         if (ctrl->phase != Phase::OIL) {
-            const int pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx);
+            const int pos = pu_.canonicalToActivePhaseIdx(IndexTraits::oilPhaseIdx);
             voidage_rate -= group_injection_reservoir_rates[pos];
         }
         if (ctrl->phase != Phase::GAS) {
-            const int pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
+            const int pos = pu_.canonicalToActivePhaseIdx(IndexTraits::gasPhaseIdx);
             voidage_rate -= group_injection_reservoir_rates[pos];
         }
         return voidage_rate / resv_coeff_[pos_];
     }
     case Group::InjectionCMode::SALE: {
-        assert(pos_ == FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx) );
+        assert(pos_ == pu_.canonicalToActivePhaseIdx(IndexTraits::gasPhaseIdx) );
         // Gas injection rate = Total gas production rate + gas import rate - gas consumption rate - sales rate;
         // Gas import and consumption is already included in the REIN rates
         Scalar inj_rate = group_state_.injection_rein_rates(this->group_name_)[pos_];
@@ -264,21 +271,20 @@ groupTarget(const std::optional<Group::InjectionControls>& ctrl,
     }
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 GuideRateModel::Target
-InjectionTargetCalculator<FluidSystem, Indices>::guideTargetMode() const
+InjectionTargetCalculator<Scalar, IndexTraits>::guideTargetMode() const
 {
     return target_;
 }
 
-/*
 #define INSTANTIATE_TARGET_CALCULATOR(T,...) \
     template __VA_ARGS__                     \
-    TargetCalculator<T>::calcModeRateFromRates(const __VA_ARGS__* rates) const;
+    TargetCalculator<T, BlackOilDefaultFluidSystemIndices>::calcModeRateFromRates(const __VA_ARGS__* rates) const;
 
 #define INSTANTIATE_TYPE(T)                                       \
-    template class TargetCalculator<T>;                           \
-    template class InjectionTargetCalculator<T>;                  \
+    template class TargetCalculator<T, BlackOilDefaultFluidSystemIndices>;                           \
+    template class InjectionTargetCalculator<T, BlackOilDefaultFluidSystemIndices>;                  \
     INSTANTIATE_TARGET_CALCULATOR(T,T)                            \
     INSTANTIATE_TARGET_CALCULATOR(T,DenseAd::Evaluation<T,3,0>)   \
     INSTANTIATE_TARGET_CALCULATOR(T,DenseAd::Evaluation<T,4,0>)   \
@@ -302,7 +308,6 @@ INSTANTIATE_TYPE(double)
 #if FLOW_INSTANTIATE_FLOAT
 INSTANTIATE_TYPE(float)
 #endif
-*/
 
 } // namespace Opm::WGHelpers
 #endif

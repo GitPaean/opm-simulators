@@ -40,23 +40,22 @@ enum class InjectorType;
 using RegionId = int;
 class Schedule;
 class SummaryState;
-template<typename FluidSystem, typename Indices> class WellInterfaceGeneric;
-template<typename FluidSystem, typename Indices> class WellState;
+template<typename Scalar, typename IndexTraits> class WellInterfaceGeneric;
+template<typename Scalar, typename IndexTraits> class WellState;
 
 //! \brief Class for computing well group controls.
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 class WellGroupControls {
 public:
-    using Scalar = typename FluidSystem::Scalar;
     //! \brief Constructor sets reference to well.
-    explicit WellGroupControls(const WellInterfaceGeneric<FluidSystem, Indices>& well) : well_(well) {}
+    explicit WellGroupControls(const WellInterfaceGeneric<Scalar, IndexTraits>& well) : well_(well) {}
 
     using RateConvFunc = std::function<void(const RegionId, const int,
                                             const std::optional<std::string>&, std::vector<Scalar>&)>;
 
     template<class EvalWell>
     void getGroupInjectionControl(const Group& group,
-                                  const WellState<FluidSystem, Indices>& well_state,
+                                  const WellState<Scalar, IndexTraits>& well_state,
                                   const GroupState<Scalar>& group_state,
                                   const Schedule& schedule,
                                   const SummaryState& summaryState,
@@ -70,7 +69,7 @@ public:
 
     std::optional<Scalar>
     getGroupInjectionTargetRate(const Group& group,
-                                const WellState<FluidSystem, Indices>& well_state,
+                                const WellState<Scalar, IndexTraits>& well_state,
                                 const GroupState<Scalar>& group_state,
                                 const Schedule& schedule,
                                 const SummaryState& summaryState,
@@ -81,7 +80,7 @@ public:
 
     template<class EvalWell>
     void getGroupProductionControl(const Group& group,
-                                   const WellState<FluidSystem, Indices>& well_state,
+                                   const WellState<Scalar, IndexTraits>& well_state,
                                    const GroupState<Scalar>& group_state,
                                    const Schedule& schedule,
                                    const SummaryState& summaryState,
@@ -93,7 +92,7 @@ public:
                                    DeferredLogger& deferred_logger) const;
 
     Scalar getGroupProductionTargetRate(const Group& group,
-                                        const WellState<FluidSystem, Indices>& well_state,
+                                        const WellState<Scalar, IndexTraits>& well_state,
                                         const GroupState<Scalar>& group_state,
                                         const Schedule& schedule,
                                         const SummaryState& summaryState,
@@ -103,7 +102,7 @@ public:
 
     static std::pair<Scalar, Group::ProductionCMode> getAutoChokeGroupProductionTargetRate(const std::string& name,
                                                         const Group& parent,
-                                                        const WellState<FluidSystem, Indices>& well_state,
+                                                        const WellState<Scalar, IndexTraits>& well_state,
                                                         const GroupState<Scalar>& group_state,
                                                         const Schedule& schedule,
                                                         const SummaryState& summaryState,
@@ -114,11 +113,9 @@ public:
                                                         DeferredLogger& deferred_logger);
 
 private:
-    const WellInterfaceGeneric<FluidSystem, Indices>& well_; //!< Reference to well interface
+    const WellInterfaceGeneric<Scalar, IndexTraits>& well_; //!< Reference to well interface
 };
 
 }
 
 #endif // OPM_WELL_GROUP_CONTROLS_HEADER_INCLUDED
-
-#include "WellGroupControls.cpp" // need to be checked how to do this

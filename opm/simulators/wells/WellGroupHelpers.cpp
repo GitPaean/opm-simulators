@@ -61,7 +61,7 @@ namespace {
     getGuideRateVector(const std::vector<Scalar>& rates, const Opm::PhaseUsageInfo<IndexTraits>& pu)
     {
         Scalar oilRate = 0.0;
-        if (pu.phaseIsActive(IndexTraits::oilPhaseIndex)) {
+        if (pu.phaseIsActive(IndexTraits::oilPhaseIdx)) {
             oilRate = rates[pu.canonicalToActivePhaseIdx(IndexTraits::oilPhaseIdx)];
         }
 
@@ -1061,7 +1061,7 @@ getGuideRate(const std::string& name,
     }
 
     if (guideRate->has(name)) {
-        return guideRate->get(name, target, getProductionGroupRateVector(group_state, name));
+        return guideRate->get(name, target, getProductionGroupRateVector(group_state, wellState.phaseUsageInfo(), name));
     }
 
     Scalar totalGuideRate = 0.0;
@@ -1250,6 +1250,7 @@ updateGroupControlledWells(const Schedule& schedule,
 
                 std::vector<Scalar> resv_coeff(num_phases, 1.0);
                 WGHelpers::TargetCalculator<Scalar, IndexTraits> tcalc(control_group_cmode,
+                                                                       well_state.phaseUsageInfo(),
                                                 resv_coeff,
                                                 gratTargetFromSales,
                                                 group.name(),
@@ -1469,6 +1470,7 @@ checkGroupConstraintsProd(const std::string& name,
         gratTargetFromSales = group_state.grat_sales_target(group.name());
 
     WGHelpers::TargetCalculator<Scalar, IndexTraits> tcalc(currentGroupControl,
+                                          wellState.phaseUsageInfo(),
                                       resv_coeff,
                                       gratTargetFromSales,
                                       group.name(),
@@ -1653,6 +1655,7 @@ getWellGroupTargetProducer(const std::string& name,
         gratTargetFromSales = group_state.grat_sales_target(group.name());
 
     WGHelpers::TargetCalculator<Scalar, IndexTraits> tcalc(currentGroupControl,
+                                                           wellState.phaseUsageInfo(),
                                       resv_coeff,
                                       gratTargetFromSales,
                                       group.name(),
@@ -1800,6 +1803,7 @@ checkGroupConstraintsInj(const std::string& name,
         sales_target = gconsale.sales_target;
     }
     WGHelpers::InjectionTargetCalculator<Scalar, IndexTraits> tcalc(currentGroupControl,
+                                                     wellState.phaseUsageInfo(),
                                                resv_coeff,
                                                group.name(),
                                                sales_target,
@@ -1986,6 +1990,7 @@ getWellGroupTargetInjector(const std::string& name,
         sales_target = gconsale.sales_target;
     }
     WGHelpers::InjectionTargetCalculator<Scalar, IndexTraits> tcalc(currentGroupControl,
+                                                     wellState.phaseUsageInfo(),
                                                resv_coeff,
                                                group.name(),
                                                sales_target,
