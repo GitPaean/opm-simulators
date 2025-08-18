@@ -27,11 +27,7 @@
 #include <opm/input/eclipse/Schedule/Well/WellTestConfig.hpp>
 #include <opm/input/eclipse/Schedule/Well/WellTestState.hpp>
 
-#include <opm/material/fluidsystems/BlackOilFluidSystem.hpp>
-
-#include <opm/models/blackoil/blackoilvariableandequationindices.hh>
-#include <opm/models/blackoil/blackoilonephaseindices.hh>
-#include <opm/models/blackoil/blackoiltwophaseindices.hh>
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 
 #include <opm/simulators/utils/DeferredLogger.hpp>
 #include <opm/simulators/wells/ParallelWellInfo.hpp>
@@ -40,10 +36,10 @@
 
 namespace Opm {
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 template<class RatioFunc>
-bool WellTest<FluidSystem, Indices>::
-checkMaxRatioLimitWell(const SingleWellState<FluidSystem, Indices>& ws,
+bool WellTest<Scalar, IndexTraits>::
+checkMaxRatioLimitWell(const SingleWellState<Scalar, IndexTraits>& ws,
                        const Scalar max_ratio_limit,
                        const RatioFunc& ratioFunc) const
 {
@@ -54,14 +50,14 @@ checkMaxRatioLimitWell(const SingleWellState<FluidSystem, Indices>& ws,
         well_rates[p] = ws.surface_rates[p];
     }
 
-    const Scalar well_ratio = ratioFunc(well_rates);
+    const Scalar well_ratio = ratioFunc(well_rates, well_.phaseUsage());
     return (well_ratio > max_ratio_limit);
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 template<class RatioFunc>
-void WellTest<FluidSystem, Indices>::
-checkMaxRatioLimitCompletions(const SingleWellState<FluidSystem, Indices>& ws,
+void WellTest<Scalar, IndexTraits>::
+checkMaxRatioLimitCompletions(const SingleWellState<Scalar, IndexTraits>& ws,
                               const Scalar max_ratio_limit,
                               const RatioFunc& ratioFunc,
                               RatioLimitCheckReport& report) const
@@ -89,7 +85,7 @@ checkMaxRatioLimitCompletions(const SingleWellState<FluidSystem, Indices>& ws,
         } // end of for (const int c : conns)
 
         well_.parallelWellInfo().communication().sum(completion_rates.data(), completion_rates.size());
-        const Scalar ratio_completion = ratioFunc(completion_rates);
+        const Scalar ratio_completion = ratioFunc(completion_rates, well_.phaseUsage());
 
         if (ratio_completion > max_ratio_completion) {
             worst_offending_completion = completion.first;
@@ -105,17 +101,18 @@ checkMaxRatioLimitCompletions(const SingleWellState<FluidSystem, Indices>& ws,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void WellTest<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void WellTest<Scalar, IndexTraits>::
 checkMaxGORLimit(const WellEconProductionLimits& econ_production_limits,
-                 const SingleWellState<FluidSystem, Indices>& ws,
+                 const SingleWellState<Scalar, IndexTraits>& ws,
                  RatioLimitCheckReport& report) const
 {
     // function to calculate gor based on rates
-    auto gor = [](const std::vector<Scalar>& rates)
+    auto gor = [](const std::vector<Scalar>& rates,
+                                               const PhaseUsageInfo<IndexTraits>& pu)
     {
-        const Scalar oil_rate = -rates[FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx)];
-        const Scalar gas_rate = -rates[FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx)];
+        const Scalar oil_rate = -rates[pu.canonicalToActivePhaseIdx(IndexTraits::oilPhaseIdx)];
+        const Scalar gas_rate = -rates[pu.canonicalToActivePhaseIdx(IndexTraits::gasPhaseIdx)];
         if (gas_rate <= 0.)
             return Scalar{0};
         else if (oil_rate <= 0.)
@@ -135,17 +132,18 @@ checkMaxGORLimit(const WellEconProductionLimits& econ_production_limits,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void WellTest<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void WellTest<Scalar, IndexTraits>::
 checkMaxWGRLimit(const WellEconProductionLimits& econ_production_limits,
-                 const SingleWellState<FluidSystem, Indices>& ws,
+                 const SingleWellState<Scalar, IndexTraits>& ws,
                  RatioLimitCheckReport& report) const
 {
     // function to calculate wgr based on rates
-    auto wgr = [](const std::vector<Scalar>& rates)
+    auto wgr = [](const std::vector<Scalar>& rates,
+                  const PhaseUsageInfo<IndexTraits>& pu)
     {
-        const Scalar water_rate = -rates[FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx)];
-        const Scalar gas_rate = -rates[FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx)];
+        const Scalar water_rate = -rates[pu.canonicalToActivePhaseIdx(IndexTraits::waterPhaseIdx)];
+        const Scalar gas_rate = -rates[pu.canonicalToActivePhaseIdx(IndexTraits::gasPhaseIdx)];
         if (water_rate <= 0.)
             return Scalar{0};
         else if (gas_rate <= 0.)
@@ -165,17 +163,18 @@ checkMaxWGRLimit(const WellEconProductionLimits& econ_production_limits,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void WellTest<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void WellTest<Scalar, IndexTraits>::
 checkMaxWaterCutLimit(const WellEconProductionLimits& econ_production_limits,
-                      const SingleWellState<FluidSystem, Indices>& ws,
+                      const SingleWellState<Scalar, IndexTraits>& ws,
                       RatioLimitCheckReport& report) const
 {
     // function to calculate water cut based on rates
-    auto waterCut = [](const std::vector<Scalar>& rates)
+    auto waterCut = [](const std::vector<Scalar>& rates,
+                       const PhaseUsageInfo<IndexTraits>& pu)
     {
-        const Scalar oil_rate = -rates[FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx)];
-        const Scalar water_rate = -rates[FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx)];
+        const Scalar oil_rate = -rates[pu.canonicalToActivePhaseIdx(IndexTraits::oilPhaseIdx)];
+        const Scalar water_rate = -rates[pu.canonicalToActivePhaseIdx(IndexTraits::waterPhaseIdx)];
         const Scalar liquid_rate = oil_rate + water_rate;
         if (liquid_rate <= 0.)
             return Scalar{0};
@@ -201,14 +200,15 @@ checkMaxWaterCutLimit(const WellEconProductionLimits& econ_production_limits,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-bool WellTest<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+bool WellTest<Scalar, IndexTraits>::
 checkRateEconLimits(const WellEconProductionLimits& econ_production_limits,
                     const std::vector<Scalar>& rates_or_potentials,
                     DeferredLogger& deferred_logger) const
 {
+    const auto& pu = well_.phaseUsage();
     if (econ_production_limits.onMinOilRate()) {
-        const int oil_pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx);
+        const int oil_pos = pu.canonicalToActivePhaseIdx(IndexTraits::oilPhaseIdx);
         const Scalar oil_rate = rates_or_potentials[oil_pos];
         const Scalar min_oil_rate = econ_production_limits.minOilRate();
         if (std::abs(oil_rate) < min_oil_rate) {
@@ -217,7 +217,7 @@ checkRateEconLimits(const WellEconProductionLimits& econ_production_limits,
     }
 
     if (econ_production_limits.onMinGasRate() ) {
-        const int gas_pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
+        const int gas_pos = pu.canonicalToActivePhaseIdx(IndexTraits::gasPhaseIdx);
         const Scalar gas_rate = rates_or_potentials[gas_pos];
         const Scalar min_gas_rate = econ_production_limits.minGasRate();
         if (std::abs(gas_rate) < min_gas_rate) {
@@ -226,8 +226,8 @@ checkRateEconLimits(const WellEconProductionLimits& econ_production_limits,
     }
 
     if (econ_production_limits.onMinLiquidRate() ) {
-        const int oil_pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx);
-        const int water_pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
+        const int oil_pos = pu.canonicalToActivePhaseIdx(IndexTraits::oilPhaseIdx);
+        const int water_pos = pu.canonicalToActivePhaseIdx(IndexTraits::waterPhaseIdx);
         const Scalar oil_rate = rates_or_potentials[oil_pos];
         const Scalar water_rate = rates_or_potentials[water_pos];
         const Scalar liquid_rate = oil_rate + water_rate;
@@ -244,11 +244,11 @@ checkRateEconLimits(const WellEconProductionLimits& econ_production_limits,
     return false;
 }
 
-template<typename FluidSystem, typename Indices>
-typename WellTest<FluidSystem, Indices>::RatioLimitCheckReport
-WellTest<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+typename WellTest<Scalar, IndexTraits>::RatioLimitCheckReport
+WellTest<Scalar, IndexTraits>::
 checkRatioEconLimits(const WellEconProductionLimits& econ_production_limits,
-                     const SingleWellState<FluidSystem, Indices>& ws,
+                     const SingleWellState<Scalar, IndexTraits>& ws,
                      DeferredLogger& deferred_logger) const
 {
     // TODO: not sure how to define the worst-offending completion when more than one
@@ -296,9 +296,9 @@ checkRatioEconLimits(const WellEconProductionLimits& econ_production_limits,
     return report;
 }
 
-template<typename FluidSystem, typename Indices>
-void WellTest<FluidSystem, Indices>::
-updateWellTestStateEconomic(const SingleWellState<FluidSystem, Indices>& ws,
+template<typename Scalar, typename IndexTraits>
+void WellTest<Scalar, IndexTraits>::
+updateWellTestStateEconomic(const SingleWellState<Scalar, IndexTraits>& ws,
                             const double simulation_time,
                             const bool write_message_to_opmlog,
                             WellTestState& well_test_state,
@@ -451,8 +451,8 @@ updateWellTestStateEconomic(const SingleWellState<FluidSystem, Indices>& ws,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void WellTest<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void WellTest<Scalar, IndexTraits>::
 updateWellTestStatePhysical(const double simulation_time,
                             const bool write_message_to_opmlog,
                             WellTestState& well_test_state,
@@ -471,12 +471,10 @@ updateWellTestStatePhysical(const double simulation_time,
     }
 }
 
-#include <opm/simulators/utils/InstantiationIndicesMacros.hpp>
-
-INSTANTIATE_TYPE_INDICES(WellTest, double)
+template class WellTest<double, BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
-INSTANTIATE_TYPE_INDICES(WellTest, float)
+template class WellTest<float, BlackOilDefaultFluidSystemIndices>;
 #endif
 
 } // namespace Opm

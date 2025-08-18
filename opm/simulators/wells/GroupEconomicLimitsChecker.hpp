@@ -30,19 +30,17 @@
 namespace Opm
 {
 
-template<typename FluidSystem, typename Indices> class BlackoilWellModelGeneric;
+template<typename Scalar, typename IndexTraits> class BlackoilWellModelGeneric;
 class DeferredLogger;
 class Group;
-template<typename FluidSystem, typename Indices> class WellState;
+template<typename Scalar, typename IndexTraits> class WellState;
 class WellTestState;
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 class GroupEconomicLimitsChecker
 {
 public:
-    using Scalar = typename FluidSystem::Scalar;
-
-    GroupEconomicLimitsChecker(const BlackoilWellModelGeneric<FluidSystem, Indices>& well_model,
+    GroupEconomicLimitsChecker(const BlackoilWellModelGeneric<Scalar, IndexTraits>& well_model,
                                WellTestState& well_test_state,
                                const Group& group,
                                const double simulation_time,
@@ -74,23 +72,23 @@ private:
     bool closeWellsRecursive(const Group& group, int level = 0);
     void throwNotImplementedError(const std::string& error) const;
 
-    const BlackoilWellModelGeneric<FluidSystem, Indices>& well_model_;
+    const BlackoilWellModelGeneric<Scalar, IndexTraits>& well_model_;
     const Group& group_;
     const double simulation_time_;
     const int report_step_idx_;
     DeferredLogger& deferred_logger_;
     const std::string date_string_;
     const UnitSystem& unit_system_;
-    const WellState<FluidSystem, Indices>& well_state_;
+    const WellState<Scalar, IndexTraits>& well_state_;
     WellTestState& well_test_state_;
     const Schedule& schedule_;
     GroupEconProductionLimits::GEconGroupProp gecon_props_;
     bool debug_ = true;
     std::array<Scalar,NUM_PHASES> production_rates_;
     std::map<int, unsigned> phase_idx_map_ = {
-        {0, FluidSystem::oilPhaseIdx},
-        {1, FluidSystem::gasPhaseIdx},
-        {2, FluidSystem::waterPhaseIdx}
+        {0, IndexTraits::oilPhaseIdx},
+        {1, IndexTraits::gasPhaseIdx},
+        {2, IndexTraits::waterPhaseIdx}
     };
     std::map<unsigned, int> phase_idx_reverse_map_;
     std::string message_;

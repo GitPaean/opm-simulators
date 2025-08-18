@@ -67,7 +67,7 @@ setEvaluationsFromValues()
 
 template<class FluidSystem, class Indices>
 void MultisegmentWellPrimaryVariables<FluidSystem,Indices>::
-update(const WellState<FluidSystem, Indices>& well_state,
+update(const WellState<Scalar, IndexTraits>& well_state,
        const bool stop_or_zero_rate_target)
 {
     // TODO: to test using rate conversion coefficients to see if it will be better than
@@ -219,9 +219,9 @@ updateNewton(const BVectorWell& dwells,
 
 template<class FluidSystem, class Indices>
 void MultisegmentWellPrimaryVariables<FluidSystem,Indices>::
-copyToWellState(const  MultisegmentWellGeneric<FluidSystem, Indices>& mswell,
+copyToWellState(const  MultisegmentWellGeneric<Scalar, IndexTraits>& mswell,
                 const Scalar rho,
-                WellState<FluidSystem, Indices>& well_state,
+                WellState<Scalar, IndexTraits>& well_state,
                 const SummaryState& summary_state,
                 DeferredLogger& deferred_logger) const
 {

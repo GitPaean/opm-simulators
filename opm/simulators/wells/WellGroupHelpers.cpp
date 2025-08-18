@@ -106,7 +106,7 @@ namespace Opm {
         // updateGroupTargetReduction. A cleaner solution would perhaps be to let sumWellPhaseRates return
         // the satellite production directly (it currently returns zero for satellite groups).
         if (wellState.isRank0() && !injector) {
-            const auto rateComp = selectRateComponent(phasePos);
+            const auto rateComp = selectRateComponent(wellState.phaseUsageInfo(), phasePos);
             if (rateComp.has_value()) {
                 rate += satelliteProduction(schedule[reportStepIdx], group.groups(), *rateComp);
             }
@@ -2238,8 +2238,6 @@ const Schedule&,          \
 const int,                \
 const FieldPropsManager&, \
 AvgPMap<T>&);
-
-// const PhaseUsageInfo<BlackOilDefaultFluidSystemIndices>&,        \
 
 INSTANTIATE_TYPE(double)
 

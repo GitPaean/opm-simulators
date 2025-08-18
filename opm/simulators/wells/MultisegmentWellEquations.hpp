@@ -39,8 +39,8 @@ template<class M> class UMFPack;
 namespace Opm
 {
 
-template<class Scalar, int numWellEq, int numEq> class MultisegmentWellEquationAccess;
-template<class Scalar> class MultisegmentWellGeneric;
+template<class Scalar, typename IndexTraits, int numWellEq, int numEq> class MultisegmentWellEquationAccess;
+template<class Scalar, typename IndexTraits> class MultisegmentWellGeneric;
 #if COMPILE_GPU_BRIDGE
 template<class Scalar> class WellContributions;
 #endif
@@ -70,7 +70,7 @@ public:
     using OffDiagMatrixBlockWellType = Dune::FieldMatrix<Scalar,numWellEq,numEq>;
     using OffDiagMatWell = Dune::BCRSMatrix<OffDiagMatrixBlockWellType>;
 
-    MultisegmentWellEquations(const MultisegmentWellGeneric<Scalar>& well, const ParallelWellInfo<Scalar>& pw_info);
+    MultisegmentWellEquations(const MultisegmentWellGeneric<Scalar, IndexTraits>& well, const ParallelWellInfo<Scalar>& pw_info);
 
     //! \brief Setup sparsity pattern for the matrices.
     //! \param numPerfs Number of perforations
@@ -133,7 +133,7 @@ public:
     }
 
   private:
-    friend class MultisegmentWellEquationAccess<Scalar,numWellEq,numEq>;
+    friend class MultisegmentWellEquationAccess<Scalar,IndexTraits,numWellEq,numEq>;
     // two off-diagonal matrices
     OffDiagMatWell duneB_;
     OffDiagMatWell duneC_;
@@ -148,7 +148,7 @@ public:
     // residuals of the well equations
     BVectorWell resWell_;
 
-    const MultisegmentWellGeneric<Scalar>& well_; //!< Reference to well
+    const MultisegmentWellGeneric<Scalar, IndexTraits>& well_; //!< Reference to well
 
     // Store the global index of well perforated cells
     std::vector<int> cells_;

@@ -51,7 +51,7 @@ namespace Opm {
 
 template<class Scalar, typename IndexTraits, int numWellEq, int numEq>
 MultisegmentWellEquations<Scalar, IndexTraits, numWellEq, numEq>::
-MultisegmentWellEquations(const MultisegmentWellGeneric<Scalar>& well, const ParallelWellInfo<Scalar>& pw_info)
+MultisegmentWellEquations(const MultisegmentWellGeneric<Scalar, IndexTraits>& well, const ParallelWellInfo<Scalar>& pw_info)
     : well_(well)
     , pw_info_(pw_info)
     , parallelB_(duneB_, pw_info)
