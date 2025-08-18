@@ -34,18 +34,18 @@ class DeferredLogger;
 class GasLiftOpt;
 class Group;
 template<class Scalar> class GroupState;
+template<typename IndexTraits> class PhaseUsageInfo;
 class Schedule;
 class SummaryState;
 class Well;
-template<typename FluidSystem, typename Indices> class WellState;
+template<typename Scalar, typename IndexTraits> class WellState;
 
 
-template<typename FluidSystem, typename Indices>
-class GasLiftGroupInfo : public GasLiftCommon<FluidSystem, Indices>
+template<typename Scalar, typename IndexTraits>
+class GasLiftGroupInfo : public GasLiftCommon<Scalar, IndexTraits>
 {
 protected:
     class GroupRates;
-    using Scalar = typename FluidSystem::Scalar;
     // NOTE: In the Well2GroupMap below, in the std::vector value we store
     //    pairs of group names and efficiency factors. The efficiency factors
     //    are the product of the wells efficiency factor and all the efficiency
@@ -58,12 +58,6 @@ protected:
     using GroupIdxMap = std::map<std::string, int>;
     using Communication = Dune::Communication<Dune::MPIHelper::MPICommunicator>;
 
-    // TODO: same definition with WellInterface, and
-    //   WellState eventually they should go to a common header file.
-    static const int Water = FluidSystem::waterPhaseIdx;
-    static const int Oil = FluidSystem::oilPhaseIdx;
-    static const int Gas = FluidSystem::gasPhaseIdx;
-
 public:
     enum class Rate {oil, gas, water, liquid};
 
@@ -74,7 +68,7 @@ public:
                      const int report_step_idx,
                      const int iteration_idx,
                      DeferredLogger& deferred_logger,
-                     WellState<FluidSystem, Indices>& well_state,
+                     WellState<Scalar, IndexTraits>& well_state,
                      const GroupState<Scalar>& group_state,
                      const Parallel::Communication& comm,
                      bool glift_debug);
@@ -241,6 +235,7 @@ protected:
     const SummaryState& summary_state_;
     const int report_step_idx_;
     const int iteration_idx_;
+    const PhaseUsageInfo<IndexTraits>& phase_usage_;
     const GasLiftOpt& glo_;
     GroupRateMap group_rate_map_;
     Well2GroupMap well_group_map_;

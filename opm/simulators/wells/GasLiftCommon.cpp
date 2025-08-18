@@ -34,9 +34,9 @@
 
 namespace Opm {
 
-template<typename FluidSystem, typename Indices>
-GasLiftCommon<FluidSystem, Indices>::
-GasLiftCommon(WellState<FluidSystem, Indices>& well_state,
+template<typename Scalar, typename IndexTraits>
+GasLiftCommon<Scalar, IndexTraits>::
+GasLiftCommon(WellState<Scalar, IndexTraits>& well_state,
               const GroupState<Scalar>& group_state,
               DeferredLogger& deferred_logger,
               const Parallel::Communication& comm,
@@ -52,9 +52,9 @@ GasLiftCommon(WellState<FluidSystem, Indices>& well_state,
  * Protected methods in alphabetical order
  ****************************************/
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 void
-GasLiftCommon<FluidSystem, Indices>::
+GasLiftCommon<Scalar, IndexTraits>::
 displayDebugMessageOnRank0_(const std::string& msg) const
 {
     // This output should be identical for all ranks.
@@ -65,9 +65,9 @@ displayDebugMessageOnRank0_(const std::string& msg) const
     }
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 void
-GasLiftCommon<FluidSystem, Indices>::
+GasLiftCommon<Scalar, IndexTraits>::
 logMessage_(const std::string& prefix,
             const std::string& msg,
             MessageType msg_type) const
@@ -101,12 +101,12 @@ logMessage_(const std::string& prefix,
     }
 }
 
-#include <opm/simulators/utils/InstantiationIndicesMacros.hpp>
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 
-INSTANTIATE_TYPE_INDICES(GasLiftCommon, double)
+template class GasLiftCommon<double, Opm::BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
-INSTANTIATE_TYPE_INDICES(GasLiftCommon, float)
+template class GasLiftCommon<float, Opm::BlackOilDefaultFluidSystemIndices>;
 #endif
 
 } // namespace Opm

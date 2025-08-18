@@ -41,20 +41,19 @@ class GuideRate;
 template<class Scalar> class ParallelWellInfo;
 template<class Scalar> struct PerforationData;
 class SummaryState;
-template<typename FluidSystem, typename Indices> class VFPProperties;
+template<typename Scalar, typename IndexTraits> class VFPProperties;
 class WellTestState;
-template<typename FluidSystem, typename Indices> class WellState;
-template<typename FluidSystem, typename Indices> class SingleWellState;
+template<typename Scalar, typename IndexTraits> class WellState;
+template<typename Scalar, typename IndexTraits> class SingleWellState;
 class Group;
 class Schedule;
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 class WellInterfaceGeneric {
 public:
-    using Scalar = typename FluidSystem::Scalar;
     using ModelParameters = BlackoilModelParameters<Scalar>;
 
-    using WellStateType = WellState<FluidSystem, Indices>;
+    using WellStateType = WellState<Scalar, IndexTraits>;
 
     WellInterfaceGeneric(const Well& well,
                          const ParallelWellInfo<Scalar>& parallel_well_info,
@@ -100,7 +99,7 @@ public:
     void initCompletions();
     void closeCompletions(const WellTestState& wellTestState);
 
-    void setVFPProperties(const VFPProperties<FluidSystem, Indices>* vfp_properties_arg);
+    void setVFPProperties(const VFPProperties<Scalar, IndexTraits>* vfp_properties_arg);
     void setPrevSurfaceRates(WellStateType& well_state,
                              const WellStateType& prev_well_state) const;
     void setGuideRate(const GuideRate* guide_rate_arg);
@@ -136,7 +135,7 @@ public:
 
     Scalar gravity() const { return gravity_; }
 
-    const VFPProperties<FluidSystem, Indices>* vfpProperties() const { return vfp_properties_; }
+    const VFPProperties<Scalar, IndexTraits>* vfpProperties() const { return vfp_properties_; }
 
     const ParallelWellInfo<Scalar>& parallelWellInfo() const { return parallel_well_info_; }
 
@@ -167,12 +166,12 @@ public:
     // whether a well is specified with a non-zero and valid VFP table number
     bool isVFPActive(DeferredLogger& deferred_logger) const;
 
-    void reportWellSwitching(const SingleWellState<FluidSystem, Indices>& ws,
+    void reportWellSwitching(const SingleWellState<Scalar, IndexTraits>& ws,
                              DeferredLogger& deferred_logger) const;
 
     bool changedToOpenThisStep() const { return this->changed_to_open_this_step_; }
 
-    void updateWellTestState(const SingleWellState<FluidSystem, Indices>& ws,
+    void updateWellTestState(const SingleWellState<Scalar, IndexTraits>& ws,
                              const double& simulationTime,
                              const bool& writeMessageToOPMLog,
                              const bool zero_group_target,
@@ -221,9 +220,9 @@ protected:
     int polymerWaterTable_() const;
 
     bool wellUnderZeroRateTargetIndividual(const SummaryState& summary_state,
-                                           const WellState<FluidSystem, Indices>& well_state) const;
+                                           const WellState<Scalar, IndexTraits>& well_state) const;
 
-    bool wellUnderGroupControl(const SingleWellState<FluidSystem, Indices>& ws) const;
+    bool wellUnderGroupControl(const SingleWellState<Scalar, IndexTraits>& ws) const;
 
     std::pair<bool,bool>
     computeWellPotentials(std::vector<Scalar>& well_potentials,
@@ -388,7 +387,7 @@ protected:
     std::vector<Scalar> inj_fc_multiplier_;
 
     Scalar well_efficiency_factor_;
-    const VFPProperties<FluidSystem, Indices>* vfp_properties_;
+    const VFPProperties<Scalar, IndexTraits>* vfp_properties_;
     const GuideRate* guide_rate_;
 
     std::vector<std::string> well_control_log_;

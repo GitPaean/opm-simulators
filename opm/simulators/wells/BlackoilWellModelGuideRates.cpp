@@ -358,7 +358,7 @@ getGuideRateValues(const Group& group) const
     }
 
     const auto qs = WellGroupHelpers<Scalar, IndexTraits>::
-        getProductionGroupRateVector(wellModel_.groupState(), gname);
+        getProductionGroupRateVector(wellModel_.groupState(), wellModel_.phaseUsage(), gname);
 
     const auto is_inj = false; // This procedure only applies to G*PGR.
     this->getGuideRateValues(qs, is_inj, gname, grval);

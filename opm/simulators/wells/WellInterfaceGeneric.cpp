@@ -36,12 +36,6 @@
 #include <opm/input/eclipse/Schedule/Well/WVFPEXP.hpp>
 
 
-#include <opm/material/fluidsystems/BlackOilFluidSystem.hpp>
-
-#include <opm/models/blackoil/blackoilvariableandequationindices.hh>
-#include <opm/models/blackoil/blackoilonephaseindices.hh>
-#include <opm/models/blackoil/blackoiltwophaseindices.hh>
-
 #include <opm/simulators/utils/DeferredLoggingErrorHelpers.hpp>
 
 #include <opm/simulators/wells/PerforationData.hpp>
@@ -65,8 +59,8 @@
 
 namespace Opm {
 
-template<typename FluidSystem, typename Indices>
-WellInterfaceGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+WellInterfaceGeneric<Scalar, IndexTraits>::
 WellInterfaceGeneric(const Well& well,
                      const ParallelWellInfo<Scalar>& pw_info,
                      const int time_step,
@@ -139,8 +133,8 @@ WellInterfaceGeneric(const Well& well,
 //  value in VFPPROD record 5 (GFR values) and supplying a dummy input value
 //  for the gas rate to the methods in VFPProdProperties.cpp, we can extend
 //  the VFP calculations to the two-phase oil-water case.
-template<typename FluidSystem, typename Indices>
-void WellInterfaceGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void WellInterfaceGeneric<Scalar, IndexTraits>::
 adaptRatesForVFP(std::vector<Scalar>& rates) const
 {
     if (Indices::numPhases == 2) {
@@ -158,72 +152,72 @@ adaptRatesForVFP(std::vector<Scalar>& rates) const
     }
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 const std::vector<PerforationData<typename FluidSystem::Scalar>>&
-WellInterfaceGeneric<FluidSystem, Indices>::perforationData() const
+WellInterfaceGeneric<Scalar, IndexTraits>::perforationData() const
 {
     return *perf_data_;
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 const std::string&
-WellInterfaceGeneric<FluidSystem, Indices>::name() const
+WellInterfaceGeneric<Scalar, IndexTraits>::name() const
 {
     return well_ecl_.name();
 }
 
-template<typename FluidSystem, typename Indices>
-bool WellInterfaceGeneric<FluidSystem, Indices>::isInjector() const
+template<typename Scalar, typename IndexTraits>
+bool WellInterfaceGeneric<Scalar, IndexTraits>::isInjector() const
 {
     return well_ecl_.isInjector();
 }
 
-template<typename FluidSystem, typename Indices>
-bool WellInterfaceGeneric<FluidSystem, Indices>::isProducer() const
+template<typename Scalar, typename IndexTraits>
+bool WellInterfaceGeneric<Scalar, IndexTraits>::isProducer() const
 {
     return well_ecl_.isProducer();
 }
 
-template<typename FluidSystem, typename Indices>
-int WellInterfaceGeneric<FluidSystem, Indices>::indexOfWell() const
+template<typename Scalar, typename IndexTraits>
+int WellInterfaceGeneric<Scalar, IndexTraits>::indexOfWell() const
 {
     return index_of_well_;
 }
 
-template<typename FluidSystem, typename Indices>
-bool WellInterfaceGeneric<FluidSystem, Indices>::getAllowCrossFlow() const
+template<typename Scalar, typename IndexTraits>
+bool WellInterfaceGeneric<Scalar, IndexTraits>::getAllowCrossFlow() const
 {
     return well_ecl_.getAllowCrossFlow();
 }
 
-template<typename FluidSystem, typename Indices>
-const Well& WellInterfaceGeneric<FluidSystem, Indices>::wellEcl() const
+template<typename Scalar, typename IndexTraits>
+const Well& WellInterfaceGeneric<Scalar, IndexTraits>::wellEcl() const
 {
     return well_ecl_;
 }
 
-template<typename FluidSystem, typename Indices>
-Well& WellInterfaceGeneric<FluidSystem, Indices>::wellEcl()
+template<typename Scalar, typename IndexTraits>
+Well& WellInterfaceGeneric<Scalar, IndexTraits>::wellEcl()
 {
     return well_ecl_;
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 typename FluidSystem::Scalar
-WellInterfaceGeneric<FluidSystem, Indices>::wsolvent() const
+WellInterfaceGeneric<Scalar, IndexTraits>::wsolvent() const
 {
     return wsolvent_;
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 typename FluidSystem::Scalar
-WellInterfaceGeneric<FluidSystem, Indices>::rsRvInj() const
+WellInterfaceGeneric<Scalar, IndexTraits>::rsRvInj() const
 {
     return well_ecl_.getInjectionProperties().rsRvInj;
 }
 
-template<typename FluidSystem, typename Indices>
-void WellInterfaceGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void WellInterfaceGeneric<Scalar, IndexTraits>::
 initInjMult(const std::vector<Scalar>& max_inj_mult)
 {
     // prev_inj_multiplier_ will stay unchanged during the time step
@@ -236,8 +230,8 @@ initInjMult(const std::vector<Scalar>& max_inj_mult)
     this->inj_multiplier_damp_factor_ = std::vector<Scalar>(nperf, 1.);
 }
 
-template<typename FluidSystem, typename Indices>
-void WellInterfaceGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void WellInterfaceGeneric<Scalar, IndexTraits>::
 updateInjMult(std::vector<Scalar>& inj_multipliers,
               DeferredLogger& deferred_logger) const
 {
@@ -251,9 +245,9 @@ updateInjMult(std::vector<Scalar>& inj_multipliers,
     inj_multipliers = this->inj_multiplier_;
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 typename FluidSystem::Scalar
-WellInterfaceGeneric<FluidSystem, Indices>::
+WellInterfaceGeneric<Scalar, IndexTraits>::
 getInjMult(const int local_perf_index,
            const Scalar bhp,
            const Scalar perf_pres,
@@ -315,8 +309,8 @@ getInjMult(const int local_perf_index,
     return multiplier;
 }
 
-template<typename FluidSystem, typename Indices>
-bool WellInterfaceGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+bool WellInterfaceGeneric<Scalar, IndexTraits>::
 wellHasTHPConstraints(const SummaryState& summaryState) const
 {
     // only wells under prediction mode can have THP constraint
@@ -331,9 +325,9 @@ wellHasTHPConstraints(const SummaryState& summaryState) const
     return WellBhpThpCalculator(*this).wellHasTHPConstraints(summaryState);
 }
 
-template<typename FluidSystem, typename Indices>
-void WellInterfaceGeneric<FluidSystem, Indices>::
-updateWellTestState(const SingleWellState<FluidSystem, Indices>& ws,
+template<typename Scalar, typename IndexTraits>
+void WellInterfaceGeneric<Scalar, IndexTraits>::
+updateWellTestState(const SingleWellState<Scalar, IndexTraits>& ws,
                     const double& simulationTime,
                     const bool& writeMessageToOPMLog,
                     const bool zero_group_target,
@@ -352,8 +346,8 @@ updateWellTestState(const SingleWellState<FluidSystem, Indices>& ws,
     // TODO: well can be shut/closed due to other reasons
 }
 
-template<typename FluidSystem, typename Indices>
-typename FluidSystem::Scalar WellInterfaceGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+typename FluidSystem::Scalar WellInterfaceGeneric<Scalar, IndexTraits>::
 getTHPConstraint(const SummaryState& summaryState) const
 {
     if (dynamic_thp_limit_) {
@@ -363,14 +357,14 @@ getTHPConstraint(const SummaryState& summaryState) const
     return WellBhpThpCalculator(*this).getTHPConstraint(summaryState);
 }
 
-template<typename FluidSystem, typename Indices>
-bool WellInterfaceGeneric<FluidSystem, Indices>::underPredictionMode() const
+template<typename Scalar, typename IndexTraits>
+bool WellInterfaceGeneric<Scalar, IndexTraits>::underPredictionMode() const
 {
     return well_ecl_.predictionMode();
 }
 
-template<typename FluidSystem, typename Indices>
-void WellInterfaceGeneric<FluidSystem, Indices>::initCompletions()
+template<typename Scalar, typename IndexTraits>
+void WellInterfaceGeneric<Scalar, IndexTraits>::initCompletions()
 {
     assert(completions_.empty() );
 
@@ -397,8 +391,8 @@ void WellInterfaceGeneric<FluidSystem, Indices>::initCompletions()
     assert(my_next_perf == perf_data_->end());
 }
 
-template<typename FluidSystem, typename Indices>
-void WellInterfaceGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void WellInterfaceGeneric<Scalar, IndexTraits>::
 closeCompletions(const WellTestState& wellTestState)
 {
     const auto& connections = well_ecl_.getConnections();
@@ -413,17 +407,17 @@ closeCompletions(const WellTestState& wellTestState)
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void WellInterfaceGeneric<FluidSystem, Indices>::
-setVFPProperties(const VFPProperties<FluidSystem, Indices>* vfp_properties_arg)
+template<typename Scalar, typename IndexTraits>
+void WellInterfaceGeneric<Scalar, IndexTraits>::
+setVFPProperties(const VFPProperties<Scalar, IndexTraits>* vfp_properties_arg)
 {
     vfp_properties_ = vfp_properties_arg;
 }
 
-template<typename FluidSystem, typename Indices>
-void WellInterfaceGeneric<FluidSystem, Indices>::
-setPrevSurfaceRates(WellState<FluidSystem, Indices>& well_state,
-                    const WellState<FluidSystem, Indices>& prev_well_state) const
+template<typename Scalar, typename IndexTraits>
+void WellInterfaceGeneric<Scalar, IndexTraits>::
+setPrevSurfaceRates(WellState<Scalar, IndexTraits>& well_state,
+                    const WellState<Scalar, IndexTraits>& prev_well_state) const
 {
     auto& ws = well_state.well(this->index_of_well_);
     auto& ws_prev = prev_well_state.well(this->index_of_well_);
@@ -446,22 +440,22 @@ setPrevSurfaceRates(WellState<FluidSystem, Indices>& well_state,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void WellInterfaceGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void WellInterfaceGeneric<Scalar, IndexTraits>::
 setGuideRate(const GuideRate* guide_rate_arg)
 {
     guide_rate_ = guide_rate_arg;
 }
 
-template<typename FluidSystem, typename Indices>
-void WellInterfaceGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void WellInterfaceGeneric<Scalar, IndexTraits>::
 setWellEfficiencyFactor(const Scalar efficiency_factor)
 {
     well_efficiency_factor_ = efficiency_factor;
 }
 
-template<typename FluidSystem, typename Indices>
-void WellInterfaceGeneric<FluidSystem, Indices>::setRepRadiusPerfLength()
+template<typename Scalar, typename IndexTraits>
+void WellInterfaceGeneric<Scalar, IndexTraits>::setRepRadiusPerfLength()
 {
     const int nperf = number_of_local_perforations_;
 
@@ -504,36 +498,36 @@ void WellInterfaceGeneric<FluidSystem, Indices>::setRepRadiusPerfLength()
     assert(num_active_connections == nperf);
 }
 
-template<typename FluidSystem, typename Indices>
-void WellInterfaceGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void WellInterfaceGeneric<Scalar, IndexTraits>::
 setWsolvent(const Scalar wsolvent)
 {
     wsolvent_ = wsolvent;
 }
 
-template<typename FluidSystem, typename Indices>
-void WellInterfaceGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void WellInterfaceGeneric<Scalar, IndexTraits>::
 setDynamicThpLimit(const Scalar thp_limit)
 {
     dynamic_thp_limit_ = thp_limit;
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 std::optional<typename FluidSystem::Scalar>
-WellInterfaceGeneric<FluidSystem, Indices>::getDynamicThpLimit() const
+WellInterfaceGeneric<Scalar, IndexTraits>::getDynamicThpLimit() const
 {
     return dynamic_thp_limit_;
 }
 
-template<typename FluidSystem, typename Indices>
-void WellInterfaceGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void WellInterfaceGeneric<Scalar, IndexTraits>::
 setDynamicThpLimit(const std::optional<Scalar> thp_limit)
 {
     dynamic_thp_limit_ = thp_limit;
 }
 
-template<typename FluidSystem, typename Indices>
-void WellInterfaceGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void WellInterfaceGeneric<Scalar, IndexTraits>::
 updatePerforatedCell(std::vector<bool>& is_cell_perforated)
 {
     for (int perf_idx = 0; perf_idx < number_of_local_perforations_; ++perf_idx) {
@@ -541,8 +535,8 @@ updatePerforatedCell(std::vector<bool>& is_cell_perforated)
     }
 }
 
-template<typename FluidSystem, typename Indices>
-bool WellInterfaceGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+bool WellInterfaceGeneric<Scalar, IndexTraits>::
 isVFPActive(DeferredLogger& deferred_logger) const
 {
     // since the well_controls only handles the VFP number when THP constraint/target is there.
@@ -583,29 +577,29 @@ isVFPActive(DeferredLogger& deferred_logger) const
     }
 }
 
-template<typename FluidSystem, typename Indices>
-bool WellInterfaceGeneric<FluidSystem, Indices>::isOperableAndSolvable() const
+template<typename Scalar, typename IndexTraits>
+bool WellInterfaceGeneric<Scalar, IndexTraits>::isOperableAndSolvable() const
 {
     return operability_status_.isOperableAndSolvable();
 }
 
-template<typename FluidSystem, typename Indices>
-bool WellInterfaceGeneric<FluidSystem, Indices>::useVfpExplicit() const
+template<typename Scalar, typename IndexTraits>
+bool WellInterfaceGeneric<Scalar, IndexTraits>::useVfpExplicit() const
 {
     const auto& wvfpexp = well_ecl_.getWVFPEXP();
     return (wvfpexp.explicit_lookup() || operability_status_.use_vfpexplicit);
 }
 
-template<typename FluidSystem, typename Indices>
-bool WellInterfaceGeneric<FluidSystem, Indices>::thpLimitViolatedButNotSwitched() const
+template<typename Scalar, typename IndexTraits>
+bool WellInterfaceGeneric<Scalar, IndexTraits>::thpLimitViolatedButNotSwitched() const
 {
     return operability_status_.thp_limit_violated_but_not_switched;
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 typename FluidSystem::Scalar
-WellInterfaceGeneric<FluidSystem, Indices>::
-getALQ(const WellState<FluidSystem, Indices>& well_state) const
+WellInterfaceGeneric<Scalar, IndexTraits>::
+getALQ(const WellState<Scalar, IndexTraits>& well_state) const
 {
     // no alq for injectors.
     if (isInjector())
@@ -614,9 +608,9 @@ getALQ(const WellState<FluidSystem, Indices>& well_state) const
     return well_state.well(name()).alq_state.get();
 }
 
-template<typename FluidSystem, typename Indices>
-void WellInterfaceGeneric<FluidSystem, Indices>::
-reportWellSwitching(const SingleWellState<FluidSystem, Indices> &ws,
+template<typename Scalar, typename IndexTraits>
+void WellInterfaceGeneric<Scalar, IndexTraits>::
+reportWellSwitching(const SingleWellState<Scalar, IndexTraits> &ws,
                     DeferredLogger& deferred_logger) const
 {
     if (well_control_log_.empty())
@@ -636,9 +630,9 @@ reportWellSwitching(const SingleWellState<FluidSystem, Indices> &ws,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-bool WellInterfaceGeneric<FluidSystem, Indices>::
-isPressureControlled(const WellState<FluidSystem, Indices>& well_state) const
+template<typename Scalar, typename IndexTraits>
+bool WellInterfaceGeneric<Scalar, IndexTraits>::
+isPressureControlled(const WellState<Scalar, IndexTraits>& well_state) const
 {
     const auto& ws = well_state.well(this->index_of_well_);
     if (this->isInjector()) {
@@ -652,10 +646,10 @@ isPressureControlled(const WellState<FluidSystem, Indices>& well_state) const
     }
 }
 
-template<typename FluidSystem, typename Indices>
-bool WellInterfaceGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+bool WellInterfaceGeneric<Scalar, IndexTraits>::
 wellUnderZeroRateTargetIndividual(const SummaryState& summary_state,
-                                  const WellState<FluidSystem, Indices>& well_state) const
+                                  const WellState<Scalar, IndexTraits>& well_state) const
 {
     if (this->isProducer()) { // producers
         const auto prod_controls = this->well_ecl_.productionControls(summary_state);
@@ -668,9 +662,9 @@ wellUnderZeroRateTargetIndividual(const SummaryState& summary_state,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-bool WellInterfaceGeneric<FluidSystem, Indices>::
-wellUnderGroupControl(const SingleWellState<FluidSystem, Indices>& ws) const
+template<typename Scalar, typename IndexTraits>
+bool WellInterfaceGeneric<Scalar, IndexTraits>::
+wellUnderGroupControl(const SingleWellState<Scalar, IndexTraits>& ws) const
 {
     // Check if well is under group control
     const bool isGroupControlled = (this->isInjector() && ws.injection_cmode == Well::InjectorCMode::GRUP) ||
@@ -678,14 +672,14 @@ wellUnderGroupControl(const SingleWellState<FluidSystem, Indices>& ws) const
     return isGroupControlled;
 }
 
-template<typename FluidSystem, typename Indices>
-void WellInterfaceGeneric<FluidSystem, Indices>::resetWellOperability()
+template<typename Scalar, typename IndexTraits>
+void WellInterfaceGeneric<Scalar, IndexTraits>::resetWellOperability()
 {
     this->operability_status_.resetOperability();
 }
 
-template<typename FluidSystem, typename Indices>
-void WellInterfaceGeneric<FluidSystem, Indices>::addPerforations(const std::vector<RuntimePerforation>& perfs)
+template<typename Scalar, typename IndexTraits>
+void WellInterfaceGeneric<Scalar, IndexTraits>::addPerforations(const std::vector<RuntimePerforation>& perfs)
 {
     for (const auto& perf : perfs) {
         auto it = std::find(well_cells_.begin(), well_cells_.end(), perf.cell);
@@ -714,9 +708,9 @@ void WellInterfaceGeneric<FluidSystem, Indices>::addPerforations(const std::vect
     }
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 typename FluidSystem::Scalar
-WellInterfaceGeneric<FluidSystem, Indices>::wmicrobes_() const
+WellInterfaceGeneric<Scalar, IndexTraits>::wmicrobes_() const
 {
     auto injectorType = this->well_ecl_.injectorType();
 
@@ -730,9 +724,9 @@ WellInterfaceGeneric<FluidSystem, Indices>::wmicrobes_() const
     }
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 typename FluidSystem::Scalar
-WellInterfaceGeneric<FluidSystem, Indices>::wfoam_() const
+WellInterfaceGeneric<Scalar, IndexTraits>::wfoam_() const
 {
     auto injectorType = this->well_ecl_.injectorType();
 
@@ -745,9 +739,9 @@ WellInterfaceGeneric<FluidSystem, Indices>::wfoam_() const
     }
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 typename FluidSystem::Scalar
-WellInterfaceGeneric<FluidSystem, Indices>::wsalt_() const
+WellInterfaceGeneric<Scalar, IndexTraits>::wsalt_() const
 {
     auto injectorType = this->well_ecl_.injectorType();
 
@@ -760,9 +754,9 @@ WellInterfaceGeneric<FluidSystem, Indices>::wsalt_() const
     }
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 typename FluidSystem::Scalar
-WellInterfaceGeneric<FluidSystem, Indices>::woxygen_() const
+WellInterfaceGeneric<Scalar, IndexTraits>::woxygen_() const
 {
     auto injectorType = this->well_ecl_.injectorType();
 
@@ -776,9 +770,9 @@ WellInterfaceGeneric<FluidSystem, Indices>::woxygen_() const
     }
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 typename FluidSystem::Scalar
-WellInterfaceGeneric<FluidSystem, Indices>::wpolymer_() const
+WellInterfaceGeneric<Scalar, IndexTraits>::wpolymer_() const
 {
     auto injectorType = this->well_ecl_.injectorType();
 
@@ -792,9 +786,9 @@ WellInterfaceGeneric<FluidSystem, Indices>::wpolymer_() const
     }
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 typename FluidSystem::Scalar
-WellInterfaceGeneric<FluidSystem, Indices>::wurea_() const
+WellInterfaceGeneric<Scalar, IndexTraits>::wurea_() const
 {
     auto injectorType = this->well_ecl_.injectorType();
 
@@ -808,28 +802,28 @@ WellInterfaceGeneric<FluidSystem, Indices>::wurea_() const
     }
 }
 
-template<typename FluidSystem, typename Indices>
-int WellInterfaceGeneric<FluidSystem, Indices>::polymerTable_() const
+template<typename Scalar, typename IndexTraits>
+int WellInterfaceGeneric<Scalar, IndexTraits>::polymerTable_() const
 {
     return this->well_ecl_.getPolymerProperties().m_skprpolytable;
 }
 
-template<typename FluidSystem, typename Indices>
-int WellInterfaceGeneric<FluidSystem, Indices>::polymerWaterTable_() const
+template<typename Scalar, typename IndexTraits>
+int WellInterfaceGeneric<Scalar, IndexTraits>::polymerWaterTable_() const
 {
     return this->well_ecl_.getPolymerProperties().m_skprwattable;
 }
 
-template<typename FluidSystem, typename Indices>
-int WellInterfaceGeneric<FluidSystem, Indices>::polymerInjTable_() const
+template<typename Scalar, typename IndexTraits>
+int WellInterfaceGeneric<Scalar, IndexTraits>::polymerInjTable_() const
 {
     return this->well_ecl_.getPolymerProperties().m_plymwinjtable;
 }
 
-template<typename FluidSystem, typename Indices>
-std::pair<bool,bool> WellInterfaceGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+std::pair<bool,bool> WellInterfaceGeneric<Scalar, IndexTraits>::
 computeWellPotentials(std::vector<Scalar>& well_potentials,
-                      const WellState<FluidSystem, Indices>& well_state)
+                      const WellState<Scalar, IndexTraits>& well_state)
 {
     const int np = this->number_of_phases_;
     well_potentials.resize(np, 0.0);
@@ -884,8 +878,8 @@ computeWellPotentials(std::vector<Scalar>& well_potentials,
     return {compute_potential, bhp_controlled_well};
 }
 
-template<typename FluidSystem, typename Indices>
-void WellInterfaceGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void WellInterfaceGeneric<Scalar, IndexTraits>::
 checkNegativeWellPotentials(std::vector<Scalar>& well_potentials,
                             const bool checkOperability,
                             DeferredLogger& deferred_logger)
@@ -905,10 +899,10 @@ checkNegativeWellPotentials(std::vector<Scalar>& well_potentials,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void WellInterfaceGeneric<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits>
+void WellInterfaceGeneric<Scalar, IndexTraits>::
 prepareForPotentialCalculations(const SummaryState& summary_state,
-                                WellState<FluidSystem, Indices>& well_state,
+                                WellState<Scalar, IndexTraits>& well_state,
                                 Well::InjectionControls& inj_controls,
                                 Well::ProductionControls& prod_controls) const
 {
@@ -949,12 +943,12 @@ prepareForPotentialCalculations(const SummaryState& summary_state,
     }    
 }
 
-#include <opm/simulators/utils/InstantiationIndicesMacros.hpp>
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 
-INSTANTIATE_TYPE_INDICES(WellInterfaceGeneric, double)
+template class WellInterfaceGeneric<double, Opm::BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
-INSTANTIATE_TYPE_INDICES(WellInterfaceGeneric, float)
+template class WellInterfaceGeneric<float, BlackOilDefaultFluidSystemIndices>;
 #endif
 
 } // namespace Opm

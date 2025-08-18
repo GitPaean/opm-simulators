@@ -45,26 +45,24 @@ class GasLiftWell;
 template<class Scalar> class GasLiftWellState;
 class Schedule;
 class SummaryState;
-template<typename FluidSystem, typename Indices> class WellInterfaceGeneric;
-template<typename FluidSystem, typename Indices> class WellState;
+template<typename Scalar, typename IndexTraits> class WellInterfaceGeneric;
+template<typename Scalar, typename IndexTraits> class WellState;
 template<class Scalar> class GroupState;
 
-template<typename FluidSystem, typename Indices>
-class GasLiftSingleWellGeneric : public GasLiftCommon<FluidSystem, Indices>
+template<typename Scalar, typename IndexTraits>
+class GasLiftSingleWellGeneric : public GasLiftCommon<Scalar, IndexTraits>
 {
 protected:
-    using Scalar = typename FluidSystem::Scalar;
-
-    static constexpr int Water = FluidSystem::waterPhaseIdx;
-    static constexpr int Oil = FluidSystem::oilPhaseIdx;
-    static constexpr int Gas = FluidSystem::gasPhaseIdx;
+    static constexpr int Water = IndexTraits::waterPhaseIdx;
+    static constexpr int Oil = IndexTraits::oilPhaseIdx;
+    static constexpr int Gas = IndexTraits::gasPhaseIdx;
     static constexpr int NUM_PHASES = 3;
     static constexpr Scalar ALQ_EPSILON = 1e-8;
 
 public:
     using GLiftSyncGroups = std::set<int>;
-    using Rate = typename GasLiftGroupInfo<FluidSystem, Indices>::Rate;
-    using MessageType = typename GasLiftCommon<FluidSystem, Indices>::MessageType;
+    using Rate = typename GasLiftGroupInfo<Scalar, IndexTraits>::Rate;
+    using MessageType = typename GasLiftCommon<Scalar, IndexTraits>::MessageType;
 
     struct GradInfo
     {
@@ -114,15 +112,15 @@ public:
 
     std::pair<Scalar, bool> wellTestALQ();
 
-    virtual const WellInterfaceGeneric<FluidSystem, Indices>& getWell() const = 0;
+    virtual const WellInterfaceGeneric<Scalar, IndexTraits>& getWell() const = 0;
 
 protected:
     GasLiftSingleWellGeneric(DeferredLogger& deferred_logger,
-                             WellState<FluidSystem, Indices>& well_state,
+                             WellState<Scalar, IndexTraits>& well_state,
                              const GroupState<Scalar>& group_state,
                              const Well& ecl_well,
                              const SummaryState& summary_state,
-                             GasLiftGroupInfo<FluidSystem, Indices>& group_info,
+                             GasLiftGroupInfo<Scalar, IndexTraits>& group_info,
                              const Schedule& schedule,
                              const int report_step_idx,
                              GLiftSyncGroups& sync_groups,
@@ -432,7 +430,7 @@ protected:
 
     const Well& ecl_well_;
     const SummaryState& summary_state_;
-    GasLiftGroupInfo<FluidSystem, Indices>& group_info_;
+    GasLiftGroupInfo<Scalar, IndexTraits>& group_info_;
     GLiftSyncGroups& sync_groups_;
     const WellProductionControls controls_;
 
