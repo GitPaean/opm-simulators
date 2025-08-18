@@ -36,16 +36,15 @@ namespace Opm
 
 class DeferredLogger;
 enum class Phase;
-template<class FluidSystem, class Indices> class WellInterfaceIndices;
-template<typename FluidSystem, typename Indices> class WellState;
+template<typename Scalar, typename IndexTraits> class WellInterfaceIndices;
+template<typename Scalar, typename IndexTraits> class WellState;
 template<class Scalar> class PerfData;
 
-template<class FluidSystem, class Indices>
+template<typename Scalar, typename IndexTraits>
 class StandardWellConnections
 {
 public:
-    using Scalar = typename FluidSystem::Scalar;
-    explicit StandardWellConnections(const WellInterfaceIndices<FluidSystem,Indices>& well);
+    explicit StandardWellConnections(const WellInterfaceIndices<Scalar, IndexTraits>& well);
 
     struct Properties
     {
@@ -73,12 +72,12 @@ public:
     };
 
     Properties
-    computePropertiesForPressures(const WellState<FluidSystem, Indices>&         well_state,
+    computePropertiesForPressures(const WellState<Scalar, IndexTraits>&         well_state,
                                   const PressurePropertyFunctions& propFunc) const;
 
     //! \brief Compute connection properties (densities, pressure drop, ...)
     void computeProperties(const bool                      stop_or_zero_rate_target,
-                           const WellState<FluidSystem, Indices>&        well_state,
+                           const WellState<Scalar, IndexTraits>&        well_state,
                            const DensityPropertyFunctions& prop_func,
                            const Properties&               props,
                            DeferredLogger&                 deferred_logger);
@@ -105,8 +104,8 @@ public:
     Scalar pressure_diff(const unsigned perf) const
     { return perf_pressure_diffs_[perf]; }
 
-    using Eval = typename WellInterfaceIndices<FluidSystem,Indices>::Eval;
-    using EvalWell = typename StandardWellPrimaryVariables<FluidSystem,Indices>::EvalWell;
+    using Eval = typename WellInterfaceIndices<Scalar, IndexTraits>::Eval;
+    using EvalWell = typename StandardWellPrimaryVariables<Scalar, IndexTraits>::EvalWell;
 
     Eval connectionRateBrine(Scalar& rate,
                              const Scalar vap_wat_rate,
@@ -162,7 +161,7 @@ private:
     copyInPerforationRates(const Properties&       props,
                            const PerfData<Scalar>& perf_data) const;
 
-    const WellInterfaceIndices<FluidSystem,Indices>& well_; //!< Reference to well interface
+    const WellInterfaceIndices<Scalar, IndexTraits>& well_; //!< Reference to well interface
 
     std::vector<Scalar> perf_densities_; //!< densities of the fluid in each perforation
     std::vector<Scalar> perf_pressure_diffs_; //!< // pressure drop between different perforations

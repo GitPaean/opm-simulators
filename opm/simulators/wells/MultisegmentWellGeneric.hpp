@@ -29,17 +29,15 @@ namespace Opm
 
 class DeferredLogger;
 class SummaryState;
-template<typename FluidSystem, typename Indices> class WellInterfaceGeneric;
+template<typename Scalar, typename IndexTraits> class WellInterfaceGeneric;
 enum class WellSegmentCompPressureDrop;
 class WellSegments;
-template<typename FluidSystem, typename Indices> class WellState;
+template<typename Scalar, typename IndexTraits> class WellState;
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits>
 class MultisegmentWellGeneric
 {
 public:
-    using Scalar = typename FluidSystem::Scalar;
-
     // get the WellSegments from the well_ecl_
     const WellSegments& segmentSet() const;
 
@@ -51,13 +49,13 @@ public:
     int numberOfSegments() const;
 
 protected:
-    explicit MultisegmentWellGeneric(WellInterfaceGeneric<FluidSystem, Indices>& baseif);
+    explicit MultisegmentWellGeneric(WellInterfaceGeneric<Scalar, IndexTraits>& baseif);
 
     // scale the segment rates and pressure based on well rates and bhp
     void scaleSegmentRatesWithWellRates(const std::vector<std::vector<int>>& segment_inlets,
                                         const std::vector<std::vector<int>>& segment_perforations,
-                                        WellState<FluidSystem, Indices>& well_state) const;
-    void scaleSegmentPressuresWithBhp(WellState<FluidSystem, Indices>& well_state) const;
+                                        WellState<Scalar, IndexTraits>& well_state) const;
+    void scaleSegmentPressuresWithBhp(WellState<Scalar, IndexTraits>& well_state) const;
 
     // components of the pressure drop to be included
     WellSegmentCompPressureDrop compPressureDrop() const;
@@ -73,7 +71,7 @@ protected:
                         const Scalar density,
                         const std::vector<Scalar>& seg_dp) const;
 
-    const WellInterfaceGeneric<FluidSystem, Indices>& baseif_;
+    const WellInterfaceGeneric<Scalar, IndexTraits>& baseif_;
 };
 
 }
