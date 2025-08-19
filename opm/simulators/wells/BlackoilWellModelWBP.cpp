@@ -25,11 +25,7 @@
 
 #include <opm/input/eclipse/EclipseState/EclipseState.hpp>
 
-#include <opm/material/fluidsystems/BlackOilFluidSystem.hpp>
-
-#include <opm/models/blackoil/blackoilvariableandequationindices.hh>
-#include <opm/models/blackoil/blackoilonephaseindices.hh>
-#include <opm/models/blackoil/blackoiltwophaseindices.hh>
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 
 #include <opm/simulators/wells/BlackoilWellModelGeneric.hpp>
 
@@ -184,8 +180,6 @@ makeWellSourceEvaluatorFactory(const std::vector<Well>::size_type wellIdx) const
         };
     };
 }
-
-#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 
 template class BlackoilWellModelWBP<double, BlackOilDefaultFluidSystemIndices>;
 
