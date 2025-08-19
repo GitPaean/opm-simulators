@@ -29,6 +29,8 @@
 #include <opm/output/data/Groups.hpp>
 #include <opm/output/data/GuideRateValue.hpp>
 
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
+
 #include <opm/simulators/wells/BlackoilWellModelGeneric.hpp>
 #include <opm/simulators/wells/WellGroupHelpers.hpp>
 #include <opm/simulators/wells/WellInterfaceGeneric.hpp>
@@ -611,12 +613,10 @@ guideRateUpdateIsNeeded(const int reportStepIdx) const
     return wellModel_.comm().max(static_cast<int>(need_update));
 }
 
-#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
-
-template class BlackoilWellModelGuideRates<double, Opm::BlackOilDefaultFluidSystemIndices>;
+template class BlackoilWellModelGuideRates<double, BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
-template class BlackoilWellModelGuideRates<float, Opm::BlackOilDefaultFluidSystemIndices>;
+template class BlackoilWellModelGuideRates<float, BlackOilDefaultFluidSystemIndices>;
 #endif
 
 } // namespace Opm

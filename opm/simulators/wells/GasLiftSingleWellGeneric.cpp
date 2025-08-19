@@ -25,6 +25,8 @@
 #include <opm/input/eclipse/Schedule/Schedule.hpp>
 #include <opm/input/eclipse/Schedule/Well/Well.hpp>
 
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
+
 #include <opm/simulators/utils/DeferredLogger.hpp>
 #include <opm/simulators/wells/GasLiftWellState.hpp>
 #include <opm/simulators/wells/GroupState.hpp>
@@ -2008,12 +2010,10 @@ BasicRates(const LimitedRates& rates)
     bhp_is_limited = rates.bhp_is_limited;
 }
 
-#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
-
-template class GasLiftSingleWellGeneric<double, Opm::BlackOilDefaultFluidSystemIndices>;
+template class GasLiftSingleWellGeneric<double, BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
-template class GasLiftSingleWellGeneric<float, Opm::BlackOilDefaultFluidSystemIndices>;
+template class GasLiftSingleWellGeneric<float, BlackOilDefaultFluidSystemIndices>;
 #endif
 
 } // namespace Opm

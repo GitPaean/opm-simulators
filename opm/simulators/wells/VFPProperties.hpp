@@ -76,7 +76,7 @@ public:
 
     Scalar getExplicitWFR(const int table_id, const std::size_t well_index) const
     {
-        const auto& pu = well_state_.PhaseUsage();
+        const auto& pu = well_state_.phaseUsageInfo();
         const bool has_water = pu.phaseIsActive(IndexTraits::waterPhaseIdx);
         const bool has_oil = pu.phaseIsActive(IndexTraits::oilPhaseIdx);
         const bool has_gas = pu.phaseIsActive(IndexTraits::gasPhaseIdx);
@@ -90,7 +90,7 @@ public:
 
     Scalar getExplicitGFR(const int table_id, const std::size_t well_index) const
     {
-        const auto& pu = well_state_.PhaseUsage();
+        const auto& pu = well_state_.phaseUsageInfo();
         const auto& rates = well_state_.well(well_index).prev_surface_rates;
         const bool has_water = pu.phaseIsActive(IndexTraits::waterPhaseIdx);
         const bool has_oil = pu.phaseIsActive(IndexTraits::oilPhaseIdx);

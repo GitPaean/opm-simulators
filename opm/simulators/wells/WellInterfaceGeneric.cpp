@@ -35,6 +35,7 @@
 #include <opm/input/eclipse/Schedule/Well/WellTestState.hpp>
 #include <opm/input/eclipse/Schedule/Well/WVFPEXP.hpp>
 
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 
 #include <opm/simulators/utils/DeferredLoggingErrorHelpers.hpp>
 
@@ -953,9 +954,8 @@ prepareForPotentialCalculations(const SummaryState& summary_state,
     }    
 }
 
-#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 
-template class WellInterfaceGeneric<double, Opm::BlackOilDefaultFluidSystemIndices>;
+template class WellInterfaceGeneric<double, BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
 template class WellInterfaceGeneric<float, BlackOilDefaultFluidSystemIndices>;

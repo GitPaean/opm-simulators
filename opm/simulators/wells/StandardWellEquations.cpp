@@ -18,23 +18,17 @@
   You should have received a copy of the GNU General Public License
   along with OPM.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef OPM_STANDARDWELL_EQUATIONS_CPP_INCLUDED
-#define OPM_STANDARDWELL_EQUATIONS_CPP_INCLUDED
 
 #include <config.h>
 #include <opm/common/Exceptions.hpp>
 #include <opm/common/TimingMacros.hpp>
 #include <opm/simulators/wells/StandardWellEquations.hpp>
 
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
+
 #if COMPILE_GPU_BRIDGE
 #include <opm/simulators/linalg/gpubridge/WellContributions.hpp>
 #endif
-
-#include <opm/material/fluidsystems/BlackOilFluidSystem.hpp>
-
-#include <opm/models/blackoil/blackoilvariableandequationindices.hh>
-#include <opm/models/blackoil/blackoilonephaseindices.hh>
-#include <opm/models/blackoil/blackoiltwophaseindices.hh>
 
 #include <opm/simulators/linalg/istlsparsematrixadapter.hh>
 #include <opm/simulators/linalg/matrixblock.hh>
@@ -48,8 +42,8 @@
 namespace Opm
 {
 
-template<typename FluidSystem, typename Indices>
-StandardWellEquations<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits, int numEq>
+StandardWellEquations<Scalar, IndexTraits, numEq>::
 StandardWellEquations(const ParallelWellInfo<Scalar>& parallel_well_info)
     : parallelB_(duneB_, parallel_well_info)
 {
@@ -58,8 +52,8 @@ StandardWellEquations(const ParallelWellInfo<Scalar>& parallel_well_info)
     invDuneD_.setBuildMode(DiagMatWell::row_wise);
 }
 
-template<typename FluidSystem, typename Indices>
-void StandardWellEquations<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits, int numEq>
+void StandardWellEquations<Scalar, IndexTraits, numEq>::
 init(const int numWellEq,
      const int numPerfs,
      const std::vector<int>& cells)
@@ -123,8 +117,8 @@ init(const int numWellEq,
     cells_ = cells;
 }
 
-template<typename FluidSystem, typename Indices>
-void StandardWellEquations<FluidSystem, Indices>::clear()
+template<typename Scalar, typename IndexTraits, int numEq>
+void StandardWellEquations<Scalar, IndexTraits, numEq>::clear()
 {
     duneB_ = 0.0;
     duneC_ = 0.0;
@@ -132,9 +126,8 @@ void StandardWellEquations<FluidSystem, Indices>::clear()
     resWell_ = 0.0;
 }
 
-template<typename FluidSystem, typename Indices>
-void StandardWellEquations<FluidSystem, Indices>::
-apply(const BVector& x, BVector& Ax) const
+template<typename Scalar, typename IndexTraits, int numEq>
+void StandardWellEquations<Scalar, IndexTraits, numEq>::apply(const BVector& x, BVector& Ax) const
 {
     assert(Bx_.size() == duneB_.N());
     assert(invDrw_.size() == invDuneD_.N());
@@ -152,8 +145,8 @@ apply(const BVector& x, BVector& Ax) const
     duneC_.mmtv(invDBx, Ax);
 }
 
-template<typename FluidSystem, typename Indices>
-void StandardWellEquations<FluidSystem, Indices>::apply(BVector& r) const
+template<typename Scalar, typename IndexTraits, int numEq>
+void StandardWellEquations<Scalar, IndexTraits, numEq>::apply(BVector& r) const
 {
     assert(invDrw_.size() == invDuneD_.N());
 
@@ -163,8 +156,8 @@ void StandardWellEquations<FluidSystem, Indices>::apply(BVector& r) const
     duneC_.mmtv(invDrw_, r);
 }
 
-template<typename FluidSystem, typename Indices>
-void StandardWellEquations<FluidSystem, Indices>::invert()
+template<typename Scalar, typename IndexTraits, int numEq>
+void StandardWellEquations<Scalar, IndexTraits, numEq>::invert()
 {
     try {
         invDuneD_ = duneD_; // Not strictly need if not cpr with well contributions is used
@@ -178,21 +171,20 @@ void StandardWellEquations<FluidSystem, Indices>::invert()
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void StandardWellEquations<FluidSystem, Indices>::solve(BVectorWell& dx_well) const
+template<typename Scalar, typename IndexTraits, int numEq>
+void StandardWellEquations<Scalar, IndexTraits, numEq>::solve(BVectorWell& dx_well) const
 {
     invDuneD_.mv(resWell_, dx_well);
 }
 
-template<typename FluidSystem, typename Indices>
-void StandardWellEquations<FluidSystem, Indices>::
-solve(const BVectorWell& rhs_well, BVectorWell& x_well) const
+template<typename Scalar, typename IndexTraits, int numEq>
+void StandardWellEquations<Scalar, IndexTraits, numEq>::solve(const BVectorWell& rhs_well, BVectorWell& x_well) const
 {
     invDuneD_.mv(rhs_well, x_well);
 }
 
-template<typename FluidSystem, typename Indices>
-void StandardWellEquations<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits, int numEq>
+void StandardWellEquations<Scalar, IndexTraits, numEq>::
 recoverSolutionWell(const BVector& x, BVectorWell& xw) const
 {
     BVectorWell resWell = resWell_;
@@ -203,8 +195,8 @@ recoverSolutionWell(const BVector& x, BVectorWell& xw) const
 }
 
 #if COMPILE_GPU_BRIDGE
-template<typename FluidSystem, typename Indices>
-void StandardWellEquations<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits, int numEq>
+void StandardWellEquations<Scalar, IndexTraits, numEq>::
 extract(const int numStaticWellEq,
         WellContributions<Scalar>& wellContribs) const
 {
@@ -258,9 +250,9 @@ extract(const int numStaticWellEq,
 }
 #endif
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits, int numEq>
 template<class SparseMatrixAdapter>
-void StandardWellEquations<FluidSystem, Indices>::
+void StandardWellEquations<Scalar, IndexTraits, numEq>::
 extract(SparseMatrixAdapter& jacobian) const
 {
     // We need to change matrx A as follows
@@ -288,23 +280,23 @@ extract(SparseMatrixAdapter& jacobian) const
     }
 }
 
-template<typename FluidSystem, typename Indices>
-unsigned int StandardWellEquations<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits, int numEq>
+unsigned int StandardWellEquations<Scalar, IndexTraits, numEq>::
 getNumBlocks() const
 {
     return duneB_.nonzeroes();
 }
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits, int numEq>
 template<class PressureMatrix>
-void StandardWellEquations<FluidSystem, Indices>::
+void StandardWellEquations<Scalar, IndexTraits, numEq>::
 extractCPRPressureMatrix(PressureMatrix& jacobian,
                          const BVector& weights,
                          const int pressureVarIndex,
                          const bool use_well_weights,
-                         const WellInterfaceGeneric<FluidSystem, Indices>& well,
+                         const WellInterfaceGeneric<Scalar, IndexTraits>& well,
                          const int bhp_var_index,
-                         const WellState<FluidSystem, Indices>& well_state) const
+                         const WellState<Scalar, IndexTraits>& well_state) const
 {
     // This adds pressure quation for cpr
     // For use_well_weights=true
@@ -424,62 +416,39 @@ extractCPRPressureMatrix(PressureMatrix& jacobian,
     }
 }
 
-template<typename FluidSystem, typename Indices>
-void StandardWellEquations<FluidSystem, Indices>::
+template<typename Scalar, typename IndexTraits, int numEq>
+void StandardWellEquations<Scalar, IndexTraits, numEq>::
 sumDistributed(Parallel::Communication comm)
 {
   // accumulate resWell_ and duneD_ in parallel to get effects of all perforations (might be distributed)
     wellhelpers::sumDistributedWellEntries(duneD_[0][0], resWell_[0], comm);
 }
 
-    template<class Scalar>
-    using FS = BlackOilFluidSystem<Scalar, BlackOilDefaultFluidSystemIndices>;
+#define INSTANTIATE(T,N)                                                              \
+    template class StandardWellEquations<T,BlackOilDefaultFluidSystemIndices,N>;                                        \
+    template void StandardWellEquations<T,BlackOilDefaultFluidSystemIndices,N>::                                        \
+        extract(Linear::IstlSparseMatrixAdapter<MatrixBlock<T,N,N>>&) const;          \
+    template void StandardWellEquations<T,BlackOilDefaultFluidSystemIndices,N>::                                        \
+        extractCPRPressureMatrix(Dune::BCRSMatrix<MatrixBlock<T,1,1>>&,               \
+                                 const typename StandardWellEquations<T,BlackOilDefaultFluidSystemIndices,N>::BVector&, \
+                                 const int,                                           \
+                                 const bool,                                          \
+                                 const WellInterfaceGeneric<T,BlackOilDefaultFluidSystemIndices>&,                      \
+                                 const int,                                           \
+                                 const WellState<T,BlackOilDefaultFluidSystemIndices>&) const;
 
-#define INSTANTIATE(T, ...)  \
-    template class StandardWellEquations<FS<T>, __VA_ARGS__>;                               \
-    template void StandardWellEquations<FS<T>, __VA_ARGS__>::                               \
-        extract(Linear::IstlSparseMatrixAdapter<MatrixBlock<T,numEq,numEq>>&) const;           \
-    template void StandardWellEquations<FS<T>, __VA_ARGS__>::                                 \
-        extractCPRPressureMatrix(Dune::BCRSMatrix<MatrixBlock<T,1,1>>&,                        \
-                                 const StandardWellEquations<FS<T>, __VA_ARGS__>::BVector&,    \
-                                 const int,                                                    \
-                                 const bool,                                                   \
-                                 const WellInterfaceGeneric<FS<T>, __VA_ARGS__>&,                               \
-                                 const int,                                                    \
-                                 const WellState<FS<T>, __VA_ARGS__>&) const;
-#define INSTANTIATE_TYPE(T)                                                  \
-    INSTANTIATE(T,BlackOilOnePhaseIndices<0u,0u,0u,0u,false,false,0u,1u,0u>) \
-    INSTANTIATE(T,BlackOilOnePhaseIndices<0u,0u,0u,1u,false,false,0u,1u,0u>) \
-    INSTANTIATE(T,BlackOilOnePhaseIndices<0u,0u,0u,0u,false,false,0u,1u,5u>) \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<0u,0u,0u,0u,false,false,0u,0u,0u>) \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<0u,0u,0u,0u,false,false,0u,1u,0u>) \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<0u,0u,0u,0u,false,false,0u,2u,0u>) \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<0u,0u,1u,0u,false,false,0u,2u,0u>) \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<0u,0u,2u,0u,false,false,0u,2u,0u>) \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<0u,0u,0u,0u,false,true,0u,2u,0u>)  \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<0u,0u,0u,1u,false,false,0u,1u,0u>) \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<0u,0u,0u,0u,false,true,0u,0u,0u>)  \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<0u,0u,0u,1u,false,false,0u,0u,0u>) \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<0u,0u,0u,1u,false,true,0u,0u,0u>)  \
-    INSTANTIATE(T,BlackOilTwoPhaseIndices<1u,0u,0u,0u,false,false,0u,0u,0u>) \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<0u,0u,0u,0u,false,false,0u,0u>)            \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<0u,0u,0u,0u,false,false,1u,0u>)            \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<0u,0u,0u,0u,true,false,0u,0u>)             \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<0u,0u,0u,0u,false,true,0u,0u>)             \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<0u,0u,0u,0u,false,true,2u,0u>)             \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<1u,0u,0u,0u,false,false,0u,0u>)            \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<0u,1u,0u,0u,false,false,0u,0u>)            \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<0u,0u,1u,0u,false,false,0u,0u>)            \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<0u,0u,0u,1u,false,false,0u,0u>)            \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<0u,0u,0u,1u,false,true,0u,0u>)             \
-    INSTANTIATE(T,BlackOilVariableAndEquationIndices<1u,0u,0u,0u,true,false,0u,0u>)
+#define INSTANTIATE_TYPE(T) \
+    INSTANTIATE(T,1)        \
+    INSTANTIATE(T,2)        \
+    INSTANTIATE(T,3)        \
+    INSTANTIATE(T,4)        \
+    INSTANTIATE(T,5)        \
+    INSTANTIATE(T,6)
 
 INSTANTIATE_TYPE(double)
 
 #if FLOW_INSTANTIATE_FLOAT
 INSTANTIATE_TYPE(float)
 #endif
+
 }
-
-
-#endif

@@ -24,11 +24,7 @@
 #include <opm/input/eclipse/Schedule/Schedule.hpp>
 #include <opm/input/eclipse/Schedule/Well/Well.hpp>
 
-#include <opm/material/fluidsystems/BlackOilFluidSystem.hpp>
-
-#include <opm/models/blackoil/blackoilvariableandequationindices.hh>
-#include <opm/models/blackoil/blackoilonephaseindices.hh>
-#include <opm/models/blackoil/blackoiltwophaseindices.hh>
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 
 #include <opm/simulators/wells/GroupState.hpp>
 #include <opm/simulators/wells/WellGroupHelpers.hpp>
@@ -220,11 +216,9 @@ getGroupRateVector(const std::string& group_name)
                                                                                group_name);
 }
 
-#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
-
-template class FractionCalculator<double, Opm::BlackOilDefaultFluidSystemIndices>;
+template class FractionCalculator<double, BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
-template class FractionCalculator<float, Opm::BlackOilDefaultFluidSystemIndices>;
+template class FractionCalculator<float, BlackOilDefaultFluidSystemIndices>;
 #endif
 } // namespace Opm::WGHelpers

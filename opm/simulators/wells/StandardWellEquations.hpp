@@ -35,18 +35,17 @@ namespace Opm
 {
 
 template<class Scalar> class ParallelWellInfo;
-template<typename FluidSystem, typename Indices> class StandardWellEquationAccess;
+template<class Scalar, typename IndexTraits, int numEq> class StandardWellEquationAccess;
 #if COMPILE_GPU_BRIDGE
 template<class Scalar> class WellContributions;
 #endif
-template<typename FluidSystem, typename Indices> class WellInterfaceGeneric;
-template<typename FluidSystem, typename Indices> class WellState;
+template<typename Scalar, typename IndexTraits> class WellInterfaceGeneric;
+template<typename Scalar, typename IndexTraits> class WellState;
 
-template<typename FluidSystem, typename Indices>
+template<typename Scalar, typename IndexTraits, int numEq>
 class StandardWellEquations
 {
 public:
-    using Scalar = typename FluidSystem::Scalar;
     // sparsity pattern for the matrices
     //[A C^T    [x       =  [ res
     // B  D ]   x_well]      res_well]
@@ -62,8 +61,6 @@ public:
     // the matrix type for the non-diagonal matrix B and C^T
     using OffDiagMatrixBlockWellType = Dune::DynamicMatrix<Scalar>;
     using OffDiagMatWell = Dune::BCRSMatrix<OffDiagMatrixBlockWellType>;
-
-    static constexpr int numEq = Indices::numEq;
 
     // block vector type
     using BVector = Dune::BlockVector<Dune::FieldVector<Scalar,numEq>>;
@@ -116,9 +113,9 @@ public:
                                   const BVector& weights,
                                   const int pressureVarIndex,
                                   const bool use_well_weights,
-                                  const WellInterfaceGeneric<FluidSystem, Indices>& well,
+                                  const WellInterfaceGeneric<Scalar, IndexTraits>& well,
                                   const int bhp_var_index,
-                                  const WellState<FluidSystem, Indices>& well_state) const;
+                                  const WellState<Scalar, IndexTraits>& well_state) const;
 
     //! \brief Get the number of blocks of the C and B matrices.
     unsigned int getNumBlocks() const;
@@ -133,7 +130,7 @@ public:
     }
 
 private:
-    friend class StandardWellEquationAccess<FluidSystem, Indices>;
+    friend class StandardWellEquationAccess<Scalar, IndexTraits, numEq>;
 
     // two off-diagonal matrices
     OffDiagMatWell duneB_;

@@ -2081,7 +2081,7 @@ namespace Opm
         // Instantiate group info object (without initialization) since it is needed in GasLiftSingleWell
         auto& comm = simulator.vanguard().grid().comm();
         ecl_well_map.try_emplace(this->name(),  &(this->wellEcl()), this->indexOfWell());
-        GasLiftGroupInfo<FluidSystem, Indices> group_info {
+        GasLiftGroupInfo<Scalar, IndexTraits> group_info {
                 ecl_well_map,
                 simulator.vanguard().schedule(),
                 simulator.vanguard().summaryState(),

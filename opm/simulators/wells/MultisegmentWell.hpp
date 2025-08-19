@@ -44,6 +44,7 @@ namespace Opm {
         using typename Base::Simulator;
         using typename Base::IntensiveQuantities;
         using typename Base::FluidSystem;
+        using typename Base::IndexTraits;
         using typename Base::ModelParameters;
         using typename Base::MaterialLaw;
         using typename Base::Indices;

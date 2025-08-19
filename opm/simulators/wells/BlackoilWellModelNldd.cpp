@@ -23,6 +23,8 @@
 #include <config.h>
 #include <opm/simulators/wells/BlackoilWellModelNldd.hpp>
 
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
+
 namespace Opm {
 
 template<typename Scalar, typename IndexTraits>
@@ -161,10 +163,10 @@ calcDomains(const std::vector<const SubDomainIndices*>& domains)
     this->calcLocalIndices(domains);
 }
 
-template class BlackoilWellModelGasLiftGeneric<double, BlackOilDefaultFluidSystemIndices>;
+template class BlackoilWellModelNlddGeneric<double, BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
-template class BlackoilWellModelGasLiftGeneric<float, BlackOilDefaultFluidSystemIndices>;
+template class BlackoilWellModelNlddGeneric<float, BlackOilDefaultFluidSystemIndices>;
 #endif
 
 } // namespace Opm

@@ -34,6 +34,7 @@
 #include <opm/input/eclipse/Schedule/Well/WVFPDP.hpp>
 
 #include <opm/material/densead/Evaluation.hpp>
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 
 #include <opm/simulators/utils/DeferredLoggingErrorHelpers.hpp>
 

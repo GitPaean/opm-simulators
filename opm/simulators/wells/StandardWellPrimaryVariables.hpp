@@ -86,7 +86,7 @@ public:
     using IndexTraits = typename FluidSystem::IndexTraitsType;
     //! \brief Evaluation for the well equations.
     using EvalWell = DenseAd::DynamicEvaluation<Scalar, numStaticWellEq + Indices::numEq + 1>;
-    using BVectorWell = typename StandardWellEquations<FluidSystem, Indices>::BVectorWell;
+    using BVectorWell = typename StandardWellEquations<Scalar, IndexTraits, Indices::numEq>::BVectorWell;
 
     //! \brief Constructor initializes reference to well interface.
     explicit StandardWellPrimaryVariables(const WellInterfaceIndices<FluidSystem,Indices>& well)

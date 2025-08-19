@@ -32,6 +32,7 @@
 #include <dune/grid/common/gridenums.hh>
 #include <dune/grid/common/rangegenerators.hh>
 
+#include <opm/material/fluidsystems/PhaseUsageInfo.hpp>
 #include <array>
 #include <cassert>
 #include <unordered_map>

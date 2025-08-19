@@ -407,10 +407,10 @@ throwNotImplementedError(const std::string& error) const
     OPM_DEFLOG_THROW(std::runtime_error, msg, this->deferred_logger_);
 }
 
-template class WellState<double, BlackOilDefaultFluidSystemIndices>;
+template class GroupEconomicLimitsChecker<double, BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
-template class WellState<float, BlackOilDefaultFluidSystemIndices>;
+template class GroupEconomicLimitsChecker<float, BlackOilDefaultFluidSystemIndices>;
 #endif
 
 } // namespace Opm

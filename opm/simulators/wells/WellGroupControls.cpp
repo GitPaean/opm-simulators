@@ -267,6 +267,7 @@ getGroupProductionControl(const Group& group,
         gratTargetFromSales = group_state.grat_sales_target(group.name());
 
     WGHelpers::TargetCalculator<Scalar, IndexTraits> tcalc(currentGroupControl,
+                                                           well_state.phaseUsageInfo(),
                                       resv_coeff,
                                       gratTargetFromSales,
                                       group.name(),
@@ -330,6 +331,7 @@ getGroupProductionTargetRate(const Group& group,
         gratTargetFromSales = group_state.grat_sales_target(group.name());
 
     WGHelpers::TargetCalculator<Scalar, IndexTraits> tcalc(currentGroupControl,
+                                                           well_state.phaseUsageInfo(),
                                       resv_coeff,
                                       gratTargetFromSales,
                                       group.name(),
@@ -402,6 +404,7 @@ getAutoChokeGroupProductionTargetRate(const std::string& name,
         gratTargetFromSales = group_state.grat_sales_target(group.name());
 
     WGHelpers::TargetCalculator<Scalar, IndexTraits> tcalc(currentGroupControl,
+                                                           well_state.phaseUsageInfo(),
                                       resv_coeff,
                                       gratTargetFromSales,
                                       group.name(),

@@ -25,11 +25,7 @@
 #include <opm/input/eclipse/Schedule/GasLiftOpt.hpp>
 #include <opm/input/eclipse/Schedule/Schedule.hpp>
 
-#include <opm/material/fluidsystems/BlackOilFluidSystem.hpp>
-
-#include <opm/models/blackoil/blackoilvariableandequationindices.hh>
-#include <opm/models/blackoil/blackoilonephaseindices.hh>
-#include <opm/models/blackoil/blackoiltwophaseindices.hh>
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 
 #include <opm/simulators/utils/DeferredLogger.hpp>
 #include <opm/simulators/wells/GasLiftSingleWellGeneric.hpp>
@@ -1227,12 +1223,10 @@ updateRates(const std::array<Scalar, 4>& delta)
     this->alq += delta_alq;
 }
 
-#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
-
-template class GasLiftStage2<double, Opm::BlackOilDefaultFluidSystemIndices>;
+template class GasLiftStage2<double, BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
-template class GasLiftStage2<float, Opm::BlackOilDefaultFluidSystemIndices>;
+template class GasLiftStage2<float, BlackOilDefaultFluidSystemIndices>;
 #endif
 
 } // namespace Opm

@@ -20,7 +20,7 @@
 #include <config.h>
 #include <opm/simulators/wells/GasLiftGroupInfo.hpp>
 
-#include <opm/material/fluidsystems/PhaseUsageInfo.hpp>
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 
 #include <opm/input/eclipse/Schedule/GasLiftOpt.hpp>
 #include <opm/input/eclipse/Schedule/Schedule.hpp>
@@ -781,12 +781,10 @@ updateGroupIdxMap_(const std::string& group_name)
     }
 }
 
-#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
-
-template class GasLiftGroupInfo<double, Opm::BlackOilDefaultFluidSystemIndices>;
+template class GasLiftGroupInfo<double, BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
-template class GasLiftGroupInfo<float, Opm::BlackOilDefaultFluidSystemIndices>;
+template class GasLiftGroupInfo<float, BlackOilDefaultFluidSystemIndices>;
 #endif
 
 } // namespace Opm

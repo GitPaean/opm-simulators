@@ -23,6 +23,8 @@
 
 #include <opm/simulators/wells/WellConvergence.hpp>
 
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
+
 #include <opm/simulators/timestepping/ConvergenceReport.hpp>
 #include <opm/simulators/utils/DeferredLoggingErrorHelpers.hpp>
 #include <opm/simulators/wells/WellInterfaceGeneric.hpp>
@@ -161,12 +163,10 @@ checkConvergencePolyMW(const std::vector<Scalar>& res,
   }
 }
 
-#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
-
-template class WellState<double, Opm::BlackOilDefaultFluidSystemIndices>;
+template class WellConvergence<double, BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
-template class WellState<float, Opm::BlackOilDefaultFluidSystemIndices>;
+template class WellConvergence<float, BlackOilDefaultFluidSystemIndices>;
 #endif
 
 }

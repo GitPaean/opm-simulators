@@ -1355,7 +1355,7 @@ namespace Opm {
                     cmode_tmp = target.second;
                 }
                 const auto cmode = cmode_tmp;
-                WGHelpers::TargetCalculator<Scalar, IndexTraits> tcalc(cmode, resv_coeff,
+                WGHelpers::TargetCalculator<Scalar, IndexTraits> tcalc(cmode, FluidSystem::phaseUsage(), resv_coeff,
                                                   gratTargetFromSales, nodeName, group_state,
                                                   group.has_gpmaint_control(cmode));
                 if (!fld_none)

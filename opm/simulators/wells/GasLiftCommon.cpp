@@ -24,11 +24,7 @@
 
 #include <opm/simulators/wells/WellState.hpp>
 
-#include <opm/material/fluidsystems/BlackOilFluidSystem.hpp>
-
-#include <opm/models/blackoil/blackoilvariableandequationindices.hh>
-#include <opm/models/blackoil/blackoilonephaseindices.hh>
-#include <opm/models/blackoil/blackoiltwophaseindices.hh>
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 
 #include <fmt/format.h>
 
@@ -101,12 +97,10 @@ logMessage_(const std::string& prefix,
     }
 }
 
-#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
-
-template class GasLiftCommon<double, Opm::BlackOilDefaultFluidSystemIndices>;
+template class GasLiftCommon<double, BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
-template class GasLiftCommon<float, Opm::BlackOilDefaultFluidSystemIndices>;
+template class GasLiftCommon<float, BlackOilDefaultFluidSystemIndices>;
 #endif
 
 } // namespace Opm

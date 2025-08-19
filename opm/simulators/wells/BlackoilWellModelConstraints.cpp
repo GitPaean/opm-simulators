@@ -27,6 +27,8 @@
 
 #include <opm/input/eclipse/Schedule/Schedule.hpp>
 
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
+
 #include <opm/simulators/wells/BlackoilWellModelGeneric.hpp>
 #include <opm/simulators/wells/WellGroupHelpers.hpp>
 #include <opm/simulators/wells/WellInterfaceGeneric.hpp>
@@ -684,12 +686,10 @@ updateGroupIndividualControl(const Group& group,
     return changed;
 }
 
-#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
-
-template class BlackoilWellModelConstraints<double, Opm::BlackOilDefaultFluidSystemIndices>;
+template class BlackoilWellModelConstraints<double, BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
-template class BlackoilWellModelConstraints<float, Opm::BlackOilDefaultFluidSystemIndices>;
+template class BlackoilWellModelConstraints<float, BlackOilDefaultFluidSystemIndices>;
 #endif
 
 }

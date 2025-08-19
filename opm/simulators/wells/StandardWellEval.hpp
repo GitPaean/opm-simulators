@@ -62,10 +62,10 @@ protected:
 public:
     using EvalWell = typename PrimaryVariables::EvalWell;
     using Eval = DenseAd::Evaluation<Scalar, Indices::numEq>;
-    using BVectorWell = typename StandardWellEquations<FluidSystem, Indices>::BVectorWell;
+    using BVectorWell = typename StandardWellEquations<Scalar, IndexTraits, Indices::numEq>::BVectorWell;
 
     //! \brief Returns a const reference to equation system.
-    const StandardWellEquations<FluidSystem, Indices>& linSys() const
+    const  StandardWellEquations<Scalar, IndexTraits, Indices::numEq>& linSys() const
     { return linSys_; }
 
 protected:
@@ -101,7 +101,7 @@ protected:
     // the saturations in the well bore under surface conditions at the beginning of the time step
     std::vector<Scalar> F0_;
 
-    StandardWellEquations<FluidSystem, Indices> linSys_; //!< Linear equation system
+    StandardWellEquations<Scalar, IndexTraits, Indices::numEq> linSys_; //!< Linear equation system
     StdWellConnections connections_; //!< Connection level values
 };
 

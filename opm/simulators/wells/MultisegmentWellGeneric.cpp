@@ -26,11 +26,7 @@
 #include <opm/input/eclipse/Schedule/VFPInjTable.hpp>
 #include <opm/input/eclipse/Schedule/MSW/WellSegments.hpp>
 
-#include <opm/material/fluidsystems/BlackOilFluidSystem.hpp>
-
-#include <opm/models/blackoil/blackoilvariableandequationindices.hh>
-#include <opm/models/blackoil/blackoilonephaseindices.hh>
-#include <opm/models/blackoil/blackoiltwophaseindices.hh>
+#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 
 #include <opm/simulators/utils/DeferredLoggingErrorHelpers.hpp>
 #include <opm/simulators/wells/VFPHelpers.hpp>
@@ -255,12 +251,10 @@ MultisegmentWellGeneric<Scalar, IndexTraits>::getSegmentDp(const int seg,
     return dp;
 }
 
-#include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
-
-template class MultisegmentWellGeneric<double, Opm::BlackOilDefaultFluidSystemIndices>;
+template class MultisegmentWellGeneric<double, BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT
-template class MultisegmentWellGeneric<float, Opm::BlackOilDefaultFluidSystemIndices>;
+template class MultisegmentWellGeneric<float, BlackOilDefaultFluidSystemIndices>;
 #endif
 
 } // namespace Opm
