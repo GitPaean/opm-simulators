@@ -516,7 +516,7 @@ protected:
     BlackoilWellModelWBP<Scalar, IndexTraits> wbp_;
 
 
-    PhaseUsageInfo<IndexTraits> phase_usage_info_;
+    const PhaseUsageInfo<IndexTraits>& phase_usage_info_;
     bool terminal_output_{false};
     bool wells_active_{false};
     bool network_active_{false};

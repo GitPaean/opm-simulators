@@ -64,6 +64,7 @@ public:
                          const int num_components,
                          const int num_phases,
                          const int index_of_well,
+                         const PhaseUsageInfo<IndexTraits>& phase_usage,
                          const std::vector<PerforationData<Scalar>>& perf_data);
 
     /// \brief Get the perforations of the well
@@ -314,6 +315,8 @@ protected:
     // the index of well in Wells struct
     int index_of_well_;
 
+    const PhaseUsageInfo<IndexTraits>& phase_usage_;
+
     const std::vector<PerforationData<Scalar>>* perf_data_;
 
     // the vectors used to describe the inflow performance relationship (IPR)
@@ -368,8 +371,6 @@ protected:
     std::vector<int> saturation_table_number_;
 
     Well::Status wellStatus_;
-
-    const PhaseUsageInfo<IndexTraits>* phase_usage_;
 
     Scalar gravity_;
     Scalar wsolvent_;

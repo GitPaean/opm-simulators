@@ -65,6 +65,9 @@ FlowGenericProblem(const EclipseState& eclState,
     , gridView_(gridView)
     , lookUpData_(gridView)
 {
+    // TODO: if we do here, we need to undone the one through initFluidSystem_()
+    FluidSystem::initFromState(eclState_, schedule_);
+
     enableTuning_ = Parameters::Get<Parameters::EnableTuning>();
     enableDriftCompensation_ = Parameters::Get<Parameters::EnableDriftCompensation>();
     initialTimeStepSize_ = Parameters::Get<Parameters::InitialTimeStepSize<Scalar>>();

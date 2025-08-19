@@ -70,6 +70,7 @@ WellInterfaceGeneric(const Well& well,
                      const int num_components,
                      const int num_phases,
                      const int index_of_well,
+                     const PhaseUsageInfo<IndexTraits>& phase_usage,
                      const std::vector<PerforationData<Scalar>>& perf_data)
       : well_ecl_(well)
       , parallel_well_info_(pw_info)
@@ -79,6 +80,7 @@ WellInterfaceGeneric(const Well& well,
       , num_components_(num_components)
       , number_of_phases_(num_phases)
       , index_of_well_(index_of_well)
+      , phase_usage_(phase_usage)
       , perf_data_(&perf_data)
       , ipr_a_(num_components)
       , ipr_b_(num_components)
@@ -208,9 +210,7 @@ template<typename Scalar, typename IndexTraits>
 const PhaseUsageInfo<IndexTraits>&
 WellInterfaceGeneric<Scalar, IndexTraits>::phaseUsage() const
 {
-    assert(phase_usage_ != nullptr);
-
-    return *phase_usage_;
+    return phase_usage_;
 }
 
 template<typename Scalar, typename IndexTraits>

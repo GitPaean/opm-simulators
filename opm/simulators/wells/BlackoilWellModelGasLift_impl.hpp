@@ -317,7 +317,7 @@ BlackoilWellModelGasLift<TypeTag>::
 updateWellPotentials(const Simulator& simulator,
                      const std::vector<WellInterfacePtr>& well_container,
                      const std::map<std::string, Scalar>& node_pressures,
-                     WellState<Scalar>& wellState,
+                     WellState<Scalar, IndexTraits>& wellState,
                      DeferredLogger& deferred_logger)
 {
     auto well_state_copy = wellState;
