@@ -43,8 +43,8 @@ template<unsigned numSolventsV,
          unsigned numExtbosV,
          unsigned numPolymersV,
          unsigned numEnergyV,
-         bool enableFoamV,
-         bool enableBrineV,
+         bool enableFoam,
+         bool enableBrine,
          unsigned PVOffset,
          unsigned canonicalCompIdx,
          unsigned numMICPsV>
@@ -66,12 +66,6 @@ struct BlackOilOnePhaseIndices
 
     //! Shall energy be conserved?
     static constexpr bool enableEnergy = numEnergyV > 0;
-
-    //! is foam enabled?
-    static constexpr bool enableFoam = enableFoamV;
-
-    //! is brine enabled?
-    static constexpr bool enableBrine = enableBrineV;
 
     //! Is MICP involved?
     static constexpr bool enableMICP = numMICPsV > 0;
