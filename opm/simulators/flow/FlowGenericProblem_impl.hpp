@@ -65,8 +65,11 @@ FlowGenericProblem(const EclipseState& eclState,
     , gridView_(gridView)
     , lookUpData_(gridView)
 {
-    // TODO: if we do here, we need to undone the one through initFluidSystem_()
+#if HAVE_ECL_INPUT
+    // we need to update the FluidSystem based on EclipseState before it is been passed around
+    // TODO: since we do the update here, we need to remove the FluidSytem update through initFluidSystem_()
     FluidSystem::initFromState(eclState_, schedule_);
+#endif
 
     enableTuning_ = Parameters::Get<Parameters::EnableTuning>();
     enableDriftCompensation_ = Parameters::Get<Parameters::EnableDriftCompensation>();

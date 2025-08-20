@@ -147,7 +147,6 @@ public:
                       Parameters::Get<Parameters::SaveFile>(),
                       Parameters::Get<Parameters::LoadFile>())
     {
-        // phaseUsage_ = phaseUsageFromDeck(eclState());
 
         // Only rank 0 does print to std::cout, and only if specifically requested.
         this->terminalOutput_ = false;

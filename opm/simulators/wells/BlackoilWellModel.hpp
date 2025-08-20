@@ -54,7 +54,7 @@
 
 #include <opm/simulators/utils/DeferredLogger.hpp>
 
-#include <opm/simulators/wells/BlackoilWellModelGasLift.hpp> // commented out for compilation cause
+#include <opm/simulators/wells/BlackoilWellModelGasLift.hpp>
 #include <opm/simulators/wells/BlackoilWellModelGeneric.hpp>
 #include <opm/simulators/wells/BlackoilWellModelGuideRates.hpp>
 #include <opm/simulators/wells/GasLiftGroupInfo.hpp>
@@ -142,6 +142,8 @@ template<class Scalar> class WellContributions;
             // For computing average pressured used by gpmaint
             using AverageRegionalPressureType = RegionAverageCalculator::
                 AverageRegionalPressure<FluidSystem, std::vector<int> >;
+
+            using WellGroupHelpersType = WellGroupHelpers<Scalar, IndexTraits>;
 
             explicit BlackoilWellModel(Simulator& simulator);
 

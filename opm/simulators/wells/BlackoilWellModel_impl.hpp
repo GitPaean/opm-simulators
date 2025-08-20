@@ -298,21 +298,20 @@ namespace Opm {
             const auto& fieldGroup =
                 this->schedule().getGroup("FIELD", reportStepIdx);
 
-            WellGroupHelpers<Scalar, IndexTraits>::setCmodeGroup(fieldGroup,
-                                                    this->schedule(),
-                                                    this->summaryState(),
-                                                    reportStepIdx,
-                                                    this->groupState());
+            WellGroupHelpersType::setCmodeGroup(fieldGroup,
+                                                this->schedule(),
+                                                this->summaryState(),
+                                                reportStepIdx,
+                                                this->groupState());
 
             // Define per region average pressure calculators for use by
             // pressure maintenance groups (GPMAINT keyword).
             if (this->schedule()[reportStepIdx].has_gpmaint()) {
-                WellGroupHelpers<Scalar, IndexTraits>::setRegionAveragePressureCalculator
-                    (fieldGroup,
-                     this->schedule(),
-                     reportStepIdx,
-                     this->eclState_.fieldProps(),
-                     this->regionalAveragePressureCalculator_);
+                WellGroupHelpersType::setRegionAveragePressureCalculator(fieldGroup,
+                                                                         this->schedule(),
+                                                                         reportStepIdx,
+                                                                         this->eclState_.fieldProps(),
+                                                                         this->regionalAveragePressureCalculator_);
             }
         }
         OPM_END_PARALLEL_TRY_CATCH_LOG(local_deferredLogger,
@@ -479,12 +478,12 @@ namespace Opm {
             const double dt = simulator_.timeStepSize();
             const Group& fieldGroup = this->schedule().getGroup("FIELD", reportStepIdx);
             WellGroupHelpers<Scalar, IndexTraits>::updateGpMaintTargetForGroups(fieldGroup,
-                                                                                 this->schedule_,
-                                                                                 regionalAveragePressureCalculator_,
-                                                                                 reportStepIdx,
-                                                                                 dt,
-                                                                                 this->wellState(),
-                                                                                 this->groupState());
+                                                                                this->schedule_,
+                                                                                regionalAveragePressureCalculator_,
+                                                                                reportStepIdx,
+                                                                                dt,
+                                                                                this->wellState(),
+                                                                                this->groupState());
         }
 
         this->updateAndCommunicateGroupData(reportStepIdx,
@@ -548,11 +547,11 @@ namespace Opm {
 
             Scalar well_efficiency_factor = wellEcl.getEfficiencyFactor() *
                                             this->wellState().getGlobalEfficiencyScalingFactor(well_name);
-            WellGroupHelpers<Scalar, IndexTraits>::accumulateGroupEfficiencyFactor(this->schedule().getGroup(wellEcl.groupName(),
-                                                                                                timeStepIdx),
-                                                                      this->schedule(),
-                                                                      timeStepIdx,
-                                                                      well_efficiency_factor);
+            WellGroupHelpersType::accumulateGroupEfficiencyFactor(this->schedule().getGroup(wellEcl.groupName(),
+                                                                  timeStepIdx),
+                                                                  this->schedule(),
+                                                                  timeStepIdx,
+                                                                  well_efficiency_factor);
 
             well->setWellEfficiencyFactor(well_efficiency_factor);
             well->setVFPProperties(this->vfp_properties_.get());
@@ -1355,9 +1354,10 @@ namespace Opm {
                     cmode_tmp = target.second;
                 }
                 const auto cmode = cmode_tmp;
-                WGHelpers::TargetCalculator<Scalar, IndexTraits> tcalc(cmode, FluidSystem::phaseUsage(), resv_coeff,
-                                                  gratTargetFromSales, nodeName, group_state,
-                                                  group.has_gpmaint_control(cmode));
+                using TargetCalculatorType =  WGHelpers::TargetCalculator<Scalar, IndexTraits>;
+                TargetCalculatorType tcalc(cmode, FluidSystem::phaseUsage(), resv_coeff,
+                                           gratTargetFromSales, nodeName, group_state,
+                                           group.has_gpmaint_control(cmode));
                 if (!fld_none)
                 {
                     // Target is set for the autochoke group itself
@@ -1395,6 +1395,7 @@ namespace Opm {
                     autochoke_thp = this->well_group_thp_calc_.at(nodeName);
                 }
 
+                using WellBhpThpCalculatorType = WellBhpThpCalculator<Scalar, IndexTraits>;
                 //Find an initial bracket
                 std::array<Scalar, 2> range_initial;
                 if (!autochoke_thp.has_value()){
@@ -1406,12 +1407,12 @@ namespace Opm {
                         node_name = branch.uptree_node();
                     }
                     min_thp = network.node(node_name).terminal_pressure().value();
-                    WellBhpThpCalculator<Scalar, IndexTraits>::bruteForceBracketCommonTHP(mismatch, min_thp, max_thp);
+                    WellBhpThpCalculatorType::bruteForceBracketCommonTHP(mismatch, min_thp, max_thp);
                     // Narrow down the bracket
                     Scalar low1, high1;
                     std::array<Scalar, 2> range = {Scalar{0.9}*min_thp, Scalar{1.1}*max_thp};
                     std::optional<Scalar> appr_sol;
-                    WellBhpThpCalculator<Scalar, IndexTraits>::bruteForceBracketCommonTHP(mismatch, range, low1, high1, appr_sol, 0.0, local_deferredLogger);
+                    WellBhpThpCalculatorType::bruteForceBracketCommonTHP(mismatch, range, low1, high1, appr_sol, 0.0, local_deferredLogger);
                     min_thp = low1;
                     max_thp = high1;
                     range_initial = {min_thp, max_thp};
@@ -1426,7 +1427,7 @@ namespace Opm {
                     std::optional<Scalar> approximate_solution;
                     const Scalar tolerance1 = thp_tolerance;
                     local_deferredLogger.debug("Using brute force search to bracket the group THP");
-                    const bool finding_bracket = WellBhpThpCalculator<Scalar, IndexTraits>::bruteForceBracketCommonTHP(mismatch, range, low, high, approximate_solution, tolerance1, local_deferredLogger);
+                    const bool finding_bracket = WellBhpThpCalculatorType::bruteForceBracketCommonTHP(mismatch, range, low, high, approximate_solution, tolerance1, local_deferredLogger);
 
                     if (approximate_solution.has_value()) {
                         autochoke_thp = *approximate_solution;

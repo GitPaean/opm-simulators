@@ -151,7 +151,6 @@ private:
     using InitialFluidState = typename EquilInitializer<TypeTag>::ScalarFluidState;
     using EclWriterType = EclWriter<TypeTag, OutputBlackOilModule<TypeTag> >;
     using IndexTraits = typename FluidSystem::IndexTraitsType;
-
 #if HAVE_DAMARIS
     using DamarisWriterType = DamarisWriter<TypeTag>;
 #endif

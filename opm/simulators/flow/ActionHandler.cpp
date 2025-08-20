@@ -21,8 +21,6 @@
   copyright holders.
 */
 
-#include "opm/simulators/linalg/overlaptypes.hh"
-
 #include <config.h>
 
 #include <opm/simulators/flow/ActionHandler.hpp>
