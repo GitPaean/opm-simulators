@@ -505,18 +505,18 @@ checkGconsaleLimits(const Group& group,
     const Group::ProductionCMode& oldProductionControl = this->groupState().production_control(group.name());
 
     const int gasPos = phase_usage_info_.canonicalToActivePhaseIdx(IndexTraits::gasPhaseIdx);
-    Scalar production_rate = WellGroupHelpers<Scalar, IndexTraits>::sumWellSurfaceRates(group,
-                                                                           schedule(),
-                                                                           well_state,
-                                                                           reportStepIdx,
-                                                                           gasPos,
-                                                                           /*isInjector*/false);
-    Scalar injection_rate = WellGroupHelpers<Scalar, IndexTraits>::sumWellSurfaceRates(group,
-                                                                          schedule(),
-                                                                          well_state,
-                                                                          reportStepIdx,
-                                                                          gasPos,
-                                                                          /*isInjector*/true);
+    Scalar production_rate = WellGroupHelpersType::sumWellSurfaceRates(group,
+                                                                       schedule(),
+                                                                       well_state,
+                                                                       reportStepIdx,
+                                                                       gasPos,
+                                                                       /*isInjector*/false);
+    Scalar injection_rate = WellGroupHelpersType::sumWellSurfaceRates(group,
+                                                                      schedule(),
+                                                                      well_state,
+                                                                      reportStepIdx,
+                                                                      gasPos,
+                                                                      /*isInjector*/true);
     // sum over all nodes
     injection_rate = comm_.sum(injection_rate);
     production_rate = comm_.sum(production_rate);
@@ -652,12 +652,12 @@ checkGroupHigherConstraints(const Group& group,
         const std::vector<Scalar> reduction_rates = this->groupState().injection_reduction_rates(group.name());
 
         for (int phasePos = 0; phasePos < this->numPhases(); ++phasePos) {
-            const Scalar local_current_rate = WellGroupHelpers<Scalar, IndexTraits>::sumWellSurfaceRates(group,
-                                                                                            schedule(),
-                                                                                            this->wellState(),
-                                                                                            reportStepIdx,
-                                                                                            phasePos,
-                                                                                            /* isInjector */ true);
+            const Scalar local_current_rate = WellGroupHelpersType::sumWellSurfaceRates(group,
+                                                                                        schedule(),
+                                                                                        this->wellState(),
+                                                                                        reportStepIdx,
+                                                                                        phasePos,
+                                                                                        /* isInjector */ true);
             // Sum over all processes
             rates[phasePos] = comm_.sum(local_current_rate) - reduction_rates[phasePos];
         }
@@ -698,34 +698,34 @@ checkGroupHigherConstraints(const Group& group,
             if (currentControl != Group::InjectionCMode::FLD && group.injectionGroupControlAvailable(phase)) {
                 const Group& parentGroup = schedule().getGroup(group.parent(), reportStepIdx);
                 const auto [is_changed, scaling_factor] =
-                    WellGroupHelpers<Scalar, IndexTraits>::checkGroupConstraintsInj(group.name(),
-                                                                       group.parent(),
-                                                                       parentGroup,
-                                                                       this->wellState(),
-                                                                       this->groupState(),
-                                                                       reportStepIdx,
-                                                                       &guideRate_,
-                                                                       rates.data(),
-                                                                       phase,
-                                                                       group.getGroupEfficiencyFactor(),
-                                                                       schedule(),
-                                                                       summaryState_,
-                                                                       resv_coeff_inj,
-                                                                       /*check_guide_rate*/true,
-                                                                       deferred_logger);
+                    WellGroupHelpersType::checkGroupConstraintsInj(group.name(),
+                                                                   group.parent(),
+                                                                   parentGroup,
+                                                                   this->wellState(),
+                                                                   this->groupState(),
+                                                                   reportStepIdx,
+                                                                   &guideRate_,
+                                                                   rates.data(),
+                                                                   phase,
+                                                                   group.getGroupEfficiencyFactor(),
+                                                                   schedule(),
+                                                                   summaryState_,
+                                                                   resv_coeff_inj,
+                                                                   /*check_guide_rate*/true,
+                                                                   deferred_logger);
                 if (is_changed) {
                     switched_inj_groups_[group.name()][static_cast<std::underlying_type_t<Phase>>(phase)].push_back(Group::InjectionCMode::FLD);
                     BlackoilWellModelConstraints(*this).
                         actionOnBrokenConstraints(group, Group::InjectionCMode::FLD,
                                                   phase, this->groupState(),
                                                   deferred_logger);
-                    WellGroupHelpers<Scalar, IndexTraits>::updateWellRatesFromGroupTargetScale(scaling_factor,
-                                                                                  group,
-                                                                                  schedule(),
-                                                                                  reportStepIdx,
-                                                                                  /* isInjector */ true,
-                                                                                  this->groupState(),
-                                                                                  this->wellState());
+                    WellGroupHelpersType::updateWellRatesFromGroupTargetScale(scaling_factor,
+                                                                              group,
+                                                                              schedule(),
+                                                                              reportStepIdx,
+                                                                              /* isInjector */ true,
+                                                                              this->groupState(),
+                                                                              this->wellState());
                     changed = true;
                 }
             }
@@ -759,12 +759,12 @@ checkGroupHigherConstraints(const Group& group,
             }
         }
         for (int phasePos = 0; phasePos < this->numPhases(); ++phasePos) {
-            const Scalar local_current_rate = WellGroupHelpers<Scalar, IndexTraits>::sumWellSurfaceRates(group,
-                                                                                            schedule(),
-                                                                                            this->wellState(),
-                                                                                            reportStepIdx,
-                                                                                            phasePos,
-                                                                                            /* isInjector */ false);
+            const Scalar local_current_rate = WellGroupHelpersType::sumWellSurfaceRates(group,
+                                                                                        schedule(),
+                                                                                        this->wellState(),
+                                                                                        reportStepIdx,
+                                                                                        phasePos,
+                                                                                        /* isInjector */ false);
             // Sum over all processes
             rates[phasePos] = -comm_.sum(local_current_rate) - reduction_rates[phasePos];
         }
@@ -775,20 +775,20 @@ checkGroupHigherConstraints(const Group& group,
         if (currentControl != Group::ProductionCMode::FLD && group.productionGroupControlAvailable()) {
             const Group& parentGroup = schedule().getGroup(group.parent(), reportStepIdx);
             const auto [is_changed, scaling_factor] =
-                WellGroupHelpers<Scalar, IndexTraits>::checkGroupConstraintsProd(group.name(),
-                                                                    group.parent(),
-                                                                    parentGroup,
-                                                                    this->wellState(),
-                                                                    this->groupState(),
-                                                                    reportStepIdx,
-                                                                    &guideRate_,
-                                                                    rates.data(),
-                                                                    group.getGroupEfficiencyFactor(),
-                                                                    schedule(),
-                                                                    summaryState_,
-                                                                    resv_coeff,
-                                                                    /*check_guide_rate*/true,
-                                                                    deferred_logger);
+                WellGroupHelpersType::checkGroupConstraintsProd(group.name(),
+                                                                group.parent(),
+                                                                parentGroup,
+                                                                this->wellState(),
+                                                                this->groupState(),
+                                                                reportStepIdx,
+                                                                &guideRate_,
+                                                                rates.data(),
+                                                                group.getGroupEfficiencyFactor(),
+                                                                schedule(),
+                                                                summaryState_,
+                                                                resv_coeff,
+                                                                /*check_guide_rate*/true,
+                                                                deferred_logger);
             if (is_changed) {
                 const auto group_limit_action = group.productionControls(summaryState_).group_limit_action;
                 std::optional<std::string> worst_offending_well = std::nullopt; 
@@ -802,13 +802,13 @@ checkGroupHigherConstraints(const Group& group,
 
                 if (changed) {
                     switched_prod_groups_[group.name()].push_back(Group::ProductionCMode::FLD);
-                    WellGroupHelpers<Scalar, IndexTraits>::updateWellRatesFromGroupTargetScale(scaling_factor,
-                                                                                  group,
-                                                                                  schedule(),
-                                                                                  reportStepIdx,
-                                                                                  /* isInjector */ false,
-                                                                                  this->groupState(),
-                                                                                  this->wellState());
+                    WellGroupHelpersType::updateWellRatesFromGroupTargetScale(scaling_factor,
+                                                                              group,
+                                                                              schedule(),
+                                                                              reportStepIdx,
+                                                                              /* isInjector */ false,
+                                                                              this->groupState(),
+                                                                              this->wellState());
                 }
             }
         }
@@ -1001,17 +1001,17 @@ updateWsolvent(const Group& group,
         const int gasPos = phase_usage_info_.canonicalToActivePhaseIdx(IndexTraits::gasPhaseIdx);
         const auto& controls = group.injectionControls(Phase::GAS, summaryState_);
         const Group& groupRein = schedule_.getGroup(controls.reinj_group, reportStepIdx);
-        Scalar gasProductionRate = WellGroupHelpers<Scalar, IndexTraits>::sumWellSurfaceRates(groupRein,
-                                                                                 schedule_,
-                                                                                 wellState,
-                                                                                 reportStepIdx,
-                                                                                 gasPos,
-                                                                                 /*isInjector*/false);
-        Scalar solventProductionRate = WellGroupHelpers<Scalar, IndexTraits>::sumSolventRates(groupRein,
-                                                                                 schedule_,
-                                                                                 wellState,
-                                                                                 reportStepIdx,
-                                                                                 /*isInjector*/false);
+        Scalar gasProductionRate = WellGroupHelpersType::sumWellSurfaceRates(groupRein,
+                                                                             schedule_,
+                                                                             wellState,
+                                                                             reportStepIdx,
+                                                                             gasPos,
+                                                                             /*isInjector*/false);
+        Scalar solventProductionRate = WellGroupHelpersType::sumSolventRates(groupRein,
+                                                                             schedule_,
+                                                                             wellState,
+                                                                             reportStepIdx,
+                                                                             /*isInjector*/false);
 
         solventProductionRate = comm_.sum(solventProductionRate);
         gasProductionRate = comm_.sum(gasProductionRate);
@@ -1255,13 +1255,13 @@ assignNodeValues(std::map<std::string, data::NodeData>& nodevalues,
         return;
     }
 
-    auto converged_pressures = WellGroupHelpers<Scalar, IndexTraits>::computeNetworkPressures(network,
-                                                                                 this->wellState(),
-                                                                                 this->groupState(),
-                                                                                 *(vfp_properties_->getProd()),
-                                                                                 schedule(),
-                                                                                 comm_,
-                                                                                 reportStepIdx);
+    auto converged_pressures = WellGroupHelpersType::computeNetworkPressures(network,
+                                                                             this->wellState(),
+                                                                             this->groupState(),
+                                                                             *(vfp_properties_->getProd()),
+                                                                             schedule(),
+                                                                             comm_,
+                                                                             reportStepIdx);
     for (const auto& [node, converged_pressure] : converged_pressures) {
         auto it = nodevalues.find(node);
         assert(it != nodevalues.end() );
@@ -1330,23 +1330,23 @@ updateAndCommunicateGroupData(const int reportStepIdx,
                         const int np = this->wellState().numPhases();
                         Scalar gr_rate_nupcol = 0.0;
                         for (int phaseIdx = 0; phaseIdx < np; ++phaseIdx) {
-                            gr_rate_nupcol += WellGroupHelpers<Scalar, IndexTraits>::sumWellPhaseRates(is_vrep,
-                                                    group,
-                                                    schedule(),
-                                                    this->nupcolWellState(),
-                                                    reportStepIdx,
-                                                    phaseIdx,
-                                                    /*isInjector*/ false);
+                            gr_rate_nupcol += WellGroupHelpersType::sumWellPhaseRates(is_vrep,
+                                                                                      group,
+                                                                                      schedule(),
+                                                                                      this->nupcolWellState(),
+                                                                                      reportStepIdx,
+                                                                                      phaseIdx,
+                                                                                      /*isInjector*/ false);
                         }
                         Scalar gr_rate = 0.0;
                         for (int phaseIdx = 0; phaseIdx < np; ++phaseIdx) {
-                            gr_rate += WellGroupHelpers<Scalar, IndexTraits>::sumWellPhaseRates(is_vrep,
-                                                    group,
-                                                    schedule(),
-                                                    this->wellState(),
-                                                    reportStepIdx,
-                                                    phaseIdx,
-                                                    /*isInjector*/ false);
+                            gr_rate += WellGroupHelpersType::sumWellPhaseRates(is_vrep,
+                                                                               group,
+                                                                               schedule(),
+                                                                               this->wellState(),
+                                                                               reportStepIdx,
+                                                                               phaseIdx,
+                                                                               /*isInjector*/ false);
                         }
                         Scalar small_rate = 1e-12; // m3/s
                         Scalar denominator = (0.5*gr_rate_nupcol + 0.5*gr_rate);
@@ -1371,79 +1371,79 @@ updateAndCommunicateGroupData(const int reportStepIdx,
     constexpr std::array<bool, num_configs> is_production_group = {true, false, false, false};
     constexpr std::array<Phase, num_configs> phases = { Phase::OIL, Phase::WATER, Phase::OIL, Phase::GAS };
     for (int i = 0; i < num_configs; i++) {
-        WellGroupHelpers<Scalar, IndexTraits>::updateGroupControlledWells(schedule(),
-                                                             well_state,
-                                                             this->groupState(),
-                                                             summaryState_,
-                                                             &guideRate_,
-                                                             reportStepIdx,
-                                                             "FIELD",
-                                                             is_production_group[i],
-                                                             phases[i]);
+        WellGroupHelpersType::updateGroupControlledWells(schedule(),
+                                                         well_state,
+                                                         this->groupState(),
+                                                         summaryState_,
+                                                         &guideRate_,
+                                                         reportStepIdx,
+                                                         "FIELD",
+                                                         is_production_group[i],
+                                                         phases[i]);
     }
 
     // the group target reduction rates needs to be update since wells may have switched to/from GRUP control
     // The group target reduction does not honor NUPCOL.
     std::vector<Scalar> groupTargetReduction(numPhases(), 0.0);
-    WellGroupHelpers<Scalar, IndexTraits>::updateGroupTargetReduction(fieldGroup,
-                                                         schedule(),
-                                                         reportStepIdx,
-                                                         /*isInjector*/ false,
-                                                         guideRate_,
-                                                         well_state,
-                                                         summaryState_,
-                                                         this->groupState(),
-                                                         groupTargetReduction);
+    WellGroupHelpersType::updateGroupTargetReduction(fieldGroup,
+                                                     schedule(),
+                                                     reportStepIdx,
+                                                     /*isInjector*/ false,
+                                                     guideRate_,
+                                                     well_state,
+                                                     summaryState_,
+                                                     this->groupState(),
+                                                     groupTargetReduction);
     std::vector<Scalar> groupTargetReductionInj(numPhases(), 0.0);
-    WellGroupHelpers<Scalar, IndexTraits>::updateGroupTargetReduction(fieldGroup,
-                                                         schedule(),
-                                                         reportStepIdx,
-                                                         /*isInjector*/ true,
-                                                         guideRate_,
-                                                         well_state,
-                                                         summaryState_,
-                                                         this->groupState(),
-                                                         groupTargetReductionInj);
+    WellGroupHelpersType::updateGroupTargetReduction(fieldGroup,
+                                                     schedule(),
+                                                     reportStepIdx,
+                                                     /*isInjector*/ true,
+                                                     guideRate_,
+                                                     well_state,
+                                                     summaryState_,
+                                                     this->groupState(),
+                                                     groupTargetReductionInj);
 
-    WellGroupHelpers<Scalar, IndexTraits>::updateREINForGroups(fieldGroup,
-                                                  schedule(),
-                                                  reportStepIdx,
-                                                  summaryState_,
-                                                  well_state_nupcol,
-                                                  this->groupState(),
-                                                  comm_.rank() == 0);
-    WellGroupHelpers<Scalar, IndexTraits>::updateVREPForGroups(fieldGroup,
-                                                  schedule(),
-                                                  reportStepIdx,
-                                                  well_state_nupcol,
-                                                  this->groupState());
-
-    WellGroupHelpers<Scalar, IndexTraits>::updateReservoirRatesInjectionGroups(fieldGroup,
-                                                                  schedule(),
-                                                                  reportStepIdx,
-                                                                  well_state_nupcol,
-                                                                  this->groupState());
-    WellGroupHelpers<Scalar, IndexTraits>::updateSurfaceRatesInjectionGroups(fieldGroup,
-                                                                schedule(),
-                                                                reportStepIdx,
-                                                                well_state_nupcol,
-                                                                this->groupState());
-    WellGroupHelpers<Scalar, IndexTraits>::updateNetworkLeafNodeProductionRates(schedule(),
-                                                                   reportStepIdx,
-                                                                   well_state_nupcol,
-                                                                   this->groupState());
-
-    WellGroupHelpers<Scalar, IndexTraits>::updateGroupProductionRates(fieldGroup,
-                                                         schedule(),
-                                                         reportStepIdx,
-                                                         well_state_nupcol,
-                                                         this->groupState());
-
-    WellGroupHelpers<Scalar, IndexTraits>::updateWellRates(fieldGroup,
+    WellGroupHelpersType::updateREINForGroups(fieldGroup,
+                                              schedule(),
+                                              reportStepIdx,
+                                              summaryState_,
+                                              well_state_nupcol,
+                                              this->groupState(),
+                                              comm_.rank() == 0);
+    WellGroupHelpersType::updateVREPForGroups(fieldGroup,
                                               schedule(),
                                               reportStepIdx,
                                               well_state_nupcol,
-                                              well_state);
+                                              this->groupState());
+
+    WellGroupHelpersType::updateReservoirRatesInjectionGroups(fieldGroup,
+                                                              schedule(),
+                                                              reportStepIdx,
+                                                              well_state_nupcol,
+                                                              this->groupState());
+    WellGroupHelpersType::updateSurfaceRatesInjectionGroups(fieldGroup,
+                                                            schedule(),
+                                                            reportStepIdx,
+                                                            well_state_nupcol,
+                                                            this->groupState());
+    WellGroupHelpersType::updateNetworkLeafNodeProductionRates(schedule(),
+                                                               reportStepIdx,
+                                                               well_state_nupcol,
+                                                               this->groupState());
+
+    WellGroupHelpersType::updateGroupProductionRates(fieldGroup,
+                                                     schedule(),
+                                                     reportStepIdx,
+                                                     well_state_nupcol,
+                                                     this->groupState());
+
+    WellGroupHelpersType::updateWellRates(fieldGroup,
+                                          schedule(),
+                                          reportStepIdx,
+                                          well_state_nupcol,
+                                          well_state);
 
     well_state.communicateGroupRates(comm_);
     this->groupState().communicate_rates(comm_);
@@ -1461,7 +1461,8 @@ updateAndCommunicateGroupData(const int reportStepIdx,
             // Translate injector type from control to Phase.
             Scalar group_target = std::numeric_limits<Scalar>::max();
             if (well->isProducer()) {
-                group_target = WellGroupHelpers<Scalar, IndexTraits>::getWellGroupTargetProducer(well->name(),
+                group_target =
+                    WellGroupHelpersType::getWellGroupTargetProducer(well->name(),
                                             well->wellEcl().groupName(),
                                             group,
                                             this->wellState(),
@@ -1497,7 +1498,8 @@ updateAndCommunicateGroupData(const int reportStepIdx,
                 default:
                     assert(false); //programming error
                 }
-                group_target = WellGroupHelpers<Scalar, IndexTraits>::getWellGroupTargetInjector(well->name(),
+                group_target =
+                    WellGroupHelpersType::getWellGroupTargetInjector(well->name(),
                                             well->wellEcl().groupName(),
                                             group,
                                             this->wellState(),
@@ -1647,13 +1649,13 @@ updateNetworkPressures(const int reportStepIdx, const Scalar damping_factor, con
 
     const auto previous_node_pressures = node_pressures_;
 
-    node_pressures_ = WellGroupHelpers<Scalar, IndexTraits>::computeNetworkPressures(network,
-                                                                        this->wellState(),
-                                                                        this->groupState(),
-                                                                        *(vfp_properties_->getProd()),
-                                                                        schedule(),
-                                                                        comm_,
-                                                                        reportStepIdx);
+    node_pressures_ = WellGroupHelpersType::computeNetworkPressures(network,
+                                                                    this->wellState(),
+                                                                    this->groupState(),
+                                                                    *(vfp_properties_->getProd()),
+                                                                    schedule(),
+                                                                    comm_,
+                                                                    reportStepIdx);
 
     // here, the network imbalance is the difference between the previous nodal pressure and the new nodal pressure
     Scalar network_imbalance = 0.;
@@ -1720,11 +1722,11 @@ calculateEfficiencyFactors(const int reportStepIdx)
         const Well& wellEcl = well->wellEcl();
         Scalar well_efficiency_factor = wellEcl.getEfficiencyFactor() *
                                         wellState().getGlobalEfficiencyScalingFactor(well->name());
-        WellGroupHelpers<Scalar, IndexTraits>::accumulateGroupEfficiencyFactor(schedule().getGroup(wellEcl.groupName(),
-                                                                                      reportStepIdx),
-                                                                  schedule(),
-                                                                  reportStepIdx,
-                                                                  well_efficiency_factor);
+        WellGroupHelpersType::accumulateGroupEfficiencyFactor(schedule().getGroup(wellEcl.groupName(),
+                                                              reportStepIdx),
+                                                              schedule(),
+                                                              reportStepIdx,
+                                                              well_efficiency_factor);
         well->setWellEfficiencyFactor(well_efficiency_factor);
     }
 }

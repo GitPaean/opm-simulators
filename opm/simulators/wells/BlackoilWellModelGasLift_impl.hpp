@@ -44,7 +44,7 @@ maybeDoGasLiftOptimize(const Simulator& simulator,
                        const std::vector<WellInterfacePtr>& well_container,
                        const std::map<std::string, Scalar>& node_pressures,
                        const bool updatePotentials,
-                       WellState<Scalar, IndexTraits>& wellState,
+                       WellStateType& wellState,
                        GroupState<Scalar>& groupState,
                        DeferredLogger& deferred_logger)
 {
@@ -144,7 +144,7 @@ void
 BlackoilWellModelGasLift<TypeTag>::
 gasLiftOptimizationStage1(const Simulator& simulator,
                           const std::vector<WellInterfacePtr>& well_container,
-                          WellState<Scalar, IndexTraits>& wellState,
+                          WellStateType& wellState,
                           GroupState<Scalar>& groupState,
                           GLiftProdWells& prod_wells,
                           GLiftOptWells &glift_wells,
@@ -270,7 +270,7 @@ void
 BlackoilWellModelGasLift<TypeTag>::
 gasLiftOptimizationStage1SingleWell(WellInterface<TypeTag>* well,
                                     const Simulator& simulator,
-                                    WellState<Scalar, IndexTraits>& wellState,
+                                    WellStateType& wellState,
                                     GroupState<Scalar>& groupState,
                                     GLiftProdWells& prod_wells,
                                     GLiftOptWells& glift_wells,
@@ -317,7 +317,7 @@ BlackoilWellModelGasLift<TypeTag>::
 updateWellPotentials(const Simulator& simulator,
                      const std::vector<WellInterfacePtr>& well_container,
                      const std::map<std::string, Scalar>& node_pressures,
-                     WellState<Scalar, IndexTraits>& wellState,
+                     WellStateType& wellState,
                      DeferredLogger& deferred_logger)
 {
     auto well_state_copy = wellState;

@@ -98,7 +98,6 @@ public:
     using Scalar = GetPropType<TypeTag, Properties::Scalar>;
     using FluidSystem = GetPropType<TypeTag, Properties::FluidSystem>;
     using IndexTraits = typename FluidSystem::IndexTraitsType;
-    using Indices = GetPropType<TypeTag, Properties::Indices>;
     using Base = BlackoilWellModelGasLiftGeneric<Scalar, IndexTraits>;
     using Base::glift_debug;
     using GLiftEclWells = typename GasLiftGroupInfo<Scalar, IndexTraits>::GLiftEclWells;

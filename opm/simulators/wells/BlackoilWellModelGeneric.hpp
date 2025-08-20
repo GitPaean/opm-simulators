@@ -69,6 +69,7 @@ namespace Opm {
     struct SimulatorUpdate;
     class SummaryConfig;
     template<typename Scalar, typename IndexTraits> class VFPProperties;
+    template<typename Scalar, typename IndexTraits> class WellGroupHelpers;
     template<typename Scalar, typename IndexTraits> class WellInterfaceGeneric;
     template<typename Scalar, typename IndexTraits> class WellState;
 } // namespace Opm
@@ -92,6 +93,7 @@ namespace Opm {
 template<typename Scalar, typename IndexTraits>
 class BlackoilWellModelGeneric
 {
+    using WellGroupHelpersType =  WellGroupHelpers<Scalar, IndexTraits>;
 public:
     BlackoilWellModelGeneric(Schedule& schedule,
                              BlackoilWellModelGasLiftGeneric<Scalar, IndexTraits>& gaslift,
