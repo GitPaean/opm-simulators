@@ -18,9 +18,6 @@
   You should have received a copy of the GNU General Public License
   along with OPM.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef OPM_RATECONVERTER_CPP_INCLUDED
-#define OPM_RATECONVERTER_CPP_INCLUDED
-
 #include <config.h>
 #include <opm/simulators/wells/RateConverter.hpp>
 
@@ -95,7 +92,6 @@ template <class Coeff>
 void SurfaceToReservoirVoidage<FluidSystem,  Region>::
 calcInjCoeff(const RegionId r, const int pvtRegionIdx, Coeff& coeff) const
 {
-    const auto& pu = phaseUsage_;
     const auto& ra = attr_.attributes(r);
     const Scalar p = ra.pressure;
     const Scalar T = ra.temperature;
@@ -105,7 +101,7 @@ calcInjCoeff(const RegionId r, const int pvtRegionIdx, Coeff& coeff) const
     const int   io = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx);
     const int   ig = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
 
-    std::fill(& coeff[0], & coeff[0] + pu.numActivePhases(), 0.0);
+    std::fill(& coeff[0], & coeff[0] + FluidSystem::numActivePhases(), 0.0);
 
     if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
         // q[w]_r = q[w]_s / bw
@@ -152,10 +148,9 @@ void SurfaceToReservoirVoidage<FluidSystem,  Region>::
 calcCoeff(const RegionId r, const int pvtRegionIdx, const Rates& surface_rates, Coeff& coeff) const
 {
     const auto& ra = attr_.attributes(r);
-    const auto& pu = phaseUsage_;
-    const int   iw = pu.canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
-    const int   io = pu.canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx);
-    const int   ig = pu.canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
+    const int   iw = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
+    const int   io = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx);
+    const int   ig = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
     const auto [Rs, Rv] =
         dissolvedVaporisedRatio(io, ig, ra.rs, ra.rv, surface_rates);
 
@@ -178,13 +173,11 @@ calcCoeff(const int pvtRegionIdx,
           const Scalar saltConcentration,
           Coeff& coeff) const
 {
-    const auto& pu = phaseUsage_;
-
     const int   iw = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
     const int   io = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx);
     const int   ig = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
 
-    std::fill(& coeff[0], & coeff[0] + pu.numActivePhases(), 0.0);
+    std::fill(& coeff[0], & coeff[0] + FluidSystem::numActivePhases(), 0.0);
 
     // Determinant of 'R' matrix
     const Scalar detRw = 1.0 - (Rsw * Rvw);
@@ -262,7 +255,6 @@ calcReservoirVoidageRates(const int           pvtRegionIdx,
                           const SurfaceRates& surface_rates,
                           VoidageRates&       voidage_rates) const
 {
-    const auto& pu = this->phaseUsage_;
     const int   iw = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
     const int   io = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::oilPhaseIdx);
     const int   ig = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
@@ -274,7 +266,7 @@ calcReservoirVoidageRates(const int           pvtRegionIdx,
         dissolvedVaporisedRatio(iw, ig, rsw, rvw, surface_rates);
 
 
-    std::fill_n(&voidage_rates[0], pu.numActivePhases(), 0.0);
+    std::fill_n(&voidage_rates[0], FluidSystem::numActivePhases(), 0.0);
 
 
     // Determinant of 'R' matrix
@@ -425,13 +417,11 @@ using FS = BlackOilFluidSystem<Scalar, BlackOilDefaultFluidSystemIndices>;
                                      const T,                            \
                                      const std::vector<T>::iterator&) const;
 
-    INSTANTIATE_TYPE(double)
+INSTANTIATE_TYPE(double)
 
 #if FLOW_INSTANTIATE_FLOAT
-    INSTANTIATE_TYPE(float)
+INSTANTIATE_TYPE(float)
 #endif
 
 } // namespace RateConverter
 } // namespace Opm
-
-#endif

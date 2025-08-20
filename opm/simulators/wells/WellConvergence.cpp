@@ -20,7 +20,6 @@
 */
 
 #include <config.h>
-
 #include <opm/simulators/wells/WellConvergence.hpp>
 
 #include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>

@@ -19,9 +19,6 @@
   along with OPM.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef OPM_WELL_ASSEMBLE_CPP_INCLUDED
-#define OPM_WELL_ASSEMBLE_CPP_INCLUDED
-
 #include <config.h>
 #include <opm/simulators/wells/WellAssemble.hpp>
 
@@ -346,5 +343,3 @@ INSTANTIATE_TYPE(float)
 #endif
 
 } // namespace Opm
-
-#endif

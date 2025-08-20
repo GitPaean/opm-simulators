@@ -17,8 +17,6 @@
   along with OPM.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "opm/simulators/linalg/overlaptypes.hh"
-
 #include <config.h>
 
 #include <opm/simulators/wells/GuideRateHandler.hpp>

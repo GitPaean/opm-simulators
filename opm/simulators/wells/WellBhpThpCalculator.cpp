@@ -19,9 +19,6 @@
   along with OPM.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef OPM_WELL_BHP_THP_CALCULATOR_CPP_INCLUDED
-#define OPM_WELL_BHP_THP_CALCULATOR_CPP_INCLUDED
-
 #include <config.h>
 
 #include <opm/simulators/wells/WellBhpThpCalculator.hpp>
@@ -1110,5 +1107,3 @@ INSTANTIATE_TYPE(float)
 #endif
 
 } // namespace Opm
-
-#endif

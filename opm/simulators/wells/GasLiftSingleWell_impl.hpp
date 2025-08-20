@@ -180,9 +180,9 @@ GasLiftSingleWell<TypeTag>::
 setupPhaseVariables_()
 {
 #ifndef NDEBUG
-    bool num_phases_ok = (Indices::numPhases == 3);
+    bool num_phases_ok = (FluidSystem::numActivePhases()== 3);
 #endif
-    if (Indices::numPhases == 2) {
+    if (FluidSystem::numActivePhases()== 2) {
         // NOTE: We support two-phase oil-water flow, by setting the gas flow rate
         //   to zero. This is done by initializing the potential vector to zero:
         //

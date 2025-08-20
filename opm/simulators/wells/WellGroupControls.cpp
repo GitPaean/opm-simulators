@@ -18,8 +18,6 @@
   You should have received a copy of the GNU General Public License
   along with OPM.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef OPM_WELL_GROUP_CONTROLS_CPP_INCLUDED
-#define OPM_WELL_GROUP_CONTROLS_CPP_INCLUDED
 
 #include <config.h>
 #include <opm/simulators/wells/WellGroupControls.hpp>
@@ -508,5 +506,3 @@ INSTANTIATE_TYPE(float)
 #endif
 
 } // namespace Opm
-
-#endif

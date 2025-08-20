@@ -23,8 +23,6 @@
 #ifndef OPM_BLACKOILWELLMODEL_CONSTRAINTS_HEADER_INCLUDED
 #define OPM_BLACKOILWELLMODEL_CONSTRAINTS_HEADER_INCLUDED
 
-#include "opm/simulators/linalg/overlaptypes.hh"
-
 #include <opm/input/eclipse/Schedule/Group/Group.hpp>
 #include <optional>
 #include <utility>

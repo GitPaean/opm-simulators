@@ -298,10 +298,7 @@ displayDebugMessage_(const std::string& msg, const std::string& group_name)
 }
 
 template<typename Scalar, typename IndexTraits>
-std::tuple<Scalar,
-           Scalar,
-           Scalar,
-           Scalar>
+std::tuple<Scalar, Scalar, Scalar, Scalar>
 GasLiftStage2<Scalar, IndexTraits>::
 getCurrentGroupRates_(const Group& group)
 {

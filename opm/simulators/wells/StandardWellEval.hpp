@@ -65,7 +65,7 @@ public:
     using BVectorWell = typename StandardWellEquations<Scalar, IndexTraits, Indices::numEq>::BVectorWell;
 
     //! \brief Returns a const reference to equation system.
-    const  StandardWellEquations<Scalar, IndexTraits, Indices::numEq>& linSys() const
+    const StandardWellEquations<Scalar, IndexTraits, Indices::numEq>& linSys() const
     { return linSys_; }
 
 protected:

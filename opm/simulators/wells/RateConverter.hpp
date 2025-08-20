@@ -32,7 +32,6 @@
 #include <dune/grid/common/gridenums.hh>
 #include <dune/grid/common/rangegenerators.hh>
 
-#include <opm/material/fluidsystems/PhaseUsageInfo.hpp>
 #include <array>
 #include <cassert>
 #include <unordered_map>
@@ -71,18 +70,14 @@ namespace Opm {
         class SurfaceToReservoirVoidage {
         public:
             using Scalar = typename FluidSystem::Scalar;
-            using PhaseUsageInfoType = PhaseUsageInfo<typename FluidSystem::IndexTraitsType>;
-
             /**
              * Constructor.
              *
              * \param[in] region Forward region mapping.  Often corresponds
              * to the "FIPNUM" mapping of an ECLIPSE input deck.
              */
-            SurfaceToReservoirVoidage(const PhaseUsageInfoType& phaseUsage,
-                                      const Region&     region)
-                : phaseUsage_(phaseUsage)
-                , rmap_      (region)
+            SurfaceToReservoirVoidage(const Region&     region)
+                : rmap_      (region)
                 , attr_      (rmap_, Attributes())
             {}
 
@@ -371,11 +366,6 @@ namespace Opm {
             }
 
         private:
-            /**
-             * Fluid property object.
-             */
-            const PhaseUsageInfoType& phaseUsage_;
-
             /**
              * "Fluid-in-place" region mapping (forward and reverse).
              */

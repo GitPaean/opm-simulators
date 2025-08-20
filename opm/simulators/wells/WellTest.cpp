@@ -109,7 +109,7 @@ checkMaxGORLimit(const WellEconProductionLimits& econ_production_limits,
 {
     // function to calculate gor based on rates
     auto gor = [](const std::vector<Scalar>& rates,
-                                               const PhaseUsageInfo<IndexTraits>& pu)
+                  const PhaseUsageInfo<IndexTraits>& pu)
     {
         const Scalar oil_rate = -rates[pu.canonicalToActivePhaseIdx(IndexTraits::oilPhaseIdx)];
         const Scalar gas_rate = -rates[pu.canonicalToActivePhaseIdx(IndexTraits::gasPhaseIdx)];

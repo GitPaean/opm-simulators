@@ -636,12 +636,11 @@ namespace Opm
         perf_data.pressure[perf] = ws.bhp + this->connections_.pressure_diff(perf);
 
         // Store the perforation gass mass rate.
-        // TODO: handling H2STORE or CO2STORE later?
-        // if (pu.has_co2_or_h2store) {
-        //     const unsigned gas_comp_idx = Indices::canonicalToActiveComponentIndex(FluidSystem::gasCompIdx);
-        //     const Scalar rho = FluidSystem::referenceDensity( FluidSystem::gasPhaseIdx, Base::pvtRegionIdx() );
-        //     perf_data.gas_mass_rates[perf] = cq_s[gas_comp_idx].value() * rho;
-        // }
+        if (FluidSystem::phaseUsage().hasCO2orH2Store()) {
+            const unsigned gas_comp_idx = Indices::canonicalToActiveComponentIndex(FluidSystem::gasCompIdx);
+            const Scalar rho = FluidSystem::referenceDensity( FluidSystem::gasPhaseIdx, Base::pvtRegionIdx() );
+            perf_data.gas_mass_rates[perf] = cq_s[gas_comp_idx].value() * rho;
+        }
 
         // Store the perforation water mass rate.
         if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {

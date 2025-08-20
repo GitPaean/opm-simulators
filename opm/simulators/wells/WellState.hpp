@@ -73,9 +73,9 @@ public:
 
     // TODO: trying to PhasedIdx to make it more explicit as phase index, will evaluate how it goes.
     // TODO: eventually, we should distinguish phase index and component index
-    static const int waterPhaseIdx = PhaseUsageInfo<IndexTraits>::waterPhaseIdx;
-    static const int oilPhaseIdx = PhaseUsageInfo<IndexTraits>::oilPhaseIdx;
-    static const int gasPhaseIdx = PhaseUsageInfo<IndexTraits>::gasPhaseIdx;
+    static const int waterPhaseIdx = IndexTraits::waterPhaseIdx;
+    static const int oilPhaseIdx = IndexTraits::oilPhaseIdx;
+    static const int gasPhaseIdx = IndexTraits::gasPhaseIdx;
 
     // Only usable for testing purposes
     explicit WellState(const ParallelWellInfo<Scalar>& pinfo);
@@ -101,7 +101,7 @@ public:
         return this->size();
     }
 
-    // TODO: temporary during development
+    // TODO: temporary naming during development, will change to phaseUsage() later
     const PhaseUsageInfo<IndexTraits>& phaseUsageInfo() const
     {
         return this->phaseUsageInfo_;

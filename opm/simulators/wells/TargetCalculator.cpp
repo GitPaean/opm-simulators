@@ -16,8 +16,6 @@
   You should have received a copy of the GNU General Public License
   along with OPM.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef OPM_TARGETCALCULATOR_CPP_INCLUDED
-#define OPM_TARGETCALCULATOR_CPP_INCLUDED
 
 #include <config.h>
 #include <opm/simulators/wells/TargetCalculator.hpp>
@@ -310,4 +308,3 @@ INSTANTIATE_TYPE(float)
 #endif
 
 } // namespace Opm::WGHelpers
-#endif

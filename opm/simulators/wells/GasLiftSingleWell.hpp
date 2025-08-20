@@ -41,7 +41,6 @@ class GasLiftSingleWell : public GasLiftSingleWellGeneric<GetPropType<TypeTag, P
     using Simulator = GetPropType<TypeTag, Properties::Simulator>;
     using FluidSystem = GetPropType<TypeTag, Properties::FluidSystem>;
     using IndexTraits = typename FluidSystem::IndexTraitsType;
-    using Indices = GetPropType<TypeTag, Properties::Indices>;
     using GLiftSyncGroups = typename GasLiftSingleWellGeneric<Scalar, IndexTraits>::GLiftSyncGroups;
     using BasicRates = typename GasLiftSingleWellGeneric<Scalar, IndexTraits>::BasicRates;
 

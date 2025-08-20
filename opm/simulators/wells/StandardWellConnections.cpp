@@ -19,8 +19,6 @@
   along with OPM.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "RegionAttributeHelpers.hpp"
-
 #include <config.h>
 
 #include <opm/simulators/wells/StandardWellConnections.hpp>
