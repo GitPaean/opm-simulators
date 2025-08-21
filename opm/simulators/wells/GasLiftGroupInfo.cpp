@@ -162,10 +162,7 @@ getPotential(Rate rate_type, const std::string& group_name) const
 }
 
 template<typename Scalar, typename IndexTraits>
-std::tuple<Scalar,
-           Scalar,
-           Scalar,
-           Scalar>
+std::tuple<Scalar, Scalar, Scalar, Scalar>
 GasLiftGroupInfo<Scalar, IndexTraits>::
 getRates(const int group_idx) const
 {
@@ -525,12 +522,7 @@ displayDebugMessage_(const std::string& msg, const std::string& well_name)
 }
 
 template<typename Scalar, typename IndexTraits>
-std::tuple<Scalar,
-           Scalar,
-           Scalar,
-           Scalar,
-           Scalar,
-           Scalar>
+std::tuple<Scalar, Scalar, Scalar, Scalar, Scalar, Scalar>
 GasLiftGroupInfo<Scalar, IndexTraits>::
 getProducerWellRates_(const Well* well, int well_index)
 {
@@ -581,13 +573,7 @@ getProducerWellRates_(const Well* well, int well_index)
 }
 
 template<typename Scalar, typename IndexTraits>
-std::tuple<Scalar,
-           Scalar,
-           Scalar,
-           Scalar,
-           Scalar,
-           Scalar,
-           Scalar>
+std::tuple<Scalar, Scalar, Scalar, Scalar, Scalar, Scalar, Scalar>
 GasLiftGroupInfo<Scalar, IndexTraits>::
 initializeGroupRatesRecursive_(const Group& group)
 {
