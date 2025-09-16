@@ -23,7 +23,10 @@
 #ifndef OPM_STANDARDWELL_PRIMARY_VARIABLES_HEADER_INCLUDED
 #define OPM_STANDARDWELL_PRIMARY_VARIABLES_HEADER_INCLUDED
 
+#include <opm/input/eclipse/Schedule/Well/Well.hpp>
+
 #include <opm/material/densead/Evaluation.hpp>
+#include <opm/material/fluidsystems/PhaseUsageInfo.hpp>
 
 #include <opm/simulators/wells/StandardWellEquations.hpp>
 
@@ -33,11 +36,10 @@ namespace Opm
 {
 
 class DeferredLogger;
-template<class FluidSystem, class Indices> class WellInterfaceIndices;
 template<typename Scalar, typename IndexTraits> class WellState;
 
 //! \brief Class holding primary variables for StandardWell.
-template<class FluidSystem, class Indices>
+template<typename Scalar, typename IndexTraits, int numEq>
 class StandardWellPrimaryVariables {
 protected:
     // the positions of the primary variables for StandardWell
@@ -62,34 +64,37 @@ protected:
     static constexpr int numWellControlEq = 1;
 
 public:
+
+    using PhaseUsage = PhaseUsageInfo<IndexTraits>;
+
     //! \brief Number of the conservation equations.
-    static constexpr int numWellConservationEq = Indices::numPhases + Indices::numSolvents;
+    static int numWellConservationEq; // Indices::numPhases + Indices::numSolvents;
 
     //! \brief Number of the well equations that will always be used.
     //! \details Based on the solution strategy, there might be other well equations be introduced.
-    static constexpr int numStaticWellEq = numWellConservationEq + numWellControlEq;
+    static int numStaticWellEq; // = numWellConservationEq + numWellControlEq;
 
     static constexpr int WQTotal = 0; //!< The index for the weighted total rate
 
     //! \brief The index for Bhp in primary variables and the index of well control equation.
     //! \details They both will be the last one in their respective system.
     //! \todo: We should have indices for the well equations and well primary variables separately.
-    static constexpr int Bhp = numStaticWellEq - numWellControlEq;
+    static int Bhp; // = numStaticWellEq - numWellControlEq;
 
-    static constexpr bool has_wfrac_variable = Indices::waterEnabled && Indices::oilEnabled;
-    static constexpr bool has_gfrac_variable = Indices::gasEnabled && Indices::numPhases > 1;
-    static constexpr int WFrac = has_wfrac_variable ? 1 : -1000;
-    static constexpr int GFrac = has_gfrac_variable ? has_wfrac_variable + 1 : -1000;
-    static constexpr int SFrac = !Indices::enableSolvent ? -1000 : has_wfrac_variable+has_gfrac_variable+1;
+    // TODO: we can make them static functions then we do not need to initialize them
+    // we only need to make sure the PhaseUsageInfo is in palce
+    static bool has_wfrac_variable; // = Indices::waterEnabled && Indices::oilEnabled;
+    static bool has_gfrac_variable; // = Indices::gasEnabled && Indices::numPhases > 1;
+    static int WFrac; //  = has_wfrac_variable ? 1 : -1000;
+    static int GFrac; // = has_gfrac_variable ? has_wfrac_variable + 1 : -1000;
+    static int SFrac; // = !Indices::enableSolvent ? -1000 : has_wfrac_variable+has_gfrac_variable+1;
 
-    using Scalar = typename FluidSystem::Scalar;
-    using IndexTraits = typename FluidSystem::IndexTraitsType;
     //! \brief Evaluation for the well equations.
-    using EvalWell = DenseAd::DynamicEvaluation<Scalar, numStaticWellEq + Indices::numEq + 1>;
-    using BVectorWell = typename StandardWellEquations<Scalar, IndexTraits, Indices::numEq>::BVectorWell;
+    using EvalWell = DenseAd::DynamicEvaluation<Scalar, numEq + numEq + 1 + numWellControlEq>; // if no solvent, we its size is too big by one
+    using BVectorWell = typename StandardWellEquations<Scalar, IndexTraits, numEq>::BVectorWell;
 
     //! \brief Constructor initializes reference to well interface.
-    explicit StandardWellPrimaryVariables(const WellInterfaceIndices<FluidSystem,Indices>& well)
+    explicit StandardWellPrimaryVariables(const Well& well)
         : well_(well)
     {}
 
@@ -148,6 +153,23 @@ public:
     void setValue(const int idx, const Scalar val)
     { value_[idx] = val; }
 
+    static void setPhaseUsage(const PhaseUsage& usage) {
+        static bool called = false;
+        if (called) return;
+
+        phase_usage_ = usage;
+        // update other indices
+        has_wfrac_variable = phase_usage_.phaseIsActive(IndexTraits::waterPhaseIdx) && phase_usage_.phaseIsActive(IndexTraits::oilPhaseIdx);
+        has_gfrac_variable = phase_usage_.phaseIsActive(IndexTraits::gasPhaseIdx) && phase_usage_.numActivePhases() > 1;
+        numWellConservationEq = phase_usage_.numActivePhases() + phase_usage_.hasSolvent();
+        numStaticWellEq = numWellConservationEq + numWellControlEq;
+
+        Bhp = numStaticWellEq - numWellControlEq;
+        WFrac = has_wfrac_variable ? 1 : -1000;
+        GFrac = has_gfrac_variable ? (has_wfrac_variable + 1) : -1000;
+        SFrac = phase_usage_.hasSolvent() ? (has_wfrac_variable + has_gfrac_variable + 1) : -1000;
+    }
+
 private:
     //! \brief Initialize evaluations from values.
     void setEvaluationsFromValues();
@@ -171,11 +193,14 @@ private:
     //! \details Contain derivatives and are used in AD calculation
     std::vector<EvalWell> evaluation_;
 
-    const WellInterfaceIndices<FluidSystem,Indices>& well_; //!< Reference to well interface
+    const Well& well_; //!< Reference to ecl well
 
     //! \brief Total number of the well equations and primary variables.
     //! \details There might be extra equations be used, numWellEq will be updated during the initialization
-    int numWellEq_ = numStaticWellEq;
+    int numWellEq_ {}; // = numStaticWellEq;
+
+    // static for now
+    static PhaseUsage phase_usage_ {};
 };
 
 }
