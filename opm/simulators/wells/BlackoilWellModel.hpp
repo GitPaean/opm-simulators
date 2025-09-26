@@ -137,7 +137,7 @@ template<class Scalar> class WellContributions;
 
             // For the conversion between the surface volume rate and reservoir voidage rate
             using RateConverterType = RateConverter::
-                SurfaceToReservoirVoidage<FluidSystem, std::vector<int> >;
+                SurfaceToReservoirVoidage<Scalar, IndexTraits, std::vector<int> >;
 
             // For computing average pressured used by gpmaint
             using AverageRegionalPressureType = RegionAverageCalculator::

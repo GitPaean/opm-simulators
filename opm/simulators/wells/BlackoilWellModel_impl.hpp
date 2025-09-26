@@ -199,7 +199,11 @@ namespace Opm {
         this->report_step_start_events_ = this->schedule()[timeStepIdx].wellgroup_events();
 
         this->rateConverter_ = std::make_unique<RateConverterType>
-            (std::vector<int>(this->local_num_cells_, 0));
+            (std::vector<int>(this->local_num_cells_, 0),
+             FluidSystem::phaseUsage(),
+             FluidSystem::waterPvt(),
+             FluidSystem::oilPvt(),
+             FluidSystem::gasPvt());
 
         {
             // WELPI scaling runs at start of report step.
