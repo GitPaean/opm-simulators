@@ -70,7 +70,7 @@ public:
 
     using Scalar = typename FluidSystem::Scalar;
     using IndexTraits = typename FluidSystem::IndexTraitsType;
-    using EvalWell = DenseAd::Evaluation<Scalar, /*size=*/Indices::numEq + numWellEq>;
+    using EvalWell = DenseAd::DynamicEvaluation<Scalar, Indices::numEq + numWellEq>;
 
     using Equations = MultisegmentWellEquations<Scalar,IndexTraits,numWellEq,Indices::numEq>;
     using BVectorWell = typename Equations::BVectorWell;

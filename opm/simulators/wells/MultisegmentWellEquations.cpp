@@ -106,6 +106,14 @@ init(const int numPerfs,
             row.insert(inlet);
         }
     }
+    for (auto row = duneD_.createbegin(),
+              end = duneD_.createend(); row != end; ++row) {
+        auto& matrixRow = duneD_[row.index()];
+        for (auto col = matrixRow.begin(), col_end = matrixRow.end(); col != col_end; ++col) {
+            // the block size is run-time determined now
+            duneD_[row.index()][col.index()].resize(numWellEq, numWellEq);
+        }
+    }
 
     // make the C matrix
     for (auto row = duneC_.createbegin(),
@@ -116,6 +124,15 @@ init(const int numPerfs,
             if (local_perf_index < 0) // then the perforation is not on this process
                 continue;
             row.insert(local_perf_index);
+        }
+    }
+
+    for (auto row = duneC_.createbegin(),
+              end = duneC_.createend(); row != end; ++row) {
+        auto& matrixRow = duneC_[row.index()];
+        for (auto col = matrixRow.begin(), col_end = matrixRow.end(); col != col_end; ++col) {
+            // the block size is run-time determined now
+            duneC_[row.index()][col.index()].resize(numWellEq, numEq);
         }
     }
 
@@ -131,7 +148,21 @@ init(const int numPerfs,
         }
     }
 
+    for (auto row = duneB_.createbegin(),
+              end = duneB_.createend(); row != end; ++row) {
+        auto& matrixRow = duneB_[row.index()];
+        for (auto col = matrixRow.begin(), col_end = matrixRow.end(); col != col_end; ++col) {
+            // the block size is run-time determined now
+            duneB_[row.index()][col.index()].resize(numWellEq, numEq);
+        }
+    }
+
     resWell_.resize(well_.numberOfSegments());
+
+    for (int i = 0; i < well_.numberOfSegments(); ++i) {
+        // the block size of resWell_ is also run-time determined now
+        resWell_[i].resize(numWellEq);
+    }
 
     // Store the global index of well perforated cells
     cells_ = cells;

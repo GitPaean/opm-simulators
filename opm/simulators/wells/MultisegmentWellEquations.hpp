@@ -56,19 +56,20 @@ public:
     //  B  D ]   x_well]      res_well]
 
     // the vector type for the res_well and x_well
-    using VectorBlockWellType = Dune::FieldVector<Scalar,numWellEq>;
+    // the vector type for the res_well and x_well
+    using VectorBlockWellType = Dune::DynamicVector<Scalar>;
     using BVectorWell = Dune::BlockVector<VectorBlockWellType>;
 
-    using VectorBlockType = Dune::FieldVector<Scalar,numEq>;
-    using BVector = Dune::BlockVector<VectorBlockType>;
-
     // the matrix type for the diagonal matrix D
-    using DiagMatrixBlockWellType = Dune::FieldMatrix<Scalar,numWellEq,numWellEq>;
+    using DiagMatrixBlockWellType = Dune::DynamicMatrix<Scalar>;
     using DiagMatWell = Dune::BCRSMatrix<DiagMatrixBlockWellType>;
 
     // the matrix type for the non-diagonal matrix B and C^T
-    using OffDiagMatrixBlockWellType = Dune::FieldMatrix<Scalar,numWellEq,numEq>;
+    using OffDiagMatrixBlockWellType = Dune::DynamicMatrix<Scalar>;
     using OffDiagMatWell = Dune::BCRSMatrix<OffDiagMatrixBlockWellType>;
+
+    using VectorBlockType = Dune::FieldVector<Scalar,numEq>;
+    using BVector = Dune::BlockVector<VectorBlockType>;
 
     MultisegmentWellEquations(const MultisegmentWellGeneric<Scalar, IndexTraits>& well, const ParallelWellInfo<Scalar>& pw_info);
 
