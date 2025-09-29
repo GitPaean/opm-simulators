@@ -55,7 +55,7 @@ public:
     using Scalar = typename FluidSystem::Scalar;
     using IndexTraits = typename FluidSystem::IndexTraitsType;
     using Equations = MultisegmentWellEquations<Scalar, IndexTraits, numWellEq,Indices::numEq>;
-    using EvalWell = DenseAd::Evaluation<Scalar, numWellEq+Indices::numEq>;
+    using EvalWell = DenseAd::DynamicEvaluation<Scalar, Indices::numEq + numWellEq>;
 
     //! \brief Constructor initializes reference to well.
     explicit MultisegmentWellAssemble(const WellInterfaceIndices<FluidSystem,Indices>& well)

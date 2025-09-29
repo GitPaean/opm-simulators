@@ -1829,12 +1829,12 @@ namespace Opm
                     continue;
                 const int cell_idx = this->well_cells_[local_perf_index];
                 const auto& int_quants = simulator.model().intensiveQuantities(cell_idx, /*timeIdx=*/ 0);
-                std::vector<EvalWell> mob(this->num_conservation_quantities_, 0.0);
+                std::vector<EvalWell> mob(this->num_conservation_quantities_, {MSWEval::numWellEq + Indices::numEq, 0.});
                 getMobility(simulator, local_perf_index, mob, deferred_logger);
                 const Scalar trans_mult = simulator.problem().template wellTransMultiplier<Scalar>(int_quants, cell_idx);
                 const auto& wellstate_nupcol = simulator.problem().wellModel().nupcolWellState().well(this->index_of_well_);
                 const std::vector<Scalar> Tw = this->wellIndex(local_perf_index, int_quants, trans_mult, wellstate_nupcol);
-                std::vector<EvalWell> cq_s(this->num_conservation_quantities_, 0.0);
+                std::vector<EvalWell> cq_s(this->num_conservation_quantities_, {MSWEval::numWellEq + Indices::numEq, 0.});
                 EvalWell perf_press;
                 PerforationRates<Scalar> perfRates;
                 computePerfRate(int_quants, mob, Tw, seg, perf, seg_pressure,

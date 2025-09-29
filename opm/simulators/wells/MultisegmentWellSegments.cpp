@@ -68,13 +68,13 @@ MultisegmentWellSegments(const int numSegments,
     // local information. This is an exception and intentionally, since here, we only need the local entries.
     , inlets_(well.wellEcl().getSegments().size())
     , depth_diffs_(numSegments, 0.0)
-    , densities_(numSegments, 0.0)
-    , mass_rates_(numSegments, 0.0)
-    , viscosities_(numSegments, 0.0)
+    , densities_(numSegments, {PrimaryVariables::numWellEq + Indices::numEq, 0.})
+    , mass_rates_(numSegments, {PrimaryVariables::numWellEq + Indices::numEq, 0.})
+    , viscosities_(numSegments, {PrimaryVariables::numWellEq + Indices::numEq, 0.})
     , upwinding_segments_(numSegments, 0)
-    , phase_densities_(numSegments, std::vector<EvalWell>(well.numConservationQuantities(), 0.0)) // number of phase here?
-    , phase_fractions_(numSegments, std::vector<EvalWell>(well.numConservationQuantities(), 0.0)) // number of phase here?
-    , phase_viscosities_(numSegments, std::vector<EvalWell>(well.numConservationQuantities(), 0.0)) // number of phase here?
+    , phase_densities_(numSegments, std::vector<EvalWell>(well.numConservationQuantities(), {PrimaryVariables::numWellEq + Indices::numEq, 0.})) // number of phase here?
+    , phase_fractions_(numSegments, std::vector<EvalWell>(well.numConservationQuantities(), {PrimaryVariables::numWellEq + Indices::numEq, 0.})) // number of phase here?
+    , phase_viscosities_(numSegments, std::vector<EvalWell>(well.numConservationQuantities(), {PrimaryVariables::numWellEq + Indices::numEq, 0.})) // number of phase here?
     , well_(well)
 {
     // since we decide to use the WellSegments from the well parser. we can reuse a lot from it.
@@ -156,13 +156,13 @@ computeFluidProperties(const EvalWell& temperature,
 
     for (std::size_t seg = 0; seg < perforations_.size(); ++seg) {
         // the compostion of the components inside wellbore under surface condition
-        std::vector<EvalWell> mix_s(well_.numConservationQuantities(), 0.0);
+        std::vector<EvalWell> mix_s(well_.numConservationQuantities(), {PrimaryVariables::numWellEq + Indices::numEq, 0.});
         for (int comp_idx = 0; comp_idx < well_.numConservationQuantities(); ++comp_idx) {
             mix_s[comp_idx] = primary_variables.surfaceVolumeFraction(seg, comp_idx);
         }
 
-        std::vector<EvalWell> b(well_.numConservationQuantities(), 0.0);
-        std::vector<EvalWell> visc(well_.numConservationQuantities(), 0.0);
+        std::vector<EvalWell> b(well_.numConservationQuantities(), {PrimaryVariables::numWellEq + Indices::numEq, 0.});
+        std::vector<EvalWell> visc(well_.numConservationQuantities(), {PrimaryVariables::numWellEq + Indices::numEq, 0.});
         std::vector<EvalWell>& phase_densities = phase_densities_[seg];
 
         const EvalWell seg_pressure = primary_variables.getSegmentPressure(seg);
@@ -366,12 +366,12 @@ getSurfaceVolume(const EvalWell& temperature,
 {
     const EvalWell seg_pressure = primary_variables.getSegmentPressure(seg_idx);
 
-    std::vector<EvalWell> mix_s(well_.numConservationQuantities(), 0.0);
+    std::vector<EvalWell> mix_s(well_.numConservationQuantities(), {PrimaryVariables::numWellEq + Indices::numEq, 0.});
     for (int comp_idx = 0; comp_idx < well_.numConservationQuantities(); ++comp_idx) {
         mix_s[comp_idx] = primary_variables.surfaceVolumeFraction(seg_idx, comp_idx);
     }
 
-    std::vector<EvalWell> b(well_.numConservationQuantities(), 0.);
+    std::vector<EvalWell> b(well_.numConservationQuantities(), {PrimaryVariables::numWellEq + Indices::numEq, 0.});
     if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
         const unsigned waterCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::waterCompIdx);
         EvalWell rsw(0.0);
@@ -567,24 +567,24 @@ pressureDropSpiralICD(const int seg,
     const std::vector<EvalWell>& phase_fractions = phase_fractions_[seg_upwind];
     const std::vector<EvalWell>& phase_viscosities = phase_viscosities_[seg_upwind];
 
-    EvalWell water_fraction = 0.;
-    EvalWell water_viscosity = 0.;
+    EvalWell water_fraction = {PrimaryVariables::numWellEq + Indices::numEq, 0.};
+    EvalWell water_viscosity = {PrimaryVariables::numWellEq + Indices::numEq, 0.};
     if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
         const int water_pos = FluidSystem::canonicalToActiveCompIdx(FluidSystem::waterCompIdx);
         water_fraction = phase_fractions[water_pos];
         water_viscosity = phase_viscosities[water_pos];
     }
 
-    EvalWell oil_fraction = 0.;
-    EvalWell oil_viscosity = 0.;
+    EvalWell oil_fraction = {PrimaryVariables::numWellEq + Indices::numEq, 0.};
+    EvalWell oil_viscosity = {PrimaryVariables::numWellEq + Indices::numEq, 0.};
     if (FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx)) {
         const int oil_pos = FluidSystem::canonicalToActiveCompIdx(FluidSystem::oilCompIdx);
         oil_fraction = phase_fractions[oil_pos];
         oil_viscosity = phase_viscosities[oil_pos];
     }
 
-    EvalWell gas_fraction = 0.;
-    EvalWell gas_viscosity = 0.;
+    EvalWell gas_fraction = {PrimaryVariables::numWellEq + Indices::numEq, 0.};
+    EvalWell gas_viscosity = {PrimaryVariables::numWellEq + Indices::numEq, 0.};
     if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
         const int gas_pos = FluidSystem::canonicalToActiveCompIdx(FluidSystem::gasCompIdx);
         gas_fraction = phase_fractions[gas_pos];
@@ -645,8 +645,8 @@ pressureDropSpiralICD(const int seg,
 
     const Scalar density_cali = sicd.densityCalibration();
     // make sure we don't pass negative base to powers
-    const EvalWell temp_value1 = density > 0.0 ? MathTool::pow(density / density_cali, 0.75) : 0.0;
-    const EvalWell temp_value2 = mixture_viscosity > 0.0 ? MathTool::pow(mixture_viscosity / viscosity_cali, 0.25) : 0.0;
+    const EvalWell temp_value1 = density > 0.0 ? MathTool::pow(density / density_cali, 0.75) : EvalWell{PrimaryVariables::numWellEq + Indices::numEq, 0.};
+    const EvalWell temp_value2 = mixture_viscosity > 0.0 ? MathTool::pow(mixture_viscosity / viscosity_cali, 0.25) : EvalWell{PrimaryVariables::numWellEq + Indices::numEq, 0.};
 
     // formulation before 2016, base_strength is used
     // const double base_strength = sicd.strength() / density_cali;
@@ -673,9 +673,9 @@ pressureDropAutoICD(const int seg,
     const std::vector<EvalWell>& phase_viscosities = phase_viscosities_[seg_upwind];
     const std::vector<EvalWell>& phase_densities = phase_densities_[seg_upwind];
 
-    EvalWell water_fraction = 0.;
-    EvalWell water_viscosity = 0.;
-    EvalWell water_density = 0.;
+    EvalWell water_fraction = {PrimaryVariables::numWellEq + Indices::numEq, 0.};
+    EvalWell water_viscosity = {PrimaryVariables::numWellEq + Indices::numEq, 0.};
+    EvalWell water_density = {PrimaryVariables::numWellEq + Indices::numEq, 0.};
     if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
         const int water_pos = FluidSystem::canonicalToActiveCompIdx(FluidSystem::waterCompIdx);
         water_fraction = phase_fractions[water_pos];
@@ -683,9 +683,9 @@ pressureDropAutoICD(const int seg,
         water_density = phase_densities[water_pos];
     }
 
-    EvalWell oil_fraction = 0.;
-    EvalWell oil_viscosity = 0.;
-    EvalWell oil_density = 0.;
+    EvalWell oil_fraction = {PrimaryVariables::numWellEq + Indices::numEq, 0.};
+    EvalWell oil_viscosity = {PrimaryVariables::numWellEq + Indices::numEq, 0.};
+    EvalWell oil_density = {PrimaryVariables::numWellEq + Indices::numEq, 0.};
     if (FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx)) {
         const int oil_pos = FluidSystem::canonicalToActiveCompIdx(FluidSystem::oilCompIdx);
         oil_fraction = phase_fractions[oil_pos];
@@ -693,9 +693,9 @@ pressureDropAutoICD(const int seg,
         oil_density = phase_densities[oil_pos];
     }
 
-    EvalWell gas_fraction = 0.;
-    EvalWell gas_viscosity = 0.;
-    EvalWell gas_density = 0.;
+    EvalWell gas_fraction = {PrimaryVariables::numWellEq + Indices::numEq, 0.};
+    EvalWell gas_viscosity = {PrimaryVariables::numWellEq + Indices::numEq, 0.};
+    EvalWell gas_density = {PrimaryVariables::numWellEq + Indices::numEq, 0.};
     if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
         const int gas_pos = FluidSystem::canonicalToActiveCompIdx(FluidSystem::gasCompIdx);
         gas_fraction = phase_fractions[gas_pos];
@@ -745,7 +745,7 @@ pressureDropAutoICD(const int seg,
     using MathTool = MathToolbox<EvalWell>;
     // make sure we don't pass negative base to powers
     auto safe_pow = [](const auto& a, const Scalar b) {
-        return a > 0.0 ? MathTool::pow(a,b) : 0.0;
+        return a > 0.0 ? MathTool::pow(a,b) : EvalWell{PrimaryVariables::numWellEq + Indices::numEq, 0.};
     };
 
     const EvalWell mixture_viscosity = safe_pow(water_fraction, aicd.waterViscExponent()) * water_viscosity

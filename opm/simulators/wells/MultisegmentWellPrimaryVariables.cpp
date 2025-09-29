@@ -547,7 +547,7 @@ volumeFraction(const int seg,
     }
 
     // Oil fraction
-    EvalWell oil_fraction = 1.0;
+    EvalWell oil_fraction = {numWellEq + Indices::numEq, 1.};
     if (has_wfrac_variable) {
         oil_fraction -= evaluation_[seg][WFrac];
     }
@@ -590,7 +590,7 @@ MultisegmentWellPrimaryVariables<FluidSystem,Indices>::
 surfaceVolumeFraction(const int seg,
                       const int comp_idx) const
 {
-    EvalWell sum_volume_fraction_scaled = 0.;
+    EvalWell sum_volume_fraction_scaled = {numWellEq + Indices::numEq, 0.};
     for (int idx = 0; idx < well_.numConservationQuantities(); ++idx) {
         sum_volume_fraction_scaled += this->volumeFractionScaled(seg, idx);
     }
@@ -629,7 +629,7 @@ getSegmentRateUpwinding(const int seg,
                 && phase == InjectorType::GAS)
             return evaluation_[seg][WQTotal] / well_.scalingFactor(FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx));
 
-        return 0.0;
+        return {numWellEq + Indices::numEq, 0.};
     }
 
     const EvalWell segment_rate = evaluation_[seg][WQTotal] *
