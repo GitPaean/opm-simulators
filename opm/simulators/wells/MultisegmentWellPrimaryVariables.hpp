@@ -37,12 +37,11 @@ namespace Opm
 
 class DeferredLogger;
 template <typename Scalar, typename IndexTraits> class MultisegmentWellGeneric;
-template<class FluidSystem, int numEq> class WellInterfaceIndices;
+template<typename FluidSystem, int numEq> class WellInterfaceIndices;
 template<typename Scalar, typename IndexTraits> class WellState;
 
-template<class FluidSystem, class Indices>
-class MultisegmentWellPrimaryVariables
-{
+template<typename FluidSystem, int numEq>
+class MultisegmentWellPrimaryVariables {
 public:
     // TODO: for now, not considering the polymer, solvent and so on to simplify the development process.
 
@@ -57,25 +56,47 @@ public:
     // GFrac     2      1      1  -1000                   -1000
     // Spres     3      2      2      2                       1
 
-    static constexpr bool has_wfrac_variable = Indices::waterEnabled && Indices::oilEnabled;
-    static constexpr bool has_gfrac_variable = Indices::gasEnabled && Indices::numPhases > 1;
+    using IndexTraits = typename FluidSystem::IndexTraitsType;
+    static constexpr int waterPhaseIdx = IndexTraits::waterPhaseIdx;
+    static constexpr int oilPhaseIdx = IndexTraits::oilPhaseIdx;
+    static constexpr int gasPhaseIdx = IndexTraits::gasPhaseIdx;
+
+    static bool has_wfrac_variable() {
+        static const bool cached =
+                FluidSystem::phaseIsActive(waterPhaseIdx) && FluidSystem::phaseIsActive(oilPhaseIdx);
+        return cached;
+    }
+
+    static bool has_gfrac_variable() {
+        static const bool cached =
+                FluidSystem::phaseIsActive(gasPhaseIdx) && FluidSystem::numActivePhases() > 1;
+        return cached;
+    }
 
     static constexpr int WQTotal = 0;
-    static constexpr int WFrac = has_wfrac_variable ? 1 : -1000;
-    static constexpr int GFrac = has_gfrac_variable ? has_wfrac_variable + 1 : -1000;
-    static constexpr int SPres = has_wfrac_variable + has_gfrac_variable + 1;
+    static int WFrac() {
+        static const int cached = has_wfrac_variable() ? 1 : -1000;
+        return cached;
+    }
+    static int GFrac() {
+        static const int cached = has_gfrac_variable() ? (has_wfrac_variable() + 1) : -1000;
+        return cached;
+    }
+    static int SPres() {
+        static const int cached = has_wfrac_variable() + has_gfrac_variable() + 1;
+        return cached;
+    }
 
     //  the number of well equations  TODO: it should have a more general strategy for it
-    static constexpr int numWellEq = Indices::numPhases + 1;
+    static const int numWellEq = FluidSystem::numActivePhases() + 1;
 
     using Scalar = typename FluidSystem::Scalar;
-    using IndexTraits = typename FluidSystem::IndexTraitsType;
-    using EvalWell = DenseAd::Evaluation<Scalar, /*size=*/Indices::numEq + numWellEq>;
+    using EvalWell = DenseAd::Evaluation<Scalar, numEq + numWellEq>;
 
-    using Equations = MultisegmentWellEquations<Scalar,IndexTraits,numWellEq,Indices::numEq>;
+    using Equations = MultisegmentWellEquations<Scalar,IndexTraits,numWellEq, numEq>;
     using BVectorWell = typename Equations::BVectorWell;
 
-    explicit MultisegmentWellPrimaryVariables(const WellInterfaceIndices<FluidSystem, Indices::numEq>& well)
+    explicit MultisegmentWellPrimaryVariables(const WellInterfaceIndices<FluidSystem, numEq>& well)
         : well_(well)
     {}
 
@@ -165,7 +186,7 @@ private:
     //! \details Contains derivatives and are used in AD calculation
     std::vector<std::array<EvalWell, numWellEq>> evaluation_;
 
-    const WellInterfaceIndices<FluidSystem, Indices::numEq>& well_; //!< Reference to well interface
+    const WellInterfaceIndices<FluidSystem, numEq>& well_; //!< Reference to well interface
 
     static constexpr double bhp_lower_limit = 1. * unit::barsa - 1. * unit::Pascal;
     static constexpr double seg_pres_lower_limit = 0.;

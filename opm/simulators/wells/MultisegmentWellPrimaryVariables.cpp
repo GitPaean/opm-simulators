@@ -27,10 +27,6 @@
 #include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 #include <opm/material/fluidsystems/BlackOilFluidSystem.hpp>
 
-#include <opm/models/blackoil/blackoilvariableandequationindices.hh>
-#include <opm/models/blackoil/blackoilonephaseindices.hh>
-#include <opm/models/blackoil/blackoiltwophaseindices.hh>
-
 #include <opm/simulators/wells/MultisegmentWellGeneric.hpp>
 #include <opm/simulators/wells/RateConverter.hpp>
 #include <opm/simulators/wells/WellBhpThpCalculator.hpp>
@@ -44,29 +40,29 @@
 
 namespace Opm {
 
-template<class FluidSystem, class Indices>
-void MultisegmentWellPrimaryVariables<FluidSystem,Indices>::
+template<typename FluidSystem, int numEq>
+void MultisegmentWellPrimaryVariables<FluidSystem, numEq>::
 resize(const int numSegments)
 {
     value_.resize(numSegments);
     evaluation_.resize(numSegments);
 }
 
-template<class FluidSystem, class Indices>
-void MultisegmentWellPrimaryVariables<FluidSystem,Indices>::
+template<typename FluidSystem, int numEq>
+void MultisegmentWellPrimaryVariables<FluidSystem, numEq>::
 setEvaluationsFromValues()
 {
     for (std::size_t seg = 0; seg < value_.size(); ++seg) {
         for (int eq_idx = 0; eq_idx < numWellEq; ++eq_idx) {
             evaluation_[seg][eq_idx] = 0.0;
             evaluation_[seg][eq_idx].setValue(value_[seg][eq_idx]);
-            evaluation_[seg][eq_idx].setDerivative(eq_idx + Indices::numEq, 1.0);
+            evaluation_[seg][eq_idx].setDerivative(eq_idx + numEq, 1.0);
         }
     }
 }
 
-template<class FluidSystem, class Indices>
-void MultisegmentWellPrimaryVariables<FluidSystem,Indices>::
+template<typename FluidSystem, int numEq>
+void MultisegmentWellPrimaryVariables<FluidSystem, numEq>::
 update(const WellState<Scalar, IndexTraits>& well_state,
        const bool stop_or_zero_rate_target)
 {
@@ -89,7 +85,7 @@ update(const WellState<Scalar, IndexTraits>& well_state,
         // calculate the total rate for each segment
         Scalar total_seg_rate = 0.0;
         // the segment pressure
-        value_[seg][SPres] = segment_pressure[seg];
+        value_[seg][SPres()] = segment_pressure[seg];
         // TODO: under what kind of circustances, the following will be wrong?
         // the definition of g makes the gas phase is always the last phase
         for (int p = 0; p < well_.numPhases(); p++) {
@@ -110,49 +106,49 @@ update(const WellState<Scalar, IndexTraits>& well_state,
 
         // todo to map old fraction to new perforations for now start from scratch.
         if (ws.primaryvar.size() == value_.size() * numWellEq) {
-            if (has_wfrac_variable) {
-                value_[seg][WFrac] = ws.primaryvar[seg * numWellEq + WFrac];
+            if (has_wfrac_variable()) {
+                value_[seg][WFrac()] = ws.primaryvar[seg * numWellEq + WFrac()];
             }
-            if (has_gfrac_variable) {
-                value_[seg][GFrac] = ws.primaryvar[seg * numWellEq + GFrac];
+            if (has_gfrac_variable()) {
+                value_[seg][GFrac()] = ws.primaryvar[seg * numWellEq + GFrac()];
             }
         } else if (std::abs(total_seg_rate) > 0.) {
-            if (has_wfrac_variable) {
+            if (has_wfrac_variable()) {
                 const int water_pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
-                value_[seg][WFrac] = well_.scalingFactor(water_pos) * segment_rates[well_.numPhases() * seg + water_pos] / total_seg_rate;
+                value_[seg][WFrac()] = well_.scalingFactor(water_pos) * segment_rates[well_.numPhases() * seg + water_pos] / total_seg_rate;
             }
-            if (has_gfrac_variable) {
+            if (has_gfrac_variable()) {
                 const int gas_pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
-                value_[seg][GFrac] = well_.scalingFactor(gas_pos) * segment_rates[well_.numPhases() * seg + gas_pos] / total_seg_rate;
+                value_[seg][GFrac()] = well_.scalingFactor(gas_pos) * segment_rates[well_.numPhases() * seg + gas_pos] / total_seg_rate;
             }
         } else { // total_seg_rate == 0
             if (well_.isInjector()) {
                 // only single phase injection handled
                 auto phase = well.getInjectionProperties().injectorType;
 
-                if (has_wfrac_variable) {
+                if (has_wfrac_variable()) {
                     if (phase == InjectorType::WATER) {
-                        value_[seg][WFrac] = 1.0;
+                        value_[seg][WFrac()] = 1.0;
                     } else {
-                        value_[seg][WFrac] = 0.0;
+                        value_[seg][WFrac()] = 0.0;
                     }
                 }
 
-                if (has_gfrac_variable) {
+                if (has_gfrac_variable()) {
                     if (phase == InjectorType::GAS) {
-                        value_[seg][GFrac] = 1.0;
+                        value_[seg][GFrac()] = 1.0;
                     } else {
-                        value_[seg][GFrac] = 0.0;
+                        value_[seg][GFrac()] = 0.0;
                     }
                 }
 
             } else if (well_.isProducer()) { // producers
-                if (has_wfrac_variable) {
-                    value_[seg][WFrac] = 1.0 / well_.numPhases();
+                if (has_wfrac_variable()) {
+                    value_[seg][WFrac()] = 1.0 / well_.numPhases();
                 }
 
-                if (has_gfrac_variable) {
-                    value_[seg][GFrac] = 1.0 / well_.numPhases();
+                if (has_gfrac_variable()) {
+                    value_[seg][GFrac()] = 1.0 / well_.numPhases();
                 }
             }
         }
@@ -160,8 +156,8 @@ update(const WellState<Scalar, IndexTraits>& well_state,
     setEvaluationsFromValues();
 }
 
-template<class FluidSystem, class Indices>
-void MultisegmentWellPrimaryVariables<FluidSystem,Indices>::
+template<typename FluidSystem, int numEq>
+void MultisegmentWellPrimaryVariables<FluidSystem, numEq>::
 updateNewton(const BVectorWell& dwells,
              const Scalar relaxation_factor,
              const Scalar dFLimit,
@@ -171,16 +167,16 @@ updateNewton(const BVectorWell& dwells,
     const std::vector<std::array<Scalar, numWellEq>> old_primary_variables = value_;
 
     for (std::size_t seg = 0; seg < value_.size(); ++seg) {
-        if (has_wfrac_variable) {
-            const int sign = dwells[seg][WFrac] > 0. ? 1 : -1;
-            const Scalar dx_limited = sign * std::min(std::abs(dwells[seg][WFrac]) * relaxation_factor, dFLimit);
-            value_[seg][WFrac] = old_primary_variables[seg][WFrac] - dx_limited;
+        if (has_wfrac_variable()) {
+            const int sign = dwells[seg][WFrac()] > 0. ? 1 : -1;
+            const Scalar dx_limited = sign * std::min(std::abs(dwells[seg][WFrac()]) * relaxation_factor, dFLimit);
+            value_[seg][WFrac()] = old_primary_variables[seg][WFrac()] - dx_limited;
         }
 
-        if (has_gfrac_variable) {
-            const int sign = dwells[seg][GFrac] > 0. ? 1 : -1;
-            const Scalar dx_limited = sign * std::min(std::abs(dwells[seg][GFrac]) * relaxation_factor, dFLimit);
-            value_[seg][GFrac] = old_primary_variables[seg][GFrac] - dx_limited;
+        if (has_gfrac_variable()) {
+            const int sign = dwells[seg][GFrac()] > 0. ? 1 : -1;
+            const Scalar dx_limited = sign * std::min(std::abs(dwells[seg][GFrac()]) * relaxation_factor, dFLimit);
+            value_[seg][GFrac()] = old_primary_variables[seg][GFrac()] - dx_limited;
         }
 
         // handling the overshooting or undershooting of the fractions
@@ -188,12 +184,12 @@ updateNewton(const BVectorWell& dwells,
 
         // update the segment pressure
         {
-            const int sign = dwells[seg][SPres] > 0.? 1 : -1;
-            const Scalar dx_limited = sign * std::min(std::abs(dwells[seg][SPres]) * relaxation_factor, max_pressure_change);
+            const int sign = dwells[seg][SPres()] > 0.? 1 : -1;
+            const Scalar dx_limited = sign * std::min(std::abs(dwells[seg][SPres()]) * relaxation_factor, max_pressure_change);
             // some cases might have defaulted bhp constraint of 1 bar, we use a slightly smaller value as the bhp lower limit for Newton update
             // so that bhp constaint can be an active control when needed.
             const Scalar lower_limit = (seg == 0) ? bhp_lower_limit : seg_pres_lower_limit;
-            value_[seg][SPres] = std::max(old_primary_variables[seg][SPres] - dx_limited, lower_limit);
+            value_[seg][SPres()] = std::max(old_primary_variables[seg][SPres()] - dx_limited, lower_limit);
         }
 
         // update the total rate // TODO: should we have a limitation of the total rate change?
@@ -217,8 +213,8 @@ updateNewton(const BVectorWell& dwells,
     setEvaluationsFromValues();
 }
 
-template<class FluidSystem, class Indices>
-void MultisegmentWellPrimaryVariables<FluidSystem,Indices>::
+template<typename FluidSystem, int numEq>
+void MultisegmentWellPrimaryVariables<FluidSystem, numEq>::
 copyToWellState(const  MultisegmentWellGeneric<Scalar, IndexTraits>& mswell,
                 const Scalar rho,
                 WellState<Scalar, IndexTraits>& well_state,
@@ -250,13 +246,13 @@ copyToWellState(const  MultisegmentWellGeneric<Scalar, IndexTraits>& mswell,
             fractions[oil_pos] = 1.0;
             if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
                 const int water_pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
-                fractions[water_pos] = value_[seg][WFrac];
+                fractions[water_pos] = value_[seg][WFrac()];
                 fractions[oil_pos] -= fractions[water_pos];
             }
 
             if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
                 const int gas_pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
-                fractions[gas_pos] = value_[seg][GFrac];
+                fractions[gas_pos] = value_[seg][GFrac()];
                 fractions[oil_pos] -= fractions[gas_pos];
             }
         }
@@ -266,7 +262,7 @@ copyToWellState(const  MultisegmentWellGeneric<Scalar, IndexTraits>& mswell,
 
             if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
                 const int gas_pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
-                fractions[gas_pos] = value_[seg][GFrac];
+                fractions[gas_pos] = value_[seg][GFrac()];
                 fractions[water_pos] -= fractions[gas_pos];
             }
         }
@@ -298,7 +294,7 @@ copyToWellState(const  MultisegmentWellGeneric<Scalar, IndexTraits>& mswell,
         }
 
         // update the segment pressure
-        segment_pressure[seg] = value_[seg][SPres];
+        segment_pressure[seg] = value_[seg][SPres()];
 
         if (seg == 0) { // top segment
             ws.bhp = segment_pressure[seg];
@@ -440,8 +436,8 @@ copyToWellState(const  MultisegmentWellGeneric<Scalar, IndexTraits>& mswell,
                    well_state, summary_state, deferred_logger);
 }
 
-template<class FluidSystem, class Indices>
-void MultisegmentWellPrimaryVariables<FluidSystem,Indices>::
+template<typename FluidSystem, int numEq>
+void MultisegmentWellPrimaryVariables<FluidSystem, numEq>::
 processFractions(const int seg)
 {
     std::vector<Scalar> fractions(well_.numPhases(), 0.0);
@@ -452,13 +448,13 @@ processFractions(const int seg)
 
         if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
             const int water_pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
-            fractions[water_pos] = value_[seg][WFrac];
+            fractions[water_pos] = value_[seg][WFrac()];
             fractions[oil_pos] -= fractions[water_pos];
         }
 
         if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
             const int gas_pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
-            fractions[gas_pos] = value_[seg][GFrac];
+            fractions[gas_pos] = value_[seg][GFrac()];
             fractions[oil_pos] -= fractions[gas_pos];
         }
     }
@@ -468,7 +464,7 @@ processFractions(const int seg)
 
         if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
             const int gas_pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
-            fractions[gas_pos] = value_[seg][GFrac];
+            fractions[gas_pos] = value_[seg][GFrac()];
             fractions[water_pos] -= fractions[gas_pos];
         }
     } else if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
@@ -521,39 +517,39 @@ processFractions(const int seg)
         }
     }
 
-    if constexpr (has_wfrac_variable) {
+    if constexpr (has_wfrac_variable()) {
         const int water_pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::waterPhaseIdx);
-        value_[seg][WFrac] = fractions[water_pos];
+        value_[seg][WFrac()] = fractions[water_pos];
     }
 
-    if constexpr (has_gfrac_variable) {
+    if constexpr (has_gfrac_variable()) {
         const int gas_pos = FluidSystem::canonicalToActivePhaseIdx(FluidSystem::gasPhaseIdx);
-        value_[seg][GFrac] = fractions[gas_pos];
+        value_[seg][GFrac()] = fractions[gas_pos];
     }
 }
 
-template<typename FluidSystem, typename Indices>
-typename MultisegmentWellPrimaryVariables<FluidSystem,Indices>::EvalWell
-MultisegmentWellPrimaryVariables<FluidSystem,Indices>::
+template<typename FluidSystem, int numEq>
+typename MultisegmentWellPrimaryVariables<FluidSystem, numEq>::EvalWell
+MultisegmentWellPrimaryVariables<FluidSystem, numEq>::
 volumeFraction(const int seg,
                const int compIdx) const
 {
-    if (has_wfrac_variable && compIdx == FluidSystem::canonicalToActiveCompIdx(FluidSystem::waterCompIdx)) {
-        return evaluation_[seg][WFrac];
+    if (has_wfrac_variable() && compIdx == FluidSystem::canonicalToActiveCompIdx(FluidSystem::waterCompIdx)) {
+        return evaluation_[seg][WFrac()];
     }
 
-    if (has_gfrac_variable && compIdx == FluidSystem::canonicalToActiveCompIdx(FluidSystem::gasCompIdx)) {
-        return evaluation_[seg][GFrac];
+    if (has_gfrac_variable() && compIdx == FluidSystem::canonicalToActiveCompIdx(FluidSystem::gasCompIdx)) {
+        return evaluation_[seg][GFrac()];
     }
 
     // Oil fraction
     EvalWell oil_fraction = 1.0;
-    if (has_wfrac_variable) {
-        oil_fraction -= evaluation_[seg][WFrac];
+    if (has_wfrac_variable()) {
+        oil_fraction -= evaluation_[seg][WFrac()];
     }
 
-    if (has_gfrac_variable) {
-        oil_fraction -= evaluation_[seg][GFrac];
+    if (has_gfrac_variable()) {
+        oil_fraction -= evaluation_[seg][GFrac()];
     }
     /* if (has_solvent) {
         oil_fraction -= evaluation_[seg][SFrac];
@@ -567,9 +563,9 @@ volumeFraction(const int seg,
     return oil_fraction;
 }
 
-template<class FluidSystem, class Indices>
-typename MultisegmentWellPrimaryVariables<FluidSystem,Indices>::EvalWell
-MultisegmentWellPrimaryVariables<FluidSystem,Indices>::
+template<typename FluidSystem, int numEq>
+typename MultisegmentWellPrimaryVariables<FluidSystem, numEq>::EvalWell
+MultisegmentWellPrimaryVariables<FluidSystem, numEq>::
 volumeFractionScaled(const int seg,
                      const int comp_idx) const
 {
@@ -584,9 +580,9 @@ volumeFractionScaled(const int seg,
     return this->volumeFraction(seg, comp_idx);
 }
 
-template<class FluidSystem, class Indices>
-typename MultisegmentWellPrimaryVariables<FluidSystem,Indices>::EvalWell
-MultisegmentWellPrimaryVariables<FluidSystem,Indices>::
+template<typename FluidSystem, int numEq>
+typename MultisegmentWellPrimaryVariables<FluidSystem, numEq>::EvalWell
+MultisegmentWellPrimaryVariables<FluidSystem, numEq>::
 surfaceVolumeFraction(const int seg,
                       const int comp_idx) const
 {
@@ -600,9 +596,9 @@ surfaceVolumeFraction(const int seg,
     return this->volumeFractionScaled(seg, comp_idx) / sum_volume_fraction_scaled;
 }
 
-template<class FluidSystem, class Indices>
-typename MultisegmentWellPrimaryVariables<FluidSystem,Indices>::EvalWell
-MultisegmentWellPrimaryVariables<FluidSystem,Indices>::
+template<typename FluidSystem, int numEq>
+typename MultisegmentWellPrimaryVariables<FluidSystem, numEq>::EvalWell
+MultisegmentWellPrimaryVariables<FluidSystem, numEq>::
 getSegmentRateUpwinding(const int seg,
                         const int seg_upwind,
                         const int comp_idx) const
@@ -635,55 +631,55 @@ getSegmentRateUpwinding(const int seg,
     const EvalWell segment_rate = evaluation_[seg][WQTotal] *
                                   this->volumeFractionScaled(seg_upwind, comp_idx);
 
-    assert(segment_rate.derivative(SPres + Indices::numEq) == 0.);
+    assert(segment_rate.derivative(SPres + numEq) == 0.);
 
     return segment_rate;
 }
 
-template<class FluidSystem, class Indices>
-typename MultisegmentWellPrimaryVariables<FluidSystem,Indices>::EvalWell
-MultisegmentWellPrimaryVariables<FluidSystem,Indices>::
+template<typename FluidSystem, int numEq>
+typename MultisegmentWellPrimaryVariables<FluidSystem, numEq>::EvalWell
+MultisegmentWellPrimaryVariables<FluidSystem, numEq>::
 getSegmentPressure(const int seg) const
 {
-    return evaluation_[seg][SPres];
+    return evaluation_[seg][SPres()];
 }
 
-template<class FluidSystem, class Indices>
-typename MultisegmentWellPrimaryVariables<FluidSystem,Indices>::EvalWell
-MultisegmentWellPrimaryVariables<FluidSystem,Indices>::
+template<typename FluidSystem, int numEq>
+typename MultisegmentWellPrimaryVariables<FluidSystem, numEq>::EvalWell
+MultisegmentWellPrimaryVariables<FluidSystem, numEq>::
 getBhp() const
 {
     return this->getSegmentPressure(0);
 }
 
-template<class FluidSystem, class Indices>
-typename MultisegmentWellPrimaryVariables<FluidSystem,Indices>::EvalWell
-MultisegmentWellPrimaryVariables<FluidSystem,Indices>::
+template<typename FluidSystem, int numEq>
+typename MultisegmentWellPrimaryVariables<FluidSystem, numEq>::EvalWell
+MultisegmentWellPrimaryVariables<FluidSystem, numEq>::
 getSegmentRate(const int seg,
                const int comp_idx) const
 {
     return evaluation_[seg][WQTotal] * this->volumeFractionScaled(seg, comp_idx);
 }
 
-template<class FluidSystem, class Indices>
-typename MultisegmentWellPrimaryVariables<FluidSystem,Indices>::EvalWell
-MultisegmentWellPrimaryVariables<FluidSystem,Indices>::
+template<typename FluidSystem, int numEq>
+typename MultisegmentWellPrimaryVariables<FluidSystem, numEq>::EvalWell
+MultisegmentWellPrimaryVariables<FluidSystem, numEq>::
 getQs(const int comp_idx) const
 {
     return this->getSegmentRate(0, comp_idx);
 }
 
-template<class FluidSystem, class Indices>
-typename MultisegmentWellPrimaryVariables<FluidSystem,Indices>::EvalWell
-MultisegmentWellPrimaryVariables<FluidSystem,Indices>::
+template<typename FluidSystem, int numEq>
+typename MultisegmentWellPrimaryVariables<FluidSystem, numEq>::EvalWell
+MultisegmentWellPrimaryVariables<FluidSystem, numEq>::
 getWQTotal() const
 {
     return evaluation_[0][WQTotal];
 }
 
-template<class FluidSystem, class Indices>
+template<typename FluidSystem, int numEq>
 void
-MultisegmentWellPrimaryVariables<FluidSystem,Indices>::
+MultisegmentWellPrimaryVariables<FluidSystem, numEq>::
 outputLowLimitPressureSegments(DeferredLogger& deferred_logger) const
 {
     std::string msg = fmt::format("outputting the segments for well {} with pressures close to the lower limits "
@@ -702,12 +698,26 @@ outputLowLimitPressureSegments(DeferredLogger& deferred_logger) const
     }
 }
 
-#include <opm/simulators/utils/InstantiationIndicesMacros.hpp>
+    template<class Scalar>
+    using FS = BlackOilFluidSystem<Scalar, BlackOilDefaultFluidSystemIndices>;
 
-INSTANTIATE_TYPE_INDICES(MultisegmentWellPrimaryVariables, double)
+#define INSTANTIATE_TYPE(T, NUMEQ) \
+template class MultisegmentWellPrimaryVariables<FS<T>, NUMEQ>;
+
+INSTANTIATE_TYPE(double, 1)
+INSTANTIATE_TYPE(double, 2)
+INSTANTIATE_TYPE(double, 3)
+INSTANTIATE_TYPE(double, 4)
+INSTANTIATE_TYPE(double, 5)
+INSTANTIATE_TYPE(double, 6)
 
 #if FLOW_INSTANTIATE_FLOAT
-INSTANTIATE_TYPE_INDICES(MultisegmentWellPrimaryVariables, float)
+INSTANTIATE_TYPE(float, 1)
+INSTANTIATE_TYPE(float, 2)
+INSTANTIATE_TYPE(float, 3)
+INSTANTIATE_TYPE(float, 4)
+INSTANTIATE_TYPE(float, 5)
+INSTANTIATE_TYPE(float, 6)
 #endif
 
 }
