@@ -2691,7 +2691,7 @@ namespace Opm
         for (const auto& val : cq_s) {
             total_rate += getValue(val);
         }
-        const bool is_injecting = total_rate > 0.;
+        // const bool is_injecting = total_rate > 0.;
 
         // for injecting connections, the enthalpy are based on the wellbore fluid state
         // for producing connections, the enthalpy are based on the reservoir fluid state
@@ -2703,7 +2703,7 @@ namespace Opm
         // I need to check the enthalpy formule to see how should this be calculated.
         auto fs = intQuants.fluidState();
 
-        EvalWell result {0.};
+        EvalWell result {0.}; 
 
         const auto& fluid_state_wellbore = this->createWellboreFluidState();
 
@@ -2830,12 +2830,12 @@ namespace Opm
                 continue;
             }
 
-            const unsigned activeCompIdx = Indices::canonicalToActiveComponentIndex(FluidSystem::solventComponentIndex(phaseIdx));
+            const unsigned activeCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::solventComponentIndex(phaseIdx));
             switch (phaseIdx) {
                 case FluidSystem::oilPhaseIdx: {
                     if (FluidSystem::enableDissolvedGas() && both_oil_gas) {
                         const EvalWell saturated_rs = FluidSystem::saturatedDissolutionFactor(fluid_state, phaseIdx,  fluid_state.pvtRegionIndex());
-                        const unsigned gasCompIdx = Indices::canonicalToActiveComponentIndex(FluidSystem::solventComponentIndex(FluidSystem::gasPhaseIdx));
+                        const unsigned gasCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::solventComponentIndex(FluidSystem::gasPhaseIdx));
                         const EvalWell max_possible_rs = fluid_composition[gasCompIdx] / fluid_composition[activeCompIdx];
                         const EvalWell rs = std::min(saturated_rs, max_possible_rs);
                         fluid_state.setRs(rs);
@@ -2847,7 +2847,7 @@ namespace Opm
                 case FluidSystem::gasPhaseIdx: {
                     if (FluidSystem::enableVaporizedOil() && both_oil_gas) {
                         const EvalWell saturated_rv = FluidSystem::saturatedVaporizationFactor(fluid_state, phaseIdx, fluid_state.pvtRegionIndex());
-                        const unsigned oilCompIdx = Indices::canonicalToActiveComponentIndex(FluidSystem::solventComponentIndex(FluidSystem::oilPhaseIdx));
+                        const unsigned oilCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::solventComponentIndex(FluidSystem::oilPhaseIdx));
                         const EvalWell max_possible_rv = fluid_composition[oilCompIdx] / fluid_composition[activeCompIdx];
                         const EvalWell rv = std::min(saturated_rv, max_possible_rv);
                         fluid_state.setRv(rv);
@@ -2877,13 +2877,12 @@ namespace Opm
                 continue;
             }
             if (!both_oil_gas || FluidSystem::waterPhaseIdx == phaseIdx) {
-                const unsigned activeCompIdx = Indices::canonicalToActiveComponentIndex(
-                        FluidSystem::solventComponentIndex(phaseIdx));
+                const unsigned activeCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::solventComponentIndex(phaseIdx));
                 saturations[phaseIdx] = fluid_composition[activeCompIdx] / fluid_state.invB(phaseIdx);
             } else {
                 // remove dissolved gas and vapporized oil
-                const unsigned oilCompIdx = Indices::canonicalToActiveComponentIndex(FluidSystem::oilCompIdx);
-                const unsigned gasCompIdx = Indices::canonicalToActiveComponentIndex(FluidSystem::gasCompIdx);
+                const unsigned oilCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::oilCompIdx);
+                const unsigned gasCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::gasCompIdx);
                 // q_os = q_or * b_o + rv * q_gr * b_g
                 // q_gs = q_gr * g_g + rs * q_or * b_o
                 // q_gr = 1 / (b_g * d) * (q_gs - rs * q_os)
@@ -2933,8 +2932,8 @@ namespace Opm
         const EvalWell& pressure = this->primary_variables_.eval(Bhp);
         const EvalWell& temperature = this->primary_variables_.eval(PrimaryVariables::Temperature);
 
-        std::vector<EvalWell> fluid_composition(this->num_components_, {this->primary_variables_.numWellEq() + Indices::numEq, 0.});
-        for (int comp = 0; comp < this->num_components_; ++comp) {
+        std::vector<EvalWell> fluid_composition(this->num_conservation_quantities_, {this->primary_variables_.numWellEq() + Indices::numEq, 0.});
+        for (int comp = 0; comp < this->num_conservation_quantities_; ++comp) {
             // TODO: something like obtainN to handle the situation that
             fluid_composition[comp] = this->primary_variables_.surfaceVolumeFraction(comp);
         }

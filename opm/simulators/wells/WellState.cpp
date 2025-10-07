@@ -188,10 +188,13 @@ void WellState<Scalar, IndexTraits>::
 initSingleProducer(const Well& well,
                    const ParallelWellInfo<Scalar>& well_info,
                    Scalar pressure_first_connection,
+                   Scalar temperature_first_connection,
                    const std::vector<PerforationData<Scalar>>& well_perf_data,
                    const SummaryState& summary_state)
 {
-    const Scalar temp = 273.15 + 15.56;
+    // TODO: not remember what to do here
+    // const Scalar temp = 273.15 + 15.56;
+    const Scalar temp = temperature_first_connection;
 
     auto& ws = this->wells_.add(well.name(),
                                 SingleWellState<Scalar, IndexTraits>{well.name(),

@@ -235,7 +235,7 @@ void StandardWellAssemble<FluidSystem,Indices>::
 assembleConnectionEnergyEq(const EvalWell& cq_s_effective,
                            const int cell_idx,
                            const int numWellEq,
-                           StandardWellEquations<Scalar,Indices::numEq>& eqns1) const
+                           StandardWellEquationsType& eqns1) const
 {
     StandardWellEquationAccess eqns(eqns1);
 
