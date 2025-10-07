@@ -84,7 +84,7 @@ public:
     void assembleConnectionEnergyEq(const EvalWell& cq_s_effective,
                                const int cell_idx,
                                const int numWellEq,
-                               StandardWellEquations<Scalar,Indices::numEq>& eqns) const;
+                               StandardWellEquationsType& eqns) const;
 
     //! \brief Assemble equation for Z fraction.
     void assembleZFracEq(const EvalWell& cq_s_zfrac_effective,
