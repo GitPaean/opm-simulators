@@ -226,7 +226,8 @@ checkGroupInjectionConstraints(const Group& group,
 }
 
 template<typename Scalar, typename IndexTraits>
-std::pair<Group::ProductionCMode, Scalar>
+// std::pair<Group::ProductionCMode, Scalar>
+std::tuple<Group::ProductionCMode, Scalar,bool>
 BlackoilWellModelConstraints<Scalar, IndexTraits>::
 checkGroupProductionConstraints(const Group& group,
                                 const int reportStepIdx,
@@ -237,28 +238,33 @@ checkGroupProductionConstraints(const Group& group,
     const auto controls = group.productionControls(wellModel_.summaryState());
     const Group::ProductionCMode& currentControl = wellModel_.groupState().production_control(group.name());
     const auto& pu = wellModel_.phaseUsage();
+
+    auto reducedSumSurface = [&](int phase) -> Scalar {
+        Scalar r = WellGroupHelpersType::sumWellSurfaceRates(group,
+                                                             wellModel_.schedule(),
+                                                             well_state,
+                                                             reportStepIdx,
+                                                             pu.canonicalToActivePhaseIdx(phase),
+                                                             /* isInjector */ false,
+                                                             wellModel_.summaryState());
+        return wellModel_.comm().sum(r);
+    };
+
+    // it is not producing the current control target
+    bool under_producing = false;
     if (group.has_control(Group::ProductionCMode::ORAT))
     {
-        if (currentControl != Group::ProductionCMode::ORAT)
-        {
-            Scalar current_rate = 0.0;
-            current_rate += WellGroupHelpersType::sumWellSurfaceRates(group,
-                                                                      wellModel_.schedule(),
-                                                                      well_state,
-                                                                      reportStepIdx,
-                                                                      pu.canonicalToActivePhaseIdx(oilPhaseIdx),
-                                                                      false,
-                                                                      wellModel_.summaryState());
+        const Scalar current_rate = reducedSumSurface(oilPhaseIdx);
 
-            // sum over all nodes
-            current_rate = wellModel_.comm().sum(current_rate);
-
+        if (currentControl != Group::ProductionCMode::ORAT) {
             if (controls.oil_target < current_rate  ) {
                 Scalar scale = 1.0;
                 if (current_rate > 1e-12)
                     scale = controls.oil_target / current_rate;
-                return std::make_pair(Group::ProductionCMode::ORAT, scale);
+                return std::make_tuple(Group::ProductionCMode::ORAT, scale, under_producing);
             }
+        } else {
+            under_producing = (controls.oil_target > 1.02* current_rate);
         }
     }
 
@@ -266,23 +272,13 @@ checkGroupProductionConstraints(const Group& group,
     {
         if (currentControl != Group::ProductionCMode::WRAT)
         {
-            Scalar current_rate = 0.0;
-            current_rate += WellGroupHelpersType::sumWellSurfaceRates(group,
-                                                                      wellModel_.schedule(),
-                                                                      well_state,
-                                                                      reportStepIdx,
-                                                                      pu.canonicalToActivePhaseIdx(waterPhaseIdx),
-                                                                      false,
-                                                                      wellModel_.summaryState());
-
-            // sum over all nodes
-            current_rate = wellModel_.comm().sum(current_rate);
+            const Scalar current_rate = reducedSumSurface(waterPhaseIdx);
 
             if (controls.water_target < current_rate  ) {
                 Scalar scale = 1.0;
                 if (current_rate > 1e-12)
                     scale = controls.water_target / current_rate;
-                return std::make_pair(Group::ProductionCMode::WRAT, scale);
+                return std::make_tuple(Group::ProductionCMode::WRAT, scale, under_producing);
             }
         }
     }
@@ -290,22 +286,13 @@ checkGroupProductionConstraints(const Group& group,
     {
         if (currentControl != Group::ProductionCMode::GRAT)
         {
-            Scalar current_rate = 0.0;
-            current_rate += WellGroupHelpersType::sumWellSurfaceRates(group,
-                                                                      wellModel_.schedule(),
-                                                                      well_state,
-                                                                      reportStepIdx,
-                                                                      pu.canonicalToActivePhaseIdx(gasPhaseIdx),
-                                                                      false,
-                                                                      wellModel_.summaryState());
+            const Scalar current_rate = reducedSumSurface(gasPhaseIdx);
 
-            // sum over all nodes
-            current_rate = wellModel_.comm().sum(current_rate);
             if (controls.gas_target < current_rate  ) {
                 Scalar scale = 1.0;
                 if (current_rate > 1e-12)
                     scale = controls.gas_target / current_rate;
-                return std::make_pair(Group::ProductionCMode::GRAT, scale);
+                return std::make_tuple(Group::ProductionCMode::GRAT, scale, under_producing);
             }
         }
     }
@@ -313,36 +300,13 @@ checkGroupProductionConstraints(const Group& group,
     {
         if (currentControl != Group::ProductionCMode::LRAT)
         {
-            Scalar current_rate = 0.0;
-            current_rate += WellGroupHelpersType::sumWellSurfaceRates(group,
-                                                                      wellModel_.schedule(),
-                                                                      well_state,
-                                                                      reportStepIdx,
-                                                                      pu.canonicalToActivePhaseIdx(oilPhaseIdx),
-                                                                      false,
-                                                                      wellModel_.summaryState());
-            current_rate += WellGroupHelpersType::sumWellSurfaceRates(group,
-                                                                      wellModel_.schedule(),
-                                                                      well_state,
-                                                                      reportStepIdx,
-                                                                      pu.canonicalToActivePhaseIdx(waterPhaseIdx),
-                                                                      false,
-                                                                      wellModel_.summaryState());
+            const Scalar current_oil_rate = reducedSumSurface(oilPhaseIdx);
+            const Scalar current_water_rate = reducedSumSurface(waterPhaseIdx);
 
-            // sum over all nodes
-            current_rate = wellModel_.comm().sum(current_rate);
+            const Scalar current_rate = current_oil_rate + current_water_rate;
 
             bool skip = false;
             if (controls.liquid_target == controls.oil_target) {
-                Scalar current_water_rate =
-                    WellGroupHelpersType::sumWellSurfaceRates(group,
-                                                              wellModel_.schedule(),
-                                                              well_state,
-                                                              reportStepIdx,
-                                                              pu.canonicalToActivePhaseIdx(waterPhaseIdx),
-                                                              false,
-                                                              wellModel_.summaryState());
-                current_water_rate = wellModel_.comm().sum(current_water_rate);
                 if (std::abs(current_water_rate) < 1e-12) {
                     skip = true;
                     deferred_logger.debug("LRAT_ORAT_GROUP", "GROUP " + group.name() + " The LRAT target is equal the ORAT target and the water rate is zero, skip checking LRAT");
@@ -353,7 +317,8 @@ checkGroupProductionConstraints(const Group& group,
                 Scalar scale = 1.0;
                 if (current_rate > 1e-12)
                     scale = controls.liquid_target / current_rate;
-                return std::make_pair(Group::ProductionCMode::LRAT, scale);
+
+                return std::make_tuple(Group::ProductionCMode::LRAT, scale, under_producing);
             }
         }
     }
@@ -403,7 +368,7 @@ checkGroupProductionConstraints(const Group& group,
                 Scalar scale = 1.0;
                 if (current_rate > 1e-12)
                     scale = target / current_rate;
-                return std::make_pair(Group::ProductionCMode::RESV, scale);
+                return std::make_tuple(Group::ProductionCMode::RESV, scale, under_producing);
             }
         }
     }
@@ -411,7 +376,9 @@ checkGroupProductionConstraints(const Group& group,
     {
         OPM_DEFLOG_THROW(std::runtime_error, "Group " + group.name() + "PRBL control for production groups not implemented", deferred_logger);
     }
-    return std::make_pair(Group::ProductionCMode::NONE, Scalar(1.0));
+
+    // now there is no constraint is broken. We should also check whether the current target is met or not
+    return std::make_tuple(Group::ProductionCMode::NONE, Scalar(1.0), under_producing);
 }
 
 template<typename Scalar, typename IndexTraits>
@@ -437,7 +404,8 @@ checkGroupConstraints(const Group& group,
         const auto& check = this->checkGroupProductionConstraints(group,
                                                                   reportStepIdx,
                                                                   deferred_logger);
-        if (check.first != Group::ProductionCMode::NONE)
+        const Group::ProductionCMode& control = std::get<0>(check);
+        if (control != Group::ProductionCMode::NONE)
         {
             return true;
         }
@@ -486,7 +454,6 @@ actionOnBrokenConstraints(const Group& group,
                           GroupState<Scalar>& group_state,
                           DeferredLogger& deferred_logger) const
 {
-
     const Group::ProductionCMode oldControl =
         wellModel_.groupState().production_control(group.name());
 
@@ -681,12 +648,13 @@ updateGroupIndividualControl(const Group& group,
                                                                          deferred_logger);
         const auto controls = group.productionControls(wellModel_.summaryState());
 
-        if (changed_this.first != Group::ProductionCMode::NONE)
+        const auto mode = std::get<0>(changed_this);
+        if (mode != Group::ProductionCMode::NONE)
         {
             std::optional<std::string> worst_offending_well = std::nullopt;
             changed = this->actionOnBrokenConstraints(group, reportStepIdx,
                                             controls.group_limit_action,
-                                            changed_this.first, well_state,
+                                            mode, well_state,
                                             worst_offending_well,
                                             group_state, deferred_logger);
 
@@ -695,7 +663,8 @@ updateGroupIndividualControl(const Group& group,
                     switched_prod[group.name()].push_back(currentControl);
                 }
 
-                WellGroupHelpersType::updateWellRatesFromGroupTargetScale(changed_this.second,
+                const auto scale = std::get<1>(changed_this);
+                WellGroupHelpersType::updateWellRatesFromGroupTargetScale(scale,
                                                                               group,
                                                                               wellModel_.schedule(),
                                                                               reportStepIdx,
@@ -704,8 +673,20 @@ updateGroupIndividualControl(const Group& group,
                                                                               well_state);
             } else if (worst_offending_well) {
                 closed_offending_wells.insert_or_assign(group.name(),
-                            std::make_pair(Group::ProductionCMode2String(changed_this.first), *worst_offending_well));
+                            std::make_pair(Group::ProductionCMode2String(mode), *worst_offending_well));
             }
+        }
+        const auto under_producing = std::get<2>(changed_this);
+        if (mode == Group::ProductionCMode::NONE && under_producing) {
+            // also need to check whether the current target is met or not
+                if (wellModel_.comm().rank() == 0) {
+                    const std::string msg =
+                        fmt::format("Production group {} is under producing its target for control {}, and all the constraints are honored, and switching to NONE now.",
+                                    group.name(),
+                                    Group::ProductionCMode2String(currentControl));
+                    deferred_logger.info(msg);
+                    group_state.production_control(group.name(), mode);
+                }
         }
     }
 

@@ -95,7 +95,8 @@ private:
                                    const Phase& phase) const;
 
     //! \brief Check and return value and type of constraints for a production well group.
-    std::pair<Group::ProductionCMode, Scalar>
+//    std::pair<Group::ProductionCMode, Scalar>
+    std::tuple<Group::ProductionCMode, Scalar,bool>
     checkGroupProductionConstraints(const Group& group,
                                     const int reportStepIdx,
                                     DeferredLogger& deferred_logger) const;

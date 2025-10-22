@@ -28,6 +28,8 @@
 #include <opm/input/eclipse/Schedule/Schedule.hpp>
 #include <opm/simulators/wells/GroupState.hpp>
 
+#include <iostream>
+
 
 namespace Opm {
 
