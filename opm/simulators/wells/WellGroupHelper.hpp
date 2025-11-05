@@ -153,7 +153,7 @@ public:
                                       const std::vector<Scalar>& resv_coeff,
                                       DeferredLogger& deferred_logger) const;
 
-    Scalar getWellGroupTargetProducer(const std::string& name,
+    std::pair<std::string, Scalar> getWellGroupTargetProducer(const std::string& name,
                                       const std::string& parent,
                                       const Group& group,
                                       const Scalar* rates,
