@@ -606,6 +606,58 @@ updateGroupIndividualControl(const Group& group,
     return changed;
 }
 
+template<typename Scalar, typename IndexTraits>
+bool
+BlackoilWellModelConstraints<Scalar, IndexTraits>::
+    updateUnderProductionGroup(const Group& group,
+                               const int reportStepIdx,
+                               GroupState<Scalar>& group_state,
+                               const WellState<Scalar, IndexTraits>& well_state,
+                               DeferredLogger& deferred_logger) const
+{
+    traverseGroups(group, group_state, well_state, reportStepIdx);
+    return false;
+}
+
+
+template<typename Scalar, typename IndexTraits>
+void
+BlackoilWellModelConstraints<Scalar, IndexTraits>::
+traverseGroups(const Opm::Group& group,
+               GroupState<Scalar>& group_state,
+               const WellState<Scalar, IndexTraits>& well_state,
+               const int reportStepIdx) const
+{
+    for (const auto& wname : group.wells()) {
+        const auto& ws = well_state.well(wname);
+        if (ws.producer) {
+            fmt::print("Well {} in group {}", wname, group.name());
+            fmt::print(" control mode is {}\n", WellProducerCMode2String(ws.production_cmode));
+        } // else {
+//            fmt::print(" control mode is {}\n", WellInjectorCMode2String(ws.injection_cmode));
+//        }
+    }
+    // sub-groups
+    for (const auto& gname : group.groups()) {
+        if (group_state.has_production_control(gname)) {
+            fmt::print("Sub-group {} in group {}", gname, group.name());
+            const auto pc = group_state.production_control(gname);
+            fmt::print(" production control mode is {}\n", Group::ProductionCMode2String(pc));
+        }
+//        const Phase all[] = {Phase::WATER, Phase::OIL, Phase::GAS};
+//        for (Phase phase : all) {
+//            if (group_state.has_injection_control(gname, phase)) {
+//                if (group_state.has_injection_control(gname, phase)) {
+//                    const auto ic = group_state.injection_control(gname, phase);
+//                    fmt::print(" injection control mode for phase {} is {}\n", phase2String(phase), Group::InjectionCMode2String(ic));
+//                }
+//            }
+//        }
+        const auto& grp = wellModel_.schedule().getGroup(gname, reportStepIdx);
+        this->traverseGroups(grp, group_state, well_state, reportStepIdx);
+    }
+}
+
 template class BlackoilWellModelConstraints<double, BlackOilDefaultFluidSystemIndices>;
 
 #if FLOW_INSTANTIATE_FLOAT

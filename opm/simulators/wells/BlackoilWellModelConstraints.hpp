@@ -24,6 +24,7 @@
 #define OPM_BLACKOILWELLMODEL_CONSTRAINTS_HEADER_INCLUDED
 
 #include <opm/input/eclipse/Schedule/Group/Group.hpp>
+#include <opm/input/eclipse/Schedule/ScheduleState.hpp>
 #include <optional>
 #include <utility>
 
@@ -85,6 +86,12 @@ public:
                                       WellState<Scalar, IndexTraits>& well_state,
                                       DeferredLogger& deferred_logger) const;
 
+    bool updateUnderProductionGroup(const Group& group,
+                                    const int reportStepIdx,
+                                    GroupState<Scalar>& group_state,
+                                    const WellState<Scalar, IndexTraits>& well_state,
+                                    DeferredLogger& deferred_logger) const;
+
 private:
     //! \brief Check and return value and type of constraints for an injection well group.
     std::pair<Group::InjectionCMode, Scalar>
@@ -99,6 +106,12 @@ private:
 
     const WellGroupHelperType& wgHelper() const { return wellModel_.wgHelper(); }
     const BlackoilWellModelGeneric<Scalar, IndexTraits>& wellModel_; //!< Reference to well model
+
+    void traverseGroups(const Opm::Group& group,
+                        GroupState<Scalar>& group_state,
+                        const WellState<Scalar, IndexTraits>& well_state,
+                        const int reportStepIdx) const;
+
 };
 
 } // namespace Opm
