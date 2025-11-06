@@ -2156,6 +2156,16 @@ updateNONEProductionGroups(DeferredLogger& deferred_logger)
         }
     }
 
+    {
+        std::ostringstream msg;
+        msg << " rank " << comm_.rank() << " production groups used by wells: ";
+        for (const auto& wname : production_groups) {
+            msg << wname << " ";
+        }
+        msg << "\n";
+        std::cout << msg.str();
+    }
+
     // parallel handling
     auto& group_state = this->groupState();
     const auto& prod_controls = group_state.get_production_controls();
@@ -2189,6 +2199,18 @@ updateNONEProductionGroups(DeferredLogger& deferred_logger)
         }
     } else {
         global_used = local_used;
+    }
+
+    if (comm_.rank() == 0) {
+        std::ostringstream msg;
+        msg << " production groups used by wells across all ranks: ";
+        for (std::size_t i = 0; i < size_pc; ++i) {
+            if (global_used[i] > 0) {
+                msg << gnames[i] << " ";
+            }
+        }
+        msg << "\n";
+        std::cout << msg.str();
     }
 
     for (std::size_t i = 0; i < size_pc;   ++i) {
