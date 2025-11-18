@@ -245,11 +245,27 @@ template<typename Scalar, typename IndexTraits>
 void SingleWellState<Scalar, IndexTraits>::
 update_producer_targets(const Well& ecl_well, const SummaryState& st)
 {
+    const bool output = this->name == "L22BYH";
     constexpr Scalar bhp_safety_factor = 0.99;
     const auto& prod_controls = ecl_well.productionControls(st);
 
     auto cmode_is_bhp = (prod_controls.cmode == Well::ProducerCMode::BHP);
     auto bhp_limit = prod_controls.bhp_limit;
+
+    {
+        if (output) {
+            std::string msg;
+            msg += "Well " + this->name + " producer targets update: \n";
+            msg += " outputting the perf data \n";
+            msg += " perf data size is " + std::to_string(this->perf_data.size()) + "\n";
+            msg += " first connection pressure " + std::to_string(this->perf_data.pressure_first_connection) + "\n";
+            for (const auto& c : this->perf_data.pressure) {
+                msg += " " + std::to_string(c) + " ";
+            }
+            msg += "\n";
+            std::cout << msg;
+        }
+    }
 
     if (ecl_well.getStatus() == Well::Status::STOP) {
         if (cmode_is_bhp)
