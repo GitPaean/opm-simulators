@@ -391,6 +391,27 @@ init(const std::vector<Scalar>& cellPressures,
 
             auto& new_well = this->well(w);
             new_well.init_timestep(prev_well);
+            {
+                if (wells_ecl[w].name() == "L22BYH") {
+                    std::ostringstream oss;
+                    oss << "Well " << wells_ecl[w].name() << " in WellState::init at rank "
+                        << new_well.parallel_info.get().communication().rank() << "\n";
+                    oss << " outputting the perf info for the new well and the previous well:\n";
+                    oss << " New well perf data:\n";
+                    oss << " first connection pressure " << new_well.perf_data.pressure_first_connection << "\n";
+                    for (size_t perf = 0; perf < new_well.perf_data.size(); ++perf) {
+                        oss << "  perf " << perf << " cell index " << new_well.perf_data.cell_index[perf]
+                            << " pressure " << new_well.perf_data.pressure[perf] << "\n";
+                    }
+                    oss << " Previous well perf data:\n";
+                    oss << " first connection pressure " << prev_well.perf_data.pressure_first_connection << "\n";
+                    for (size_t perf = 0; perf < prev_well.perf_data.size(); ++perf) {
+                        oss << "  perf " << perf << " cell index " << prev_well.perf_data.cell_index[perf]
+                            << " pressure " << prev_well.perf_data.pressure[perf] << "\n";
+                    }
+                    std::cout << oss.str() << std::endl;
+                }
+            }
 
             if (prev_well.status == Well::Status::SHUT) {
                 // Well was shut in previous state, do not use its values.
