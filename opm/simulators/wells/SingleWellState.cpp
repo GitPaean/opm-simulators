@@ -263,7 +263,16 @@ update_producer_targets(const Well& ecl_well, const SummaryState& st)
                 msg += " " + std::to_string(c) + " ";
             }
             msg += "\n";
-            std::cout << msg;
+            auto& comm = this->parallel_info.get().communication();
+            const int myrank = comm.rank();
+            const int nprocs = comm.size();
+
+            for (int r = 0; r < nprocs; ++r) {
+                if (myrank == r) {
+                    std::cout << msg << std::endl;
+                }
+                comm.barrier(); // ensure next rank prints after current finishes
+            }
         }
     }
 

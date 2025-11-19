@@ -397,19 +397,28 @@ init(const std::vector<Scalar>& cellPressures,
                     oss << "Well " << wells_ecl[w].name() << " in WellState::init at rank "
                         << new_well.parallel_info.get().communication().rank() << "\n";
                     oss << " outputting the perf info for the new well and the previous well:\n";
-                    oss << " New well perf data:\n";
+                    oss << " New well perf data: size () " << new_well.perf_data.size() << " \n";
                     oss << " first connection pressure " << new_well.perf_data.pressure_first_connection << "\n";
                     for (size_t perf = 0; perf < new_well.perf_data.size(); ++perf) {
                         oss << "  perf " << perf << " cell index " << new_well.perf_data.cell_index[perf]
                             << " pressure " << new_well.perf_data.pressure[perf] << "\n";
                     }
-                    oss << " Previous well perf data:\n";
+                    oss << " Previous well perf data: size() " << prev_well.perf_data.size() << " \n";
                     oss << " first connection pressure " << prev_well.perf_data.pressure_first_connection << "\n";
                     for (size_t perf = 0; perf < prev_well.perf_data.size(); ++perf) {
                         oss << "  perf " << perf << " cell index " << prev_well.perf_data.cell_index[perf]
                             << " pressure " << prev_well.perf_data.pressure[perf] << "\n";
                     }
-                    std::cout << oss.str() << std::endl;
+                    auto& comm = new_well.parallel_info.get().communication();
+                    const int myrank = comm.rank();
+                    const int nprocs = comm.size();
+
+                    for (int r = 0; r < nprocs; ++r) {
+                        if (myrank == r) {
+                            std::cout << oss.str() << std::endl;
+                        }
+                        comm.barrier(); // ensure next rank prints after current finishes
+                    }
                 }
             }
 
