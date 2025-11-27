@@ -2781,7 +2781,6 @@ namespace Opm
         return result * this->well_efficiency_factor_;
     }
 
-<<<<<<< HEAD
     template <typename TypeTag>
     typename StandardWell<TypeTag>::Scalar
     StandardWell<TypeTag>::
