@@ -88,7 +88,6 @@ namespace Opm
         using Base::has_energy;
         using Base::has_bioeffects;
         using Base::has_micp;
-        using Base::has_temperature;
         using Base::has_watVapor;
         using Base::has_saltPrecip;
         using Base::has_disgas_in_water;
@@ -100,7 +99,7 @@ namespace Opm
         using typename Base::PressureMatrix;
 
         // number of the conservation equations
-        static constexpr int numWellConservationEq = Indices::numPhases + Indices::numSolvents + Indices::enableEnergy;
+        static constexpr int numWellConservationEq = Indices::numPhases + Indices::numSolvents + Indices::numEnergy;
         // number of the well control equations
         static constexpr int numWellControlEq = 1;
         // number of the well equations that will always be used
@@ -129,8 +128,8 @@ namespace Opm
 
         using IndexTraits = typename FluidSystem::IndexTraitsType;
         using WellStateType = WellState<Scalar, IndexTraits>;
-
-        using FluidStateWell = BlackOilFluidState<EvalWell, FluidSystem, has_temperature, has_energy, Indices::compositionSwitchIdx >= 0, has_watVapor, has_brine, has_saltPrecip, has_disgas_in_water, Indices::numPhases>;
+        // TODO: the has_energy is a little messy and remains to be cleaned up
+        using FluidStateWell = BlackOilFluidState<EvalWell, FluidSystem, has_energy, has_energy, Indices::compositionSwitchIdx >= 0, has_watVapor, has_brine, has_saltPrecip, has_disgas_in_water, Indices::numPhases>;
 
         StandardWell(const Well& well,
                      const ParallelWellInfo<Scalar>& pw_info,

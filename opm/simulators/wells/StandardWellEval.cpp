@@ -74,13 +74,13 @@ void
 StandardWellEval<FluidSystem,Indices>::
 computeAccumWell()
 {
-    const int num_fractions = PrimaryVariables::numWellConservationEq - Indices::enableEnergy;
+    const int num_fractions = PrimaryVariables::numWellConservationEq - Indices::numEnergy;
     for (std::size_t eq_idx = 0; eq_idx < num_fractions; ++eq_idx) {
         F0_[eq_idx] = this->primary_variables_.surfaceVolumeFraction(eq_idx).value();
     }
     // if energy is enabled, we need to compute the intenral energy for the wellbore
     // for now, we just set it to zero for faster prototype. it means the transient effect for the energy is ignored for now
-    if (Indices::enableEnergy) {
+    if (Indices::numEnergy) {
         F0_[PrimaryVariables::Temperature] = 0.0;
     }
 }
