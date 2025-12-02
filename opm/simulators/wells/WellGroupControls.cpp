@@ -30,6 +30,7 @@
 
 #include <opm/material/densead/Evaluation.hpp>
 #include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
+#include <opm/material/common/MathToolbox.hpp>
 
 #include <opm/simulators/wells/FractionCalculator.hpp>
 #include <opm/simulators/wells/GroupState.hpp>
@@ -275,6 +276,23 @@ getGroupProductionControl(const Group& group,
     const auto target_rate = well_state.well(well_.indexOfWell()).group_target;
     if (target_rate) {
         const auto current_rate = -tcalc.calcModeRateFromRates(rates); // Switch sign since 'rates' are negative for producers.
+        if (std::abs(*target_rate) <= 1e-16) {
+            std::string msg = fmt::format("Well {} group target rate for group {} is zero, setting control equation to 0.",
+                                      well.name(),
+                                      group.name());
+            deferred_logger.debug(msg);
+            control_eq = tcalc.totalRateFromRates(rates);
+            return;
+        }
+
+        {
+            std::string msg = fmt::format("Well {} group target rate for group {} is {}, current rate is {}.",
+                                      well.name(),
+                                      group.name(),
+                                      *target_rate,
+                                      current_rate.value());
+            deferred_logger.debug(msg);
+        }
         control_eq = current_rate - *target_rate;
     } else {
         const auto& controls = well.productionControls(summaryState);

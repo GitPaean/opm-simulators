@@ -58,6 +58,16 @@ public:
     }
 
     template <typename RateType>
+    RateType totalRateFromRates(const std::vector<RateType>& rates) const
+    {
+        RateType total_rate = RateType(0);
+        for (size_t phase_idx = 0; phase_idx < pu_.numActivePhases(); ++phase_idx) {
+            total_rate += rates[phase_idx];
+        }
+        return total_rate;
+    }
+
+    template <typename RateType>
     RateType calcModeRateFromRates(const RateType* rates) const;
 
     Scalar groupTarget(const std::optional<Group::ProductionControls>& ctrl,

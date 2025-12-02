@@ -854,12 +854,16 @@ updateEclWellsConstraints(const int              timeStepIdx,
                          (const auto wellIdx, const auto& well)
     {
         auto& ws = this->wellState().well(wellIdx);
-        if (ws.status == WellStatus::SHUT) {
-            std::string msg = fmt::format(" well {} is SHUT, but an action will make it status to be {} at rank {}",
-                                          well.name(), WellStatus2String(well.getStatus()), comm_.rank());
-            std::cout << msg << std::endl;
-            OpmLog::info(msg);
+//        if (ws.status == WellStatus::SHUT) {
+                             {
+                                 std::string msg = fmt::format(
+                                         " well {} was {}, but an action will make it status to be {} at rank {}",
+                                         well.name(), WellStatus2String(ws.status), WellStatus2String(well.getStatus()), comm_.rank());
+                                 std::cout << msg << std::endl;
+                                 OpmLog::info(msg);
+                                 OpmLog::debug(msg);
         }
+//                             }
         ws.updateStatus(well.getStatus());
         ws.update_type_and_targets(well, st);
     });
