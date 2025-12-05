@@ -436,6 +436,9 @@ debugInfo() const
         fmt::format_to(std::back_inserter(info), " {:8.2e}", r);
     }
     fmt::format_to(std::back_inserter(info), "\n");
+
+    info += this->segments.debugInfo();
+
     fmt::format_to(std::back_inserter(info), "  Connection pressures and connection rates:\n");
     for (std::size_t perf = 0; perf < this->perf_data.size(); perf++) {
         fmt::format_to(std::back_inserter(info),
@@ -450,8 +453,6 @@ debugInfo() const
         }
         fmt::format_to(std::back_inserter(info), "\n");
     }
-
-    info += this->segments.debugInfo();
 
     return info;
 }
