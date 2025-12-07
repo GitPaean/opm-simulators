@@ -1844,6 +1844,12 @@ namespace Opm
                                    const bool solving_with_zero_rate)
     {
         if (!this->isOperableAndSolvable() && !this->wellIsStopped()) return;
+        {
+            std::string msg = fmt::format("Assembling well equations for well {} at rank {}.", this->name(), this->parallel_well_info_.communication().rank());
+            const auto& ws = well_state.well(this->index_of_well_);
+            msg += ws.briefDebugInfo();
+            deferred_logger.debug(msg);
+        }
 
         auto& deferred_logger = groupStateHelper.deferredLogger();
 
