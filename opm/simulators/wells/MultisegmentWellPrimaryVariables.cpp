@@ -302,6 +302,9 @@ copyToWellState(const  MultisegmentWellGeneric<Scalar, IndexTraits>& mswell,
 
         if (seg == 0) { // top segment
             ws.bhp = segment_pressure[seg];
+            const std::string msg = fmt::format("Well '{}' in copyToWellState bhp updated to {:8.2e} bar, top segment pressure is {:8.2e} bar",
+                                                 well_.wellEcl().name(), ws.bhp/unit::barsa, segment_pressure[seg]/unit::barsa);
+            deferred_logger.debug(msg);
         }
 
         // Calculate other per-phase dynamic quantities.
