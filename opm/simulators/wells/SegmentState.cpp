@@ -161,7 +161,7 @@ SegmentState<Scalar>::debugInfo() const
     const std::size_t num_phases = this->rates.size() / this->size();
     std::string info = "SegmentState:\n";
     for (std::size_t i = 0; i < this->size(); ++i) {
-        info += fmt::format("  Segment {:4}: Segment number {:4}, Pressure = {:8.2e} bar, Rate {m3/s}: ",
+        info += fmt::format("  Segment {:4}: Segment number {:4}, Pressure = {:8.2e} bar, Rate (m3/s): ",
                             i, this->m_segment_number[i], this->pressure[i] / unit::barsa);
         for (std::size_t p = 0; p < num_phases; ++p) {
             info += fmt::format(" {: 8.2e}", this->rates[i * num_phases + p]);
