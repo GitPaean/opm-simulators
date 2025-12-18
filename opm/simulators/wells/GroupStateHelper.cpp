@@ -31,8 +31,9 @@
 
 #include <array>
 #include <cstddef>
-#include <stack>
+#include <fmt/format.h>
 #include <set>
+#include <stack>
 
 #include <fmt/format.h>
 
@@ -620,6 +621,9 @@ GroupStateHelper<Scalar, IndexTraits>::getWellGroupTargetInjector(const std::str
         || current_group_control == Group::InjectionCMode::NONE) {
         // Return if we are not available for parent group.
         if (!group.injectionGroupControlAvailable(injection_phase)) {
+            std::string msg = fmt::format(" group '{}' injection control is FLD or NONE, and no injection group control available, well {} get no injecting target.",
+                                          group.name(), name);
+            deferred_logger_->debug(msg);
             return std::nullopt;
         }
         // Otherwise: check production share of parent's control.
@@ -636,6 +640,9 @@ GroupStateHelper<Scalar, IndexTraits>::getWellGroupTargetInjector(const std::str
     // This can be false for FLD-controlled groups, we must therefore
     // check for FLD first (done above).
     if (!group.isInjectionGroup()) {
+        std::string msg = fmt::format(" group '{}' is not an injection group, well {} get no injecting target.",
+                                      group.name(), name);
+        deferred_logger_->debug(msg);
         return std::nullopt;
     }
 
@@ -688,6 +695,11 @@ GroupStateHelper<Scalar, IndexTraits>::getWellGroupTargetInjector(const std::str
                                                              local_reduction_lambda,
                                                              local_fraction_lambda,
                                                              do_addback);
+    {
+        std::string msg = fmt::format("Well '{}' in injection group '{}' has computed group target: {}",
+                                      name, group.name(), target / efficiency_factor);
+        deferred_logger_->debug(msg);
+    }
 
     // Avoid negative target rates coming from too large local reductions.
     const auto target_value = std::max(Scalar(0.0), target / efficiency_factor);
@@ -717,6 +729,8 @@ GroupStateHelper<Scalar, IndexTraits>::getWellGroupTargetProducer(const std::str
         || current_group_control == Group::ProductionCMode::NONE) {
         // Return if we are not available for parent group.
         if (!group.productionGroupControlAvailable()) {
+            std::string msg = fmt::format("group {} is not available for parent group, well {} group target is NULL", group.name(), name);
+            deferred_logger_->debug(msg);
             return std::nullopt;
         }
         // Otherwise: check production share of parent's control.
@@ -732,6 +746,8 @@ GroupStateHelper<Scalar, IndexTraits>::getWellGroupTargetProducer(const std::str
     // This can be false for FLD-controlled groups, we must therefore
     // check for FLD first (done above).
     if (!group.isProductionGroup()) {
+        std::string msg = fmt::format("group {} is not a production group, well {} group target is NULL", group.name(), name);
+        deferred_logger_->debug(msg);
         return std::nullopt;
     }
 
