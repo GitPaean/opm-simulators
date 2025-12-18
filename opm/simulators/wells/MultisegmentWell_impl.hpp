@@ -1599,6 +1599,12 @@ namespace Opm
                 }
                 break;
             }
+            {
+                std::string msg = fmt::format(" In iterateWellEqWithControl:: outputting the well state before solving the linear system for well {} at inner iteration {}: \n", this->name(), it);
+                const auto& ws = well_state.well(this->index_of_well_);
+                msg += ws.briefDebugInfo();
+                deferred_logger.debug(msg);
+            }
 
             BVectorWell dx_well;
             try{
@@ -1784,6 +1790,12 @@ namespace Opm
                     converged = false;
                     break;
                 }
+            }
+            {
+                std::string msg = fmt::format(" In iterateWellEqWithSwitching:: outputting the well state before solving the linear system for well {} at inner iteration {}: \n", this->name(), it);
+                const auto& ws = well_state.well(this->index_of_well_);
+                msg += ws.briefDebugInfo();
+                deferred_logger.debug(msg);
             }
             try{
                 const BVectorWell dx_well = this->linSys_.solve();

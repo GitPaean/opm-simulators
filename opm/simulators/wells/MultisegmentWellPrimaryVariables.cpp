@@ -301,9 +301,10 @@ copyToWellState(const  MultisegmentWellGeneric<Scalar, IndexTraits>& mswell,
         segment_pressure[seg] = value_[seg][SPres];
 
         if (seg == 0) { // top segment
+            const auto old_bhp = ws.bhp;
             ws.bhp = segment_pressure[seg];
-            const std::string msg = fmt::format("Well '{}' in copyToWellState bhp updated to {:8.2e} bar, top segment pressure is {:8.2e} bar",
-                                                 well_.wellEcl().name(), ws.bhp/unit::barsa, segment_pressure[seg]/unit::barsa);
+            const std::string msg = fmt::format("Well '{}' in copyToWellState bhp updated to {:8.2e} bar from {:8.2e} bar, top segment pressure is {:8.2e} bar",
+                                                 well_.wellEcl().name(), ws.bhp/unit::barsa, old_bhp/unit::barsa, segment_pressure[seg]/unit::barsa);
             deferred_logger.debug(msg);
         }
 

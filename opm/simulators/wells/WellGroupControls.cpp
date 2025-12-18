@@ -264,6 +264,9 @@ getGroupProductionControl(const Group& group,
         control_eq = current_rate - *target_rate;
     } else {
         const auto& controls = well.productionControls(summaryState);
+        std::string msg = fmt::format("Well '{}' group '{}' production control: no group target rate set, using BHP limit {} as fallback",
+                                      well.name(), group.name(), controls.bhp_limit);
+        deferred_logger.debug(msg);
         control_eq = bhp - controls.bhp_limit;
     }
     return;
