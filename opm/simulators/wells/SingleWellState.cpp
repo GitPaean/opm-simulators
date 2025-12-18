@@ -461,6 +461,11 @@ briefDebugInfo() const
                                   : WellInjectorCMode2String(this->injection_cmode),
                    this->bhp / unit::barsa,
                    this->thp / unit::barsa);
+    if (this->group_target.has_value()) {
+       fmt::format_to(std::back_inserter(info), " well group target rate: {:8.2e} m3/s\n", this->group_target.value());
+    } else {
+        fmt::format_to(std::back_inserter(info), " well group target rate: none\n");
+    }
 
     fmt::format_to(std::back_inserter(info), "  Surface rates (m3/s): ");
     for (const auto& r : this->surface_rates) {
