@@ -73,6 +73,9 @@ assembleControlEqProd(const GroupStateHelperType& groupStateHelper,
         assert(FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx));
         const EvalWell rate = -rates[FluidSystem::oilPhaseIdx];
         control_eq = rate - controls.oil_rate;
+        const std::string msg = fmt::format("Well {}: ORAT control equation assembled: rate = {}, target = {}, difference = {}",
+                                                well_.name(), rate.value(), controls.oil_rate, control_eq.value());
+        deferred_logger.debug(msg);
         break;
     }
     case Well::ProducerCMode::WRAT: {
