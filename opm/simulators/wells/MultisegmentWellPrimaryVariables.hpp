@@ -91,7 +91,8 @@ public:
                       const Scalar relaxation_factor,
                       const Scalar DFLimit,
                       const bool stop_or_zero_rate_target,
-                      const Scalar max_pressure_change);
+                      const Scalar max_pressure_change,
+                      DeferredLogger& deferred_logger);
 
     //! \brief Copy values to well state.
     void copyToWellState(const  MultisegmentWellGeneric<Scalar, IndexTraits>& mswell,

@@ -738,7 +738,8 @@ namespace Opm
                                               relaxation_factor,
                                               dFLimit,
                                               stop_or_zero_rate_target,
-                                              max_pressure_change);
+                                              max_pressure_change,
+                                              deferred_logger);
 
         const auto& summary_state = simulator.vanguard().summaryState();
         this->primary_variables_.copyToWellState(*this, getRefDensity(),
@@ -1636,7 +1637,7 @@ namespace Opm
         } else {
             std::ostringstream sstr;
             sstr << "     Well " << this->name() << " did not converge in " << it << " inner iterations.";
-#define EXTRA_DEBUG_MSW 0
+#define EXTRA_DEBUG_MSW 1
 #if EXTRA_DEBUG_MSW
             sstr << "***** Outputting the residual history for well " << this->name() << " during inner iterations:";
             for (int i = 0; i < it; ++i) {
@@ -1837,7 +1838,9 @@ namespace Opm
             const std::string message = fmt::format("   Well {} did not converge in {} inner iterations ("
                 "{} switches, {} status changes).", this->name(), it, switch_count, status_switch_count);
             deferred_logger.debug(message);
-            this->primary_variables_.outputLowLimitPressureSegments(deferred_logger);
+//            this->primary_variables_.outputLowLimitPressureSegments(deferred_logger);
+            const std::string msg = this->primary_variables_.debugInfo();
+            deferred_logger.debug(msg);
         }
 
         return converged;
