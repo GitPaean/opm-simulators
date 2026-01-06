@@ -166,7 +166,8 @@ updateNewton(const BVectorWell& dwells,
              const Scalar relaxation_factor,
              const Scalar dFLimit,
              const bool stop_or_zero_rate_target,
-             const Scalar max_pressure_change)
+             const Scalar max_pressure_change,
+             DeferredLogger& deferred_logger)
 {
     const std::vector<std::array<Scalar, numWellEq>> old_primary_variables = value_;
 
@@ -198,7 +199,13 @@ updateNewton(const BVectorWell& dwells,
 
         // update the total rate // TODO: should we have a limitation of the total rate change?
         {
-            value_[seg][WQTotal] = old_primary_variables[seg][WQTotal] - relaxation_factor * dwells[seg][WQTotal];
+            auto dx = relaxation_factor * dwells[seg][WQTotal];
+            if (this->well_.name() == "E6EYH") {
+                const Scalar sign = dx > 0.? 1. : -1.;
+                dx = sign * std::max(std::min(1., std::abs(dx)), 0.4 * std::abs(dx));
+            }
+//            value_[seg][WQTotal] = old_primary_variables[seg][WQTotal] - relaxation_factor * dwells[seg][WQTotal];
+            value_[seg][WQTotal] = old_primary_variables[seg][WQTotal] - dx;
 
             // make sure that no injector produce and no producer inject
             if (seg == 0) {
@@ -213,6 +220,24 @@ updateNewton(const BVectorWell& dwells,
 
     if (stop_or_zero_rate_target) {
         value_[0][WQTotal] = 0.;
+    }
+
+    if (this->well_.name() == "E6EYH") {
+        // outputting the update of the primary variables for well E6EYH for debugging purpose
+        std::string msg = " Well name : " + this->well_.name() + " primary variable updates: \n";
+        for (std::size_t seg = 0; seg < value_.size(); ++seg) {
+            fmt::format_to(std::back_inserter(msg), " seg {}: "
+                           " old WQTotal {:8.2e}, new WQTotal {:8.2e}, dx {:8.2e}, "
+                           " old SPres {:8.2e}, new SPres {:8.2e}, dx {:8.2e} , "
+                           " old WFrac {:8.2e}, new WFrac {:8.2e}, dx {:8.2e}, "
+                           " old GFrac {:8.2e}, new GFrac {:8.2e}, dx {:8.2e} \n",
+                           seg,
+                           old_primary_variables[seg][WQTotal], value_[seg][WQTotal], dwells[seg][WQTotal],
+                           old_primary_variables[seg][SPres], value_[seg][SPres], dwells[seg][SPres],
+                           old_primary_variables[seg][WFrac], value_[seg][WFrac], dwells[seg][WFrac],
+                           old_primary_variables[seg][GFrac], value_[seg][GFrac], dwells[seg][GFrac]);
+        }
+        deferred_logger.debug(msg);
     }
     setEvaluationsFromValues();
 }
