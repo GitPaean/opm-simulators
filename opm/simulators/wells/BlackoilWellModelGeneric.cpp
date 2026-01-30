@@ -1964,7 +1964,7 @@ updateNONEProductionGroups(const GasLiftOpt& glo, DeferredLogger& deferred_logge
 
     for (std::size_t w = 0; w < well_state.size(); ++w) {
         const auto& ws = well_state.well(w);
-        if (ws.producer && ws.production_cmode == WellProducerCMode::GRUP) {
+        if (ws.producer && ws.production_cmode == WellProducerCMode::GRUP && ws.status == Well::Status::OPEN) {
             const auto& group_target = ws.group_target;
             if (group_target.has_value()) {
                 targeted_production_groups.insert(group_target->group_name);
