@@ -250,6 +250,11 @@ assembleControlEqInj(const GroupStateHelperType& groupStateHelper,
         break;
     }
     case Well::InjectorCMode::BHP: {
+        if (well_.name() == "SKVWI03") {
+            const auto msg = fmt::format(" well {} assembling BHP control eqn with BHP limit {} bars and bhp {} bars",
+                                         well_.name(), controls.bhp_limit/1.e5, getValue(bhp)/1.e5);
+            OpmLog::debug(msg);
+        }
         control_eq = bhp - controls.bhp_limit;
         break;
     }
