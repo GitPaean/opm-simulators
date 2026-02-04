@@ -166,6 +166,70 @@ void StandardWellEquations<Scalar, IndexTraits, numEq>::invert()
 template<typename Scalar, typename IndexTraits, int numEq>
 void StandardWellEquations<Scalar, IndexTraits, numEq>::solve(BVectorWell& dx_well) const
 {
+    if (duneD_.N() > 0 && duneD_[0].size() > 0) {
+        const auto& mat = duneD_[0][0];
+
+        // Save previous formatting state
+        std::ios oldState(nullptr);
+        oldState.copyfmt(std::cerr);
+
+        std::cerr << "DEBUG: duneD_[0][0] (" << mat.N() << "x" << mat.M() << "):" << std::endl;
+
+        // Use scientific notation and fixed width for easy parsing
+        std::cerr << std::scientific << std::setprecision(5);
+
+        for (std::size_t i = 0; i < mat.N(); ++i) {
+            for (std::size_t j = 0; j < mat.M(); ++j) {
+                // Large enough width to prevent columns from touching
+                std::cerr << std::setw(16) << mat[i][j];
+            }
+            std::cerr << std::endl;
+        }
+
+        // Restore formatting
+        std::cerr.copyfmt(oldState);
+    }
+
+    if (invDuneD_.N() > 0 && invDuneD_[0].size() > 0) {
+        const auto& mat = invDuneD_[0][0];
+
+        // Save previous formatting state
+        std::ios oldState(nullptr);
+        oldState.copyfmt(std::cerr);
+
+        std::cerr << "DEBUG: invDuneD_[0][0] (" << mat.N() << "x" << mat.M() << "):" << std::endl;
+
+        // Use scientific notation and fixed width for easy parsing
+        std::cerr << std::scientific << std::setprecision(5);
+
+        for (std::size_t i = 0; i < mat.N(); ++i) {
+            for (std::size_t j = 0; j < mat.M(); ++j) {
+                // Large enough width to prevent columns from touching
+                std::cerr << std::setw(16) << mat[i][j];
+            }
+            std::cerr << std::endl;
+        }
+
+        // Restore formatting
+        std::cerr.copyfmt(oldState);
+    }
+
+    if (dx_well.N() > 0) {
+        // dx_well is a block vector, typically with 1 block for the well
+        const auto& vec = resWell_[0];
+
+        std::ios oldState(nullptr);
+        oldState.copyfmt(std::cerr);
+
+        std::cerr << "DEBUG: resWell[0] (size " << vec.size() << "):" << std::endl;
+        std::cerr << std::scientific << std::setprecision(5);
+
+        for (std::size_t i = 0; i < vec.size(); ++i) {
+            std::cerr << std::setw(16) << vec[i] << std::endl;
+        }
+
+        std::cerr.copyfmt(oldState);
+    }
     invDuneD_.mv(resWell_, dx_well);
 }
 
