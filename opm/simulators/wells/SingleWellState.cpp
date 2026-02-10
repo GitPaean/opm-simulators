@@ -467,6 +467,16 @@ briefDebugInfo() const
         fmt::format_to(std::back_inserter(info), " {:8.2e}", r);
     }
     fmt::format_to(std::back_inserter(info), "\n");
+
+    if (this->group_target.has_value()) {
+        const auto& gt = this->group_target.value();
+        fmt::format_to(std::back_inserter(info), "  Group target: group '{}', control type {}, target value {:8.2e}\n",
+                       gt.group_name,
+                       gt.production_cmode != Group::ProductionCMode::NONE
+                           ? Group::ProductionCMode2String(gt.production_cmode)
+                           : Group::InjectionCMode2String(gt.injection_cmode),
+                       gt.target_value);
+    }
     return info;
 }
 

@@ -266,8 +266,8 @@ getGroupProductionControl(const Group& group,
     if (target_rate) {
         const auto current_rate = -tcalc.calcModeRateFromRates(rates); // Switch sign since 'rates' are negative for producers.
         control_eq = current_rate - target_rate->target_value;
-        std::string msg = fmt::format("Well '{}' group '{}' production control: group target rate = {}, current rate = {}",
-                                      well.name(), group.name(), target_rate->target_value, current_rate.value());
+        std::string msg = fmt::format("Well '{}' group '{}' production control: group target rate = {}, control phase {}, current rate = {}",
+                                      well.name(), group.name(), Group::ProductionCMode2String(target_rate->production_cmode), target_rate->target_value, current_rate.value());
         groupStateHelper.deferredLogger().debug(msg);
     } else {
         const auto& controls = well.productionControls(summaryState);
