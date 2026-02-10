@@ -34,6 +34,8 @@
 #include <stack>
 #include <set>
 
+#include <fmt/format.h>
+
 namespace Opm
 {
 
@@ -786,6 +788,9 @@ GroupStateHelper<Scalar, IndexTraits>::getWellGroupTargetProducer(const std::str
 
     // Avoid negative target rates coming from too large local reductions.
     const auto target_value = std::max(Scalar(0.0), target / efficiency_factor);
+    const std::string msg = fmt::format("Well {} is under production group control of group {}, with control mode {}, target value {}",
+                                             name, group.name(), Group::ProductionCMode2String(current_group_control), target_value);
+    deferredLogger().debug(msg);
     return GroupTarget::productionGroupTarget(group.name(), current_group_control, target_value);
 }
 
