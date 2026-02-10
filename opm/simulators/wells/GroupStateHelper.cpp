@@ -688,7 +688,8 @@ GroupStateHelper<Scalar, IndexTraits>::getWellGroupTargetInjector(const std::str
                                                              do_addback);
 
     // Avoid negative target rates coming from too large local reductions.
-    return GroupTarget{group.name(), std::max(Scalar(0.0), target / efficiency_factor)};
+    const auto target_value = std::max(Scalar(0.0), target / efficiency_factor);
+    return GroupTarget::injectionGroupTarget(group.name(), current_group_control, target_value);
 }
 
 template <typename Scalar, typename IndexTraits>
@@ -784,7 +785,8 @@ GroupStateHelper<Scalar, IndexTraits>::getWellGroupTargetProducer(const std::str
                                                              do_addback);
 
     // Avoid negative target rates coming from too large local reductions.
-    return GroupTarget{group.name(), std::max(Scalar(0.0), target / efficiency_factor)};
+    const auto target_value = std::max(Scalar(0.0), target / efficiency_factor);
+    return GroupTarget::productionGroupTarget(group.name(), current_group_control, target_value);
 }
 
 template <typename Scalar, typename IndexTraits>
