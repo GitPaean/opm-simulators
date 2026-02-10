@@ -42,6 +42,8 @@
 #include <cstddef>
 #include <cassert>
 
+#include <fmt/format.h>
+
 namespace Opm {
 
 template<typename Scalar, typename IndexTraits>
@@ -265,8 +267,8 @@ getGroupProductionControl(const Group& group,
         const auto current_rate = -tcalc.calcModeRateFromRates(rates); // Switch sign since 'rates' are negative for producers.
         control_eq = current_rate - target_rate->target_value;
         std::string msg = fmt::format("Well '{}' group '{}' production control: group target rate = {}, current rate = {}",
-                                      well.name(), group.name(), *target_rate, current_rate.value());
-        deferred_logger.debug(msg);
+                                      well.name(), group.name(), target_rate->target_value, current_rate.value());
+        groupStateHelper.deferredLogger().debug(msg);
     } else {
         const auto& controls = well.productionControls(summaryState);
         control_eq = bhp - controls.bhp_limit;
