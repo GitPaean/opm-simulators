@@ -416,6 +416,7 @@ public:
             simulator_.setEpisodeIndex(-1);
             simulator_.setEpisodeLength(0.0);
             simulator_.setTimeStepSize(0.0);
+            OpmLog::debug(" in runStep before writing initial output ");
             wellModel_().beginReportStep(timer.currentStepNum());
             simulator_.problem().writeOutput(true);
 

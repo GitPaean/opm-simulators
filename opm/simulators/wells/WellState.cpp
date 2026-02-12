@@ -378,6 +378,24 @@ init(const std::vector<Scalar>& cellPressures,
         }
     }
 
+    {
+        // output the well state for the specified wells
+        const std::vector<std::string> well_names = {"D7BYH", "E6EYH", "D6BYH", "L23AYH"};
+        for (const auto& well_name : well_names) {
+            const auto index = this->index(well_name);
+            if (index.has_value()) {
+                const auto& ws = this->wells_[well_name];
+                const std::string msg1
+                    = "WellState init for well " + well_name + " before copying :\n";
+                const std::string msg = ws.briefDebugInfo();
+                OpmLog::debug(msg1 + msg);
+            } else {
+                const std::string msg = "WellState init: well " + well_name + " not found.";
+                OpmLog::debug(msg);
+            }
+        }
+    }
+
     // intialize wells that have been there before
     // order may change so the mapping is based on the well name
     if ((prevState != nullptr) && (prevState->size() > 0)) {
@@ -456,6 +474,20 @@ init(const std::vector<Scalar>& cellPressures,
             }
         }
     }
+    {
+        // output the well state for the specified wells
+        const std::vector<std::string> well_names = {"D7BYH", "E6EYH", "D6BYH", "L23AYH"};
+        for (const auto& well_name : well_names) {
+            const auto index = this->index(well_name);
+            if (index.has_value()) {
+                const auto& ws = this->wells_[well_name];
+                const std::string msg1
+                    = "WellState init for well " + well_name + " after checking previousState :\n";
+                const std::string msg = ws.briefDebugInfo();
+                OpmLog::debug(msg1 + msg);
+            }
+        }
+    }
 
     updateWellsDefaultALQ(schedule, report_step, summary_state);
 }
@@ -471,6 +503,10 @@ resize(const std::vector<Well>& wells_ecl,
        const SummaryState& summary_state,
        const bool enable_distributed_wells)
 {
+    {
+        const std::string msg = fmt::format("WellState::resize called with {} wells.", wells_ecl.size());
+        OpmLog::debug(msg);
+    }
     this->enableDistributedWells_ = enable_distributed_wells;
     const std::vector<Scalar> tmp(numCells, 0.0); // <- UGLY HACK to pass the size
     init(tmp, tmp, schedule, wells_ecl, parallel_well_info, 0, nullptr, well_perf_data, summary_state, this->enableDistributedWells_);

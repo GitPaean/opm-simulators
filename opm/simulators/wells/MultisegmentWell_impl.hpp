@@ -738,7 +738,8 @@ namespace Opm
                                               relaxation_factor,
                                               dFLimit,
                                               stop_or_zero_rate_target,
-                                              max_pressure_change);
+                                              max_pressure_change,
+                                              deferred_logger);
 
         const auto& summary_state = simulator.vanguard().summaryState();
         this->primary_variables_.copyToWellState(*this, getRefDensity(),

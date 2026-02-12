@@ -301,6 +301,9 @@ public:
      */
     virtual void beginEpisode()
     {
+        {
+            OpmLog::debug("at the function beginEpisode of FlowProblem");
+        }
         OPM_TIMEBLOCK(beginEpisode);
         // Proceed to the next report step
         auto& simulator = this->simulator();

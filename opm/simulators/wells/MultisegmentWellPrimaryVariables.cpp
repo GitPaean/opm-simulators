@@ -166,7 +166,8 @@ updateNewton(const BVectorWell& dwells,
              const Scalar relaxation_factor,
              const Scalar dFLimit,
              const bool stop_or_zero_rate_target,
-             const Scalar max_pressure_change)
+             const Scalar max_pressure_change,
+             DeferredLogger& deferred_logger)
 {
     const std::vector<std::array<Scalar, numWellEq>> old_primary_variables = value_;
 
@@ -214,6 +215,26 @@ updateNewton(const BVectorWell& dwells,
     if (stop_or_zero_rate_target) {
         value_[0][WQTotal] = 0.;
     }
+
+    static const std::set<std::string> debug_wells = {"X13CYH", "D7BYH", "E6EYH", "D6BYH", "L23AYH"};
+    if (debug_wells.count(this->well_.name()) > 0) {
+        // outputting the update of the primary variables for well E6EYH for debugging purpose
+        std::string msg = " Well name : " + this->well_.name() + " primary variable updates: \n";
+        for (std::size_t seg = 0; seg < value_.size(); ++seg) {
+            fmt::format_to(std::back_inserter(msg), " seg {}: "
+                           " old WQTotal {:8.2e}, new WQTotal {:8.2e}, dx {:8.2e}, "
+                           " old SPres {:8.2e}, new SPres {:8.2e}, dx {:8.2e} , "
+                           " old WFrac {:8.2e}, new WFrac {:8.2e}, dx {:8.2e}, "
+                           " old GFrac {:8.2e}, new GFrac {:8.2e}, dx {:8.2e} \n",
+                           seg,
+                           old_primary_variables[seg][WQTotal], value_[seg][WQTotal], dwells[seg][WQTotal],
+                           old_primary_variables[seg][SPres], value_[seg][SPres], dwells[seg][SPres],
+                           old_primary_variables[seg][WFrac], value_[seg][WFrac], dwells[seg][WFrac],
+                           old_primary_variables[seg][GFrac], value_[seg][GFrac], dwells[seg][GFrac]);
+        }
+        deferred_logger.debug(msg);
+    }
+
     setEvaluationsFromValues();
 }
 

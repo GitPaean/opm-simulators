@@ -1785,6 +1785,11 @@ namespace Opm
         // Check if the rates of this well only are single-phase, do nothing
         // if more than one nonzero rate.
         auto& ws = well_state.well(this->index_of_well_);
+
+        static const std::set<std::string> debug_wells = {"X13CYH", "D7BYH", "E6EYH", "D6BYH", "L23AYH"};
+        const bool print = debug_wells.count(ws.name) > 0;
+        std::string msg = " in initializeProducerWellState for well " + ws.name + "\n";
+
         int nonzero_rate_index = -1;
         const Scalar floating_point_error_epsilon = 1e-14;
         for (int p = 0; p < this->number_of_phases_; ++p) {
@@ -1806,6 +1811,10 @@ namespace Opm
             const auto& prod_controls = this->well_ecl_.productionControls(summary_state);
             const double bhp_limit = std::max(prod_controls.bhp_limit, 1.0 * unit::barsa);
             this->computeWellRatesWithBhp(simulator, bhp_limit, well_q_s, deferred_logger);
+            if (print) {
+                msg += "  computed rates at bhp limit " + std::to_string(bhp_limit / unit::barsa) + " bar: ";
+                msg += fmt::format(" well_qs : {} {} {} \n", well_q_s[0], well_q_s[1], well_q_s[2]);
+            }
             // Remember of we evaluated the rates at (approx.) 1 bar or not.
             rates_evaluated_at_1bar = (bhp_limit < 1.1 * unit::barsa);
             // Check that no rates are positive.
@@ -1820,6 +1829,9 @@ namespace Opm
                     q = std::min(q, Scalar{0.0});
                 }
             }
+        }
+        if (print) {
+            OpmLog::debug(msg);
         }
 
         if (nonzero_rate_index == -1) {

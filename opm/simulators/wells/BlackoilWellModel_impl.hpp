@@ -236,6 +236,21 @@ namespace Opm {
         this->commitWGState();
 
         this->wellStructureChangedDynamically_ = false;
+        {
+            // output the well state for the well "E6EYH"
+            OpmLog::debug(" at the end of beginReportStep() ");
+            static const std::set<std::string> debug_wells = {"X13CYH", "D7BYH", "E6EYH", "D6BYH", "L23AYH"};
+            for (const auto& well_name : debug_wells) {
+                const auto index = this->wellState().index(well_name);
+                if (index.has_value()) {
+                    const auto& ws = this->wellState()[well_name];
+                    const std::string msg1
+                        = "WellState init for well " + well_name + " after checking previousState :\n";
+                    const std::string msg = ws.briefDebugInfo();
+                    OpmLog::debug(msg1 + msg);
+                }
+            }
+        }
     }
 
 
@@ -326,6 +341,22 @@ namespace Opm {
     beginTimeStep()
     {
         OPM_TIMEBLOCK(beginTimeStep);
+        {
+            {
+                // output the well state for the well "E6EYH"
+                OpmLog::debug(" at the beginning of beginTimeStep() ");
+                static const std::set<std::string> debug_wells = {"X13CYH", "D7BYH", "E6EYH", "D6BYH", "L23AYH"};
+                for (const auto& well_name : debug_wells) {
+                    const auto index = this->wellState().index(well_name);
+                    if (index.has_value()) {
+                        const auto& ws = this->wellState()[well_name];
+                        const std::string msg = ws.briefDebugInfo();
+                        OpmLog::debug(msg);
+                    }
+                }
+            }
+
+        }
 
         this->updateAverageFormationFactor();
 
@@ -437,6 +468,20 @@ namespace Opm {
         // we need the inj_multiplier from the previous time step
         this->initInjMult();
 
+        {
+            OpmLog::debug(" before initializeProducerWellState() ");
+            static const std::set<std::string> debug_wells = {"X13CYH", "D7BYH", "E6EYH", "D6BYH", "L23AYH"};
+            for (const auto& well_name : debug_wells) {
+                // output the well state for the well "E6EYH"
+                const auto index = this->wellState().index(well_name);
+                if (index.has_value()) {
+                    const auto& ws = this->wellState()[well_name];
+                    const std::string msg = ws.briefDebugInfo();
+                    OpmLog::debug(msg);
+                }
+            }
+        }
+
         if (alternative_well_rate_init_) {
             // Update the well rates of well_state_, if only single-phase rates, to
             // have proper multi-phase rates proportional to rates at bhp zero.
@@ -445,6 +490,20 @@ namespace Opm {
             for (const auto& well : well_container_) {
                 if (well->isProducer() && !well->wellIsStopped()) {
                     well->initializeProducerWellState(simulator_, this->wellState(), local_deferredLogger);
+                }
+            }
+        }
+
+        {
+            // output the well state for the well "E6EYH"
+            OpmLog::debug(" after initializeProducerWellState() ");
+            static const std::set<std::string> debug_wells = {"X13CYH", "D7BYH", "E6EYH", "D6BYH", "L23AYH"};
+            for (const auto& well_name : debug_wells) {
+                const auto index = this->wellState().index(well_name);
+                if (index.has_value()) {
+                    const auto& ws = this->wellState()[well_name];
+                    const std::string msg = ws.briefDebugInfo();
+                    OpmLog::debug(msg);
                 }
             }
         }
@@ -851,6 +910,10 @@ namespace Opm {
         }
         OPM_END_PARALLEL_TRY_CATCH("BlackoilWellModel::initializeWellState() failed: ",
                                    this->simulator_.vanguard().grid().comm());
+        {
+            const std::string msg = " in initializeWellState.";
+            OpmLog::debug(msg);
+        }
 
         this->wellState().init(cellPressures, cellTemperatures, this->schedule(), this->wells_ecl_,
                                this->local_parallel_well_info_, timeStepIdx,
