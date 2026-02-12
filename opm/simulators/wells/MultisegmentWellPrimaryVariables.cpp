@@ -200,7 +200,7 @@ updateNewton(const BVectorWell& dwells,
         // update the total rate // TODO: should we have a limitation of the total rate change?
         {
             auto dx = relaxation_factor * dwells[seg][WQTotal];
-            if (this->well_.name() == "E6EYH") {
+            if (this->well_.name() == "X13CYH") {
                 const Scalar sign = dx > 0.? 1. : -1.;
                 dx = sign * std::max(std::min(1., std::abs(dx)), 0.4 * std::abs(dx));
             }
@@ -222,7 +222,7 @@ updateNewton(const BVectorWell& dwells,
         value_[0][WQTotal] = 0.;
     }
 
-    if (this->well_.name() == "E6EYH") {
+    if (this->well_.name() == "X13CYH") {
         // outputting the update of the primary variables for well E6EYH for debugging purpose
         std::string msg = " Well name : " + this->well_.name() + " primary variable updates: \n";
         for (std::size_t seg = 0; seg < value_.size(); ++seg) {
