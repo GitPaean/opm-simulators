@@ -169,11 +169,18 @@ namespace Opm
     template <typename TypeTag>
     void
     MultisegmentWell<TypeTag>::
-    scaleSegmentRatesAndPressure(WellStateType& well_state) const
+    scaleSegmentRatesAndPressure(WellStateType& well_state, DeferredLogger& deferred_logger) const
     {
+        {
+            const std::string msg = fmt::format("Scaling segment rates and pressures for well {} with bhp {} and well rates {}",
+                                    this->name(),
+                                    well_state.well(this->index_of_well_).bhp/1.e5,
+                                    fmt::join(well_state.well(this->index_of_well_).surface_rates, ","));
+        }
         this->scaleSegmentRatesWithWellRates(this->segments_.inlets(),
                                              this->segments_.perforations(),
-                                             well_state);
+                                             well_state,
+                                             deferred_logger);
         this->scaleSegmentPressuresWithBhp(well_state);
     }
 
@@ -189,7 +196,8 @@ namespace Opm
         // and segment pressure based on bhp
         this->scaleSegmentRatesWithWellRates(this->segments_.inlets(),
                                              this->segments_.perforations(),
-                                             well_state);
+                                             well_state,
+                                             groupStateHelper.deferredLogger());
         this->scaleSegmentPressuresWithBhp(well_state);
     }
 
@@ -460,7 +468,8 @@ namespace Opm
         }
         well_copy.scaleSegmentRatesWithWellRates(this->segments_.inlets(),
                                                  this->segments_.perforations(),
-                                                 well_state_copy);
+                                                 well_state_copy,
+                                                 groupStateHelper_copy.deferredLogger());
 
         well_copy.calculateExplicitQuantities(simulator, groupStateHelper_copy);
         const double dt = simulator.timeStepSize();
@@ -579,7 +588,8 @@ namespace Opm
         }
         well_copy.scaleSegmentRatesWithWellRates(this->segments_.inlets(),
                                                  this->segments_.perforations(),
-                                                 well_state_copy);
+                                                 well_state_copy,
+                                                 groupStateHelper_copy.deferredLogger());
 
         well_copy.calculateExplicitQuantities(simulator, groupStateHelper_copy);
         const double dt = simulator.timeStepSize();

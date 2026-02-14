@@ -223,7 +223,7 @@ public:
                                            const GroupStateHelperType& groupStateHelper,
                                            WellStateType& well_state) const;
 
-    virtual void scaleSegmentRatesAndPressure(WellStateType& well_state) const;
+    virtual void scaleSegmentRatesAndPressure(WellStateType& well_state, DeferredLogger& deferred_logger) const;
 
     virtual void computeWellRatesWithBhpIterations(const Simulator& simulator,
                                                    const Scalar& bhp,

@@ -567,7 +567,7 @@ namespace Opm {
 
                 if (event || dyn_status_change) {
                     try {
-                        well->scaleSegmentRatesAndPressure(this->wellState());
+                        well->scaleSegmentRatesAndPressure(this->wellState(), this->groupStateHelper().deferredLogger());
                         well->calculateExplicitQuantities(simulator_, this->groupStateHelper());
                         well->updateWellStateWithTarget(simulator_, this->groupStateHelper(), this->wellState());
                         well->updatePrimaryVariables(this->groupStateHelper());

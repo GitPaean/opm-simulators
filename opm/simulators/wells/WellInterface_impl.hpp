@@ -423,7 +423,7 @@ namespace Opm
         // We test the well as an open well during the well testing
         ws.open();
 
-        scaleSegmentRatesAndPressure(well_state_copy);
+        scaleSegmentRatesAndPressure(well_state_copy, deferred_logger);
         calculateExplicitQuantities(simulator, groupStateHelper_copy);
         updatePrimaryVariables(groupStateHelper_copy);
 
@@ -1289,7 +1289,7 @@ namespace Opm
     template<typename TypeTag>
     void
     WellInterface<TypeTag>::
-    scaleSegmentRatesAndPressure([[maybe_unused]] WellStateType& well_state) const
+    scaleSegmentRatesAndPressure([[maybe_unused]] WellStateType& well_state, DeferredLogger& deferred_logger) const
     {
         // only relevant for MSW
     }

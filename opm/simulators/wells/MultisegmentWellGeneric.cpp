@@ -54,7 +54,8 @@ void
 MultisegmentWellGeneric<Scalar, IndexTraits>::
 scaleSegmentRatesWithWellRates(const std::vector<std::vector<int>>& segment_inlets,
                                const std::vector<std::vector<int>>& segment_perforations,
-                               WellState<Scalar, IndexTraits>& well_state) const
+                               WellState<Scalar, IndexTraits>& well_state,
+                               DeferredLogger& deferred_logger) const
 {
     auto& ws = well_state.well(baseif_.indexOfWell());
     auto& segments = ws.segments;
@@ -98,6 +99,14 @@ scaleSegmentRatesWithWellRates(const std::vector<std::vector<int>>& segment_inle
                 segment_rates[baseif_.numPhases() * seg + phase] = rates[seg];
             }
         }
+    }
+    constexpr Scalar zero_tol = 1e-12;
+    const bool all_zero = std::all_of(segment_rates.begin(), segment_rates.end(),
+[](const Scalar v) { return std::abs(v) <= zero_tol; });
+    if (all_zero) {
+        const std::string msg = fmt::format("Well {}: all segment rates are CLOSE to zero after scaling with well rates. segment_rates: {}\n",
+                                        baseif_.name(), fmt::join(segment_rates, ","));
+        deferred_logger.debug(msg);
     }
 }
 
