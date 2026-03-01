@@ -1980,7 +1980,7 @@ namespace Opm
                             }
                         }
 
-                        if (cq_r_thermal > 0.0) {
+                        if (cq_r_thermal >= 0.0) {
                             // injecting connection: fluid flows from wellbore into reservoir
                             // use segment (wellbore) fluid properties for enthalpy and density
                             energy_flux += cq_r_thermal * seg_fs.enthalpy(phaseIdx) * seg_fs.density(phaseIdx);
@@ -2000,6 +2000,8 @@ namespace Opm
                                               MSWEval::PrimaryVariables::Temperature,
                                               energy_flux,
                                               this->linSys_);
+
+                    std::cout << " well " << this->name() << " assembling energy equation for segment " << seg << " with energy flux " << energy_flux << "\n";
 //                    this->linSys_.printSystem("after energy assembly for perf " + std::to_string(perf) + " with energy flux " + std::to_string(energy_flux.value()), std::cout);
  //                   std::cout << std::endl;
                 }
@@ -2046,6 +2048,8 @@ namespace Opm
                                 assembleAccumulationTerm(seg, MSWEval::PrimaryVariables::Temperature, accumulation_term_energy, this->linSys_);
                     // this->linSys_.printSystem("after energy assembly for accmulation term for seg " + std::to_string(seg), std::cout);
                     // std::cout << std::endl;
+                    std::cout << " well " << this->name() << " assembling accumulation term for energy equation for segment " << seg << " with segment energy " << segment_energy << " initial segment energy " <<
+                        this->segment_initial_energy_[seg] << " and accumulation term " << accumulation_term_energy << "\n";
                 }
             }
             // considering the contributions due to flowing out from the segment
@@ -2086,15 +2090,15 @@ namespace Opm
                         // TODO: we are not considering the effect of dissolution and vaporization yet,
                         // which needs further investigation.
                         // TODO: not sure whether the derivatives are messed up here.
-                        energy_rate += segment_rate * upwind_fs.enthalpy(phaseIdx) * upwind_fs.density(phaseIdx)
+                        // energy_rate += segment_rate * upwind_fs.enthalpy(phaseIdx) * upwind_fs.density(phaseIdx)
+                        //                / upwind_fs.invB(phaseIdx);
+                      auto temp  = segment_rate * upwind_fs.enthalpy(phaseIdx) * upwind_fs.density(phaseIdx)
                                        / upwind_fs.invB(phaseIdx);
-//                      auto temp  = segment_rate * upwind_fs.enthalpy(phaseIdx) * upwind_fs.density(phaseIdx)
-//                                       / upwind_fs.invB(phaseIdx);
-//                        energy_rate += temp;
-//                        std::cout << " segment " << seg << " upwind segment " << seg_upwind << " phase " << phaseIdx
-//                                  << " segment_rate " << segment_rate.value() << " enthalpy " << upwind_fs.enthalpy(phaseIdx).value()
-//                                  << " density " << upwind_fs.density(phaseIdx).value() << " invB " << upwind_fs.invB(phaseIdx).value() << " temperature " << upwind_fs.temperature(phaseIdx).value()
-//                                  << " energy_rate contribution " << getValue(temp) << std::endl;
+                        energy_rate += temp;
+                        std::cout << " segment " << seg << " upwind segment " << seg_upwind << " phase " << phaseIdx
+                                  << " segment_rate " << segment_rate.value() << " enthalpy " << upwind_fs.enthalpy(phaseIdx).value()
+                                  << " density " << upwind_fs.density(phaseIdx).value() << " invB " << upwind_fs.invB(phaseIdx).value() << " temperature " << upwind_fs.temperature(phaseIdx).value()
+                                  << " energy_rate contribution " << getValue(temp) << std::endl;
                     }
                     // this->linSys_.printSystem("before energy assembly for assembleOutflowTerm term for seg " + std::to_string(seg), std::cout);
                     MultisegmentWellAssemble(*this).
@@ -2141,16 +2145,16 @@ namespace Opm
                             // TODO: not considering the effect of dissolution and vaporization yet,
                             // which needs further investigation.
                             // TODO: not sure whether the derivatives are messed up here.
-                            energy_rate += inlet_rate * upwind_fs.enthalpy(phaseIdx) * upwind_fs.density(phaseIdx)
+                            // energy_rate += inlet_rate * upwind_fs.enthalpy(phaseIdx) * upwind_fs.density(phaseIdx)
+                            //                / upwind_fs.invB(phaseIdx);
+                            auto temp = inlet_rate * upwind_fs.enthalpy(phaseIdx) * upwind_fs.density(phaseIdx)
                                            / upwind_fs.invB(phaseIdx);
-//                            auto temp = inlet_rate * upwind_fs.enthalpy(phaseIdx) * upwind_fs.density(phaseIdx)
-//                                           / upwind_fs.invB(phaseIdx);
-//                            energy_rate += temp;
+                            energy_rate += temp;
 
-//                            std::cout << " inlet " << inlet << " upwind segment " << inlet_upwind << " phase " << phaseIdx
-//                                      << " inlet_rate " << inlet_rate.value() << " enthalpy " << upwind_fs.enthalpy(phaseIdx).value()
-//                                      << " density " << upwind_fs.density(phaseIdx).value() << " invB " << upwind_fs.invB(phaseIdx).value() << " temperature " << upwind_fs.temperature(phaseIdx).value()
-//                                      << " energy_rate contribution " << getValue(temp) << std::endl;
+                            std::cout << " inlet " << inlet << " upwind segment " << inlet_upwind << " phase " << phaseIdx
+                                      << " inlet_rate " << inlet_rate.value() << " enthalpy " << upwind_fs.enthalpy(phaseIdx).value()
+                                      << " density " << upwind_fs.density(phaseIdx).value() << " invB " << upwind_fs.invB(phaseIdx).value() << " temperature " << upwind_fs.temperature(phaseIdx).value()
+                                      << " energy_rate contribution " << getValue(temp) << std::endl;
                         }
                         // this->linSys_.printSystem("before energy assembly for assembleInflowTerm term for seg " + std::to_string(seg), std::cout);
                         MultisegmentWellAssemble(*this).
