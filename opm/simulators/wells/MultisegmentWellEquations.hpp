@@ -129,6 +129,11 @@ public:
     //! \brief Sum with off-process contribution.
     void sumDistributed(Parallel::Communication comm);
 
+    //! \brief Print the D matrix and residual for debugging.
+    //! \param name Well name for identification in output
+    //! \param out Output stream (defaults to std::cout)
+    void printSystem(const std::string& name, std::ostream& out) const;
+
     //! \brief Returns a const reference to the residual.
     const BVectorWell& residual() const
     {

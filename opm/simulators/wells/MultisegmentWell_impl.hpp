@@ -1919,7 +1919,9 @@ namespace Opm
                     this->connectionRates_[local_perf_index][comp_idx] = Base::restrictEval(cq_s_effective);
 
                     MultisegmentWellAssemble(*this).
-                        assemblePerforationEq(seg, local_perf_index, comp_idx, cq_s_effective, this->linSys_);
+                        assemblePerforationEq(seg, local_perf_index, comp_idx, -cq_s_effective, this->linSys_);
+                    std::cout << " well " << this->name() << " seg " << seg << " perf " << perf << " comp_idx " << comp_idx << " cq_s_effective " << cq_s_effective.value() << std::endl;
+                    this->linSys_.printSystem(this->name() + "after peroration equation", std::cout);
                 }
             }
         }
@@ -1949,6 +1951,9 @@ namespace Opm
                                                      - segment_fluid_initial_[seg][comp_idx]) / dt;
                     MultisegmentWellAssemble(*this).
                         assembleAccumulationTerm(seg, comp_idx, accumulation_term, this->linSys_);
+                    std::cout << " well " << this->name() << " seg " << seg << " comp_idx " << comp_idx << " current fluid " << getValue(segment_surface_volume * this->primary_variables_.surfaceVolumeFraction(seg, comp_idx))
+                    << " initial fluid " << segment_fluid_initial_[seg][comp_idx] << " accumulation_term " << accumulation_term.value() << std::endl;
+                    this->linSys_.printSystem(this->name() + "after assembling accumulation term ", std::cout);
                 }
             }
             // considering the contributions due to flowing out from the segment
@@ -1961,7 +1966,9 @@ namespace Opm
                                                                          comp_idx) *
                         this->well_efficiency_factor_;
                     MultisegmentWellAssemble(*this).
-                        assembleOutflowTerm(seg, seg_upwind, comp_idx, segment_rate, this->linSys_);
+                        assembleOutflowTerm(seg, seg_upwind, comp_idx, -segment_rate, this->linSys_);
+                    std::cout << " well " << this->name() << " seg " << seg << " seg_upwind " << seg_upwind << " comp_idx " << comp_idx << " segment_rate " << segment_rate.value() << std::endl;
+                    this->linSys_.printSystem(this->name() + "after assembling term Outflow term ", std::cout);
                 }
             }
 
@@ -1976,7 +1983,9 @@ namespace Opm
                                                                              comp_idx) *
                             this->well_efficiency_factor_;
                         MultisegmentWellAssemble(*this).
-                            assembleInflowTerm(seg, inlet, inlet_upwind, comp_idx, inlet_rate, this->linSys_);
+                            assembleInflowTerm(seg, inlet, inlet_upwind, comp_idx, -inlet_rate, this->linSys_);
+                        std::cout << " well " << this->name() << " seg " << seg << " inlet " << inlet << " inlet_upwind " << inlet_upwind << " comp_idx " << comp_idx << " inlet_rate " << inlet_rate.value() << std::endl;
+                        this->linSys_.printSystem(this->name() + "after assembling term Inflow term ", std::cout);
                     }
                 }
             }
@@ -2010,6 +2019,7 @@ namespace Opm
                 this->assemblePressureEq(seg, unit_system, well_state, summary_state, this->param_.use_average_density_ms_wells_, deferred_logger);
             }
         }
+        std::cout << std::endl << std::endl;
 
         this->parallel_well_info_.communication().sum(this->ipr_a_.data(), this->ipr_a_.size());
         this->linSys_.createSolver();
