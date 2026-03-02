@@ -224,8 +224,7 @@ assembleAccelerationTerm(const int seg_target,
     if constexpr (has_gfrac_variable) {
         eqns.D()[seg_target][seg_upwind][SPres][GFrac] -= accelerationTerm.derivative(GFrac + Indices::numEq);
     }
-    assert(std::abs(accelerationTerm.derivative(Temperature + Indices::numEq)) < 1.e-14);
-    // TODO: should the derivative of the temperature comes here?
+    assert(std::abs(accelerationTerm.derivative(Temperature + Indices::numEq)) < 1.e-14); // TODO: for debugging
 }
 
 template<class FluidSystem, class Indices>
@@ -263,6 +262,7 @@ assemblePressureEqExtraDerivatives(const int seg,
     // Frac - derivatives are zero (they belong to upwind^2)
     eqns.D()[seg][seg_upwind][SPres][SPres] += extra_derivatives.derivative(SPres + Indices::numEq);
     eqns.D()[seg][seg_upwind][SPres][WQTotal] += extra_derivatives.derivative(WQTotal + Indices::numEq);
+    assert(std::abs(extra_derivatives.derivative(Temperature + Indices::numEq)) < 1.e-14); // TODO: for debugging
 }
 
 
@@ -288,7 +288,7 @@ assemblePressureEq(const int seg,
     if constexpr (has_gfrac_variable) {
         eqns.D()[seg][seg_upwind][SPres][GFrac] += pressure_equation.derivative(GFrac + Indices::numEq);
     }
-    assert(std::abs(pressure_equation.derivative(Temperature + Indices::numEq)) < 1.e-14);
+    assert(std::abs(pressure_equation.derivative(Temperature + Indices::numEq)) < 1.e-14); // TODO: for debugging
 
     // contribution from the outlet segment
     eqns.residual()[seg][SPres] -= outlet_pressure.value();
@@ -310,6 +310,7 @@ assembleTrivialEq(const int seg,
         and assembleICDPressureEq is responsible for the remaining segments.
         This method does *not* need communication.
     */
+    assert(false); // TODO: for debugging
     MultisegmentWellEquationAccess<Scalar,IndexTraits,numWellEq,Indices::numEq> eqns(eqns1);
     eqns.residual()[seg][SPres] = value;
     eqns.D()[seg][seg][SPres][WQTotal] = 1.;
@@ -386,12 +387,11 @@ assembleInflowTerm(const int seg,
     }
 
     // energy flow might have a derivative of the pressure
+    // TODO: with the energy equation join, there will be more derivatives and we need to consider them as well
     if constexpr (has_temperature) {
         eqns.D()[seg][inlet_upwind][comp_idx][SPres] += inlet_rate.derivative(SPres + Indices::numEq);
         eqns.D()[seg][inlet_upwind][comp_idx][Temperature] += inlet_rate.derivative(Temperature + Indices::numEq);
     }
-    // TODO: with the energy equation join, there will be more derivatives and we need to consider them as well
-    // pressure derivative should be zero
 }
 
 template<class FluidSystem, class Indices>

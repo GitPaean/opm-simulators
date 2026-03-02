@@ -766,6 +766,7 @@ namespace Opm
         computePerfCellPressDiffs(simulator);
 
         // TODO: not sure whether should put here
+        // this should be done for each iteration
         updateSegmentFluidState();
 
         computeInitialSegmentFluids(simulator, deferred_logger);
