@@ -2094,11 +2094,17 @@ namespace Opm
 //                                  << " density " << upwind_fs.density(phaseIdx).value() << " invB " << upwind_fs.invB(phaseIdx).value() << " temperature " << upwind_fs.temperature(phaseIdx).value()
 //                                  << " energy_rate contribution " << getValue(temp) << std::endl;
                     }
-                    // this->linSys_.printSystem("before energy assembly for assembleOutflowTerm term for seg " + std::to_string(seg), std::cout);
+                    // For injectors, zero the WQTotal derivative in the energy rate
+                    // to decouple the energy equation from the mass equation.
+                    // Without this, the strong Jacobian coupling D[seg][seg][Temperature][WQTotal]
+                    // causes the mass residual to dominate the temperature Newton correction,
+                    // driving the segment temperature in the wrong direction when the mass rates
+                    // haven't converged yet.
+                    if (this->isInjector()) {
+                        energy_rate.setDerivative(MSWEval::PrimaryVariables::WQTotal + Indices::numEq, 0.0);
+                    }
                     MultisegmentWellAssemble(*this).
                         assembleOutflowTerm(seg, seg_upwind, MSWEval::PrimaryVariables::Temperature, energy_rate, this->linSys_);
-                    // this->linSys_.printSystem("after energy assembly for assembleOutflowTerm term for seg " + std::to_string(seg), std::cout);
-                    // std::cout << std::endl;
                 }
             }
 
@@ -2150,11 +2156,14 @@ namespace Opm
 //                                      << " density " << upwind_fs.density(phaseIdx).value() << " invB " << upwind_fs.invB(phaseIdx).value() << " temperature " << upwind_fs.temperature(phaseIdx).value()
 //                                      << " energy_rate contribution " << getValue(temp) << std::endl;
                         }
-                        // this->linSys_.printSystem("before energy assembly for assembleInflowTerm term for seg " + std::to_string(seg), std::cout);
+                        // For injectors, zero the WQTotal derivative in the energy rate
+                        // to decouple the energy equation from the mass equation (same
+                        // reasoning as for the outflow term above).
+                        if (this->isInjector()) {
+                            energy_rate.setDerivative(MSWEval::PrimaryVariables::WQTotal + Indices::numEq, 0.0);
+                        }
                         MultisegmentWellAssemble(*this).
                             assembleInflowTerm(seg, inlet, inlet_upwind, MSWEval::PrimaryVariables::Temperature, energy_rate, this->linSys_);
-                        // this->linSys_.printSystem("after energy assembly for assembleInflowTerm term for seg " + std::to_string(seg), std::cout);
-                        // std::cout << std::endl;
                     }
                 }
             }
