@@ -51,7 +51,7 @@ class MultisegmentWellAssemble
     static constexpr int WFrac = PrimaryVariables::WFrac;
     static constexpr int GFrac = PrimaryVariables::GFrac;
     static constexpr int SPres = PrimaryVariables::SPres;
-    static constexpr int Temperature = SPres + 1; // for the tempearture
+    static constexpr int Temperature = PrimaryVariables::Temperature;
 
 public:
     static constexpr int numWellEq = Indices::numPhases + 1 + has_temperature;
