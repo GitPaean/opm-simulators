@@ -475,7 +475,7 @@ getFiniteWellResiduals(const std::vector<Scalar>& B_avg,
 
     // handling the control equation residual
     {
-        const Scalar control_residual = std::abs(linSys_.residual()[0][numWellEq - 1]);
+        const Scalar control_residual = std::abs(linSys_.residual()[0][SPres]);
         if (std::isnan(control_residual) || std::isinf(control_residual)) {
            deferred_logger.debug(fmt::format("nan or inf value for control residual for well {}", baseif_.name()));
            return {false, residuals};
@@ -567,7 +567,7 @@ getResidualMeasureValue(const WellState<Scalar, IndexTraits>& well_state,
     const Scalar rate_tolerance = tolerance_wells;
     [[maybe_unused]] int count = 0;
     Scalar sum = 0;
-    for (int eq_idx = 0; eq_idx < numWellEq - 1; ++eq_idx) {
+    for (int eq_idx = 0; eq_idx < SPres; ++eq_idx) {
         if (residuals[eq_idx] > rate_tolerance) {
             sum += residuals[eq_idx] / rate_tolerance;
             ++count;
@@ -584,8 +584,8 @@ getResidualMeasureValue(const WellState<Scalar, IndexTraits>& well_state,
                                                          tolerance_wells,
                                                          tolerance_pressure_ms_wells,
                                                          deferred_logger);
-    if (residuals[SPres + 1] > control_tolerance) {
-        sum += residuals[SPres + 1] / control_tolerance;
+    if (residuals[numWellEq] > control_tolerance) {
+        sum += residuals[numWellEq] / control_tolerance;
         ++count;
     }
 

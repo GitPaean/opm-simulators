@@ -1992,17 +1992,14 @@ namespace Opm
                         }
                     }
                     energy_flux *= this->well_efficiency_factor_;
-                    // TODO: double check the indices here. Tempeature or contiEnergyEqIdx
                     this->connectionRates_[local_perf_index][Indices::contiEnergyEqIdx]= Base::restrictEval(energy_flux);
-//                    this->linSys_.printSystem("before energy assembly for perf " + std::to_string(perf) + " with energy flux " + std::to_string(energy_flux.value()), std::cout);
 
                     MultisegmentWellAssemble(*this).
                         assemblePerforationEq(seg, local_perf_index,
                                               MSWEval::PrimaryVariables::Temperature,
                                               energy_flux,
-                                              this->linSys_);
-//                    this->linSys_.printSystem("after energy assembly for perf " + std::to_string(perf) + " with energy flux " + std::to_string(energy_flux.value()), std::cout);
- //                   std::cout << std::endl;
+                                              this->linSys_,
+                                              Indices::contiEnergyEqIdx);
                 }
             }
         }

@@ -129,11 +129,14 @@ public:
                             Equations& eqns) const;
 
     //! \brief Assemble equation for a perforation.
+    //! \param cell_eq_idx Reservoir equation index for B/C matrices.
+    //!        When -1, comp_idx is used (valid when well and reservoir indices match).
     void assemblePerforationEq(const int seg,
                                const int local_perf_index,
                                const int comp_idx,
                                const EvalWell& cq_s_effective,
-                               Equations& eqns) const;
+                               Equations& eqns,
+                               const int cell_eq_idx = -1) const;
 
 private:
     const WellInterfaceIndices<FluidSystem,Indices>& well_; //!< Reference to well

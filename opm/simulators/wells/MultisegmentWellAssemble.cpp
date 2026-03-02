@@ -310,7 +310,6 @@ assembleTrivialEq(const int seg,
         and assembleICDPressureEq is responsible for the remaining segments.
         This method does *not* need communication.
     */
-    assert(false); // TODO: for debugging
     MultisegmentWellEquationAccess<Scalar,IndexTraits,numWellEq,Indices::numEq> eqns(eqns1);
     eqns.residual()[seg][SPres] = value;
     eqns.D()[seg][seg][SPres][WQTotal] = 1.;
@@ -400,7 +399,8 @@ assemblePerforationEq(const int seg,
                       const int local_perf_index,
                       const int comp_idx,
                       const EvalWell& cq_s_effective,
-                      Equations& eqns1) const
+                      Equations& eqns1,
+                      const int cell_eq_idx) const
 {
     /*
         This method is called from MultisegmentWell::assembleWellEqWithoutIteration.
@@ -408,6 +408,11 @@ assemblePerforationEq(const int seg,
         and after calling this function, the diagonal of the matrix D and the residual need to be combined by calling
         the function MultisegmentWellEquations::sumDistributed.
     */
+    // comp_idx is the well equation index (used for residual and D matrix).
+    // reservoir_eq_idx is the reservoir equation index (used for B and C matrices).
+    // For mass equations these are the same; for energy they differ.
+    const int reservoir_eq_idx = cell_eq_idx >= 0 ? cell_eq_idx : comp_idx;
+
     MultisegmentWellEquationAccess<Scalar,IndexTraits,numWellEq,Indices::numEq> eqns(eqns1);
     // subtract sum of phase fluxes in the well equations.
     eqns.residual()[seg][comp_idx] += cq_s_effective.value();
@@ -415,7 +420,7 @@ assemblePerforationEq(const int seg,
     // assemble the jacobians
     for (int pv_idx = 0; pv_idx < numWellEq; ++pv_idx) {
         // also need to consider the efficiency factor when manipulating the jacobians.
-        eqns.C()[seg][local_perf_index][pv_idx][comp_idx] -= cq_s_effective.derivative(pv_idx + Indices::numEq); // input in transformed matrix
+        eqns.C()[seg][local_perf_index][pv_idx][reservoir_eq_idx] -= cq_s_effective.derivative(pv_idx + Indices::numEq); // input in transformed matrix
 
         // the index name for the D should be eq_idx / pv_idx
         eqns.D()[seg][seg][comp_idx][pv_idx] += cq_s_effective.derivative(pv_idx + Indices::numEq);
