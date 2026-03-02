@@ -310,6 +310,7 @@ assembleTrivialEq(const int seg,
         and assembleICDPressureEq is responsible for the remaining segments.
         This method does *not* need communication.
     */
+    assert(false); // TODO: for debugging
     MultisegmentWellEquationAccess<Scalar,IndexTraits,numWellEq,Indices::numEq> eqns(eqns1);
     eqns.residual()[seg][SPres] = value;
     eqns.D()[seg][seg][SPres][WQTotal] = 1.;
@@ -416,6 +417,7 @@ assemblePerforationEq(const int seg,
     MultisegmentWellEquationAccess<Scalar,IndexTraits,numWellEq,Indices::numEq> eqns(eqns1);
     // subtract sum of phase fluxes in the well equations.
     eqns.residual()[seg][comp_idx] += cq_s_effective.value();
+    const int adjust = (comp_idx < Indices::numEq) ? 0 : -1;
 
     // assemble the jacobians
     for (int pv_idx = 0; pv_idx < numWellEq; ++pv_idx) {
