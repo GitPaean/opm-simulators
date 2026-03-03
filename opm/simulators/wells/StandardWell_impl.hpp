@@ -631,10 +631,6 @@ namespace Opm
             perf_data.phase_mixing_rates[perf][ws.vaporized_water] = perf_rates.vap_wat;
         }
 
-        if constexpr (has_energy) {
-            // energy is handled during assembly in assembleWellEqWithoutIterationImpl
-        }
-
         if constexpr (has_polymer) {
             std::variant<Scalar,EvalWell> polymerConcentration;
             if (this->isInjector()) {
