@@ -434,6 +434,86 @@ namespace Opm
                                     this->primary_variables_.numWellEq(),
                                     this->linSys_);
             }
+
+            // assembling the energy equation for the perforation if needed
+            if constexpr (has_energy) {
+                const int cell_idx = this->well_cells_[perf];
+                const auto& intQuants = simulator.model().intensiveQuantities(cell_idx, /*timeIdx=*/ 0);
+                const auto& fs = intQuants.fluidState();
+
+                EvalWell energy_flux(0.0);
+                for (unsigned phaseIdx = 0; phaseIdx < FluidSystem::numPhases; ++phaseIdx) {
+                    if (!FluidSystem::phaseIsActive(phaseIdx)) {
+                        continue;
+                    }
+
+                    // convert surface rate to reservoir volumetric rate
+                    EvalWell cq_r_thermal(0.0);
+                    const unsigned activeCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::solventComponentIndex(phaseIdx));
+                    const bool both_oil_gas = FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx) && FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx);
+                    if (!both_oil_gas || FluidSystem::waterPhaseIdx == phaseIdx) {
+                        cq_r_thermal = cq_s[activeCompIdx] / this->extendEval(fs.invB(phaseIdx));
+                    } else {
+                        // remove dissolved gas and vaporized oil
+                        const unsigned oilCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::oilCompIdx);
+                        const unsigned gasCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::gasCompIdx);
+                        const EvalWell d = this->extendEval(1.0 - fs.Rv() * fs.Rs());
+                        if (d <= 0.0) {
+                            deferred_logger.debug(
+                                fmt::format("Problematic d value {} obtained for well {}"
+                                            " during energy assembly with rs {}"
+                                            ", rv {}. Continue as if no dissolution (rs = 0) and"
+                                            " vaporization (rv = 0) for this connection.",
+                                            d, this->name(), fs.Rs(), fs.Rv()));
+                            cq_r_thermal = cq_s[activeCompIdx] / this->extendEval(fs.invB(phaseIdx));
+                        } else {
+                            if (FluidSystem::gasPhaseIdx == phaseIdx) {
+                                cq_r_thermal = (cq_s[gasCompIdx] -
+                                                this->extendEval(fs.Rs()) * cq_s[oilCompIdx]) /
+                                                (d * this->extendEval(fs.invB(phaseIdx)));
+                            } else if (FluidSystem::oilPhaseIdx == phaseIdx) {
+                                cq_r_thermal = (cq_s[oilCompIdx] -
+                                                this->extendEval(fs.Rv()) * cq_s[gasCompIdx]) /
+                                                (d * this->extendEval(fs.invB(phaseIdx)));
+                            }
+                        }
+                    }
+
+                    if (this->isInjector() && !this->wellIsStopped() && cq_r_thermal > 0.0) {
+                        // injecting connection: use injection temperature for enthalpy/density
+                        auto fs_copy = fs;
+                        fs_copy.setTemperature(this->well_ecl_.inj_temperature());
+                        typedef typename std::decay<decltype(fs_copy)>::type::Scalar FsScalar;
+                        typename FluidSystem::template ParameterCache<FsScalar> paramCache;
+                        const unsigned pvtRegionIdx = intQuants.pvtRegionIndex();
+                        paramCache.setRegionIndex(pvtRegionIdx);
+                        paramCache.updatePhase(fs_copy, phaseIdx);
+                        const auto& rho = FluidSystem::density(fs_copy, paramCache, phaseIdx);
+                        fs_copy.setDensity(phaseIdx, rho);
+                        const auto& h = FluidSystem::enthalpy(fs_copy, paramCache, phaseIdx);
+                        fs_copy.setEnthalpy(phaseIdx, h);
+                        energy_flux += cq_r_thermal * this->extendEval(fs_copy.enthalpy(phaseIdx))
+                                       * this->extendEval(fs_copy.density(phaseIdx));
+                    } else {
+                        // producing connection or non-injecting: use reservoir fluid properties
+                        energy_flux += cq_r_thermal * this->extendEval(fs.enthalpy(phaseIdx))
+                                       * this->extendEval(fs.density(phaseIdx));
+                    }
+                }
+
+                energy_flux *= this->well_efficiency_factor_;
+                connectionRates[perf][Indices::contiEnergyEqIdx] = Base::restrictEval(energy_flux);
+                ws.energy_rate += getValue(energy_flux);
+
+                // Assemble energy equation into the well equation system
+                StandardWellAssemble<FluidSystem,Indices>(*this).
+                    assemblePerforationEqEnergy(energy_flux,
+                                                StdWellEval::Temperature,
+                                                Indices::contiEnergyEqIdx,
+                                                perf,
+                                                this->primary_variables_.numWellEq(),
+                                                this->linSys_);
+            }
         }
         // Update the connection
         this->connectionRates_ = connectionRates;
@@ -552,9 +632,7 @@ namespace Opm
         }
 
         if constexpr (has_energy) {
-            connectionRates[perf][Indices::contiEnergyEqIdx] =
-                connectionRateEnergy(cq_s, intQuants, deferred_logger);
-            ws.energy_rate += getValue(connectionRates[perf][Indices::contiEnergyEqIdx]);
+            // energy is handled during assembly in assembleWellEqWithoutIterationImpl
         }
 
         if constexpr (has_polymer) {

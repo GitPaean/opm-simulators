@@ -235,6 +235,11 @@ update(const WellState<Scalar, IndexTraits>& well_state,
         }
     }
 
+    // Temperature
+    if constexpr (enable_energy) {
+        value_[Temperature] = ws.temperature;
+    }
+
     // BHP
     value_[Bhp] = ws.bhp;
     setEvaluationsFromValues();
@@ -307,6 +312,14 @@ updateNewton(const BVectorWell& dwells,
         } else {
             value_[WQTotal] = std::min(value_[WQTotal], Scalar{0.0});
         }
+    }
+
+    // updating the temperature
+    if constexpr (enable_energy) {
+        const int sign = dwells[0][Temperature] > 0 ? 1 : -1;
+        constexpr Scalar max_temperature_change = 5.0;
+        const Scalar dx_limited = sign * std::min(std::abs(dwells[0][Temperature]), max_temperature_change);
+        value_[Temperature] = std::max(value_[Temperature] - dx_limited, Scalar{0.0});
     }
 
     // updating the bottom hole pressure
@@ -411,6 +424,11 @@ copyToWellState(WellState<Scalar, IndexTraits>& well_state,
     auto& ws = well_state.well(well_.indexOfWell());
     ws.primaryvar = value_;
     ws.bhp = value_[Bhp];
+
+    // update well temperature if thermal is active
+    if constexpr (enable_energy) {
+        ws.temperature = value_[Temperature];
+    }
 
     // calculate the phase rates based on the primary variables
     // for producers, this is not a problem, while not sure for injectors here

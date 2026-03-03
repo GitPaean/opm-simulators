@@ -135,6 +135,23 @@ getWellConvergence(const WellState<Scalar, IndexTraits>& well_state,
 
     }
 
+    // checking convergence of the energy equation
+    if constexpr (enable_energy) {
+        const Scalar energy_residual = res[Temperature];
+        const int dummy_component = -1;
+        const Scalar tolerance_energy_wells = 1.e-5;
+        const Scalar relaxed_tolerance_energy_wells = 1.e-4;
+        if (std::isnan(energy_residual)) {
+            report.setWellFailed({CR::WellFailure::Type::Energy, CR::Severity::NotANumber, dummy_component, baseif_.name()});
+        } else if (std::isinf(energy_residual)) {
+            report.setWellFailed({CR::WellFailure::Type::Energy, CR::Severity::TooLarge, dummy_component, baseif_.name()});
+        } else if (!relax_tolerance && energy_residual > tolerance_energy_wells) {
+            report.setWellFailed({CR::WellFailure::Type::Energy, CR::Severity::Normal, dummy_component, baseif_.name()});
+        } else if (energy_residual > relaxed_tolerance_energy_wells) {
+            report.setWellFailed({CR::WellFailure::Type::Energy, CR::Severity::Normal, dummy_component, baseif_.name()});
+        }
+    }
+
     WellConvergence(baseif_).
         checkConvergenceControlEq(well_state,
                                   {1.e3, 1.e4, 1.e-4, 1.e-6, maxResidualAllowed},
