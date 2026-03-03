@@ -317,7 +317,7 @@ updateNewton(const BVectorWell& dwells,
     // updating the temperature
     if constexpr (enable_energy) {
         const int sign = dwells[0][Temperature] > 0 ? 1 : -1;
-        constexpr Scalar max_temperature_change = 5.0;
+        constexpr Scalar max_temperature_change = 5.0; // Kelvin, same limit as MSW
         const Scalar dx_limited = sign * std::min(std::abs(dwells[0][Temperature]), max_temperature_change);
         value_[Temperature] = std::max(value_[Temperature] - dx_limited, Scalar{0.0});
     }
