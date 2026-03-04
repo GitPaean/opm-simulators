@@ -224,6 +224,34 @@ assemblePerforationEq(const EvalWell& cq_s_effective,
 
 template<class FluidSystem, class Indices>
 void StandardWellAssemble<FluidSystem,Indices>::
+assemblePerforationEqEnergy(const EvalWell& energy_flux,
+                            const int well_eq_idx,
+                            const int res_eq_idx,
+                            const int cell_idx,
+                            const int numWellEq,
+                            StandardWellEquationsType& eqns1) const
+{
+    StandardWellEquationAccess eqns(eqns1);
+
+    // subtract sum of energy fluxes in the well equations.
+    eqns.residual()[0][well_eq_idx] += energy_flux.value();
+
+    // assemble the jacobians
+    for (int pvIdx = 0; pvIdx < numWellEq; ++pvIdx) {
+        // C matrix: maps well primary variables to reservoir energy equation
+        eqns.C()[0][cell_idx][pvIdx][res_eq_idx] -= energy_flux.derivative(pvIdx+Indices::numEq);
+        // D matrix: maps well primary variables to well energy equation
+        eqns.D()[0][0][well_eq_idx][pvIdx] += energy_flux.derivative(pvIdx+Indices::numEq);
+    }
+
+    for (int pvIdx = 0; pvIdx < Indices::numEq; ++pvIdx) {
+        // B matrix: maps reservoir primary variables to well energy equation
+        eqns.B()[0][cell_idx][well_eq_idx][pvIdx] += energy_flux.derivative(pvIdx);
+    }
+}
+
+template<class FluidSystem, class Indices>
+void StandardWellAssemble<FluidSystem,Indices>::
 assembleSourceEq(const EvalWell& resWell_loc,
                  const int componentIdx,
                  const int numWellEq,

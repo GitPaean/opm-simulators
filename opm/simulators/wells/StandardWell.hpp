@@ -99,7 +99,7 @@ namespace Opm
         static constexpr int numWellControlEq = 1;
         // number of the well equations that will always be used
         // based on the solution strategy, there might be other well equations be introduced
-        static constexpr int numStaticWellEq = numWellConservationEq + numWellControlEq;
+        static constexpr int numStaticWellEq = numWellConservationEq + numWellControlEq + has_energy;
 
         // the index for Bhp in primary variables and also the index of well control equation
         // they both will be the last one in their respective system.

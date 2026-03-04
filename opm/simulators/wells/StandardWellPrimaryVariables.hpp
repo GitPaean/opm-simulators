@@ -66,9 +66,11 @@ public:
     //! \brief Number of the conservation equations.
     static constexpr int numWellConservationEq = Indices::numPhases + Indices::numSolvents;
 
+    static constexpr bool enable_energy = Indices::enableFullyImplicitThermal;
+
     //! \brief Number of the well equations that will always be used.
     //! \details Based on the solution strategy, there might be other well equations be introduced.
-    static constexpr int numStaticWellEq = numWellConservationEq + numWellControlEq;
+    static constexpr int numStaticWellEq = numWellConservationEq + numWellControlEq + enable_energy;
 
     static constexpr int WQTotal = 0; //!< The index for the weighted total rate
 
@@ -82,6 +84,8 @@ public:
     static constexpr int WFrac = has_wfrac_variable ? 1 : -1000;
     static constexpr int GFrac = has_gfrac_variable ? has_wfrac_variable + 1 : -1000;
     static constexpr int SFrac = !Indices::enableSolvent ? -1000 : has_wfrac_variable+has_gfrac_variable+1;
+    //! \brief Temperature is placed after conservation equations, before the control equation (Bhp).
+    static constexpr int Temperature = enable_energy ? numWellConservationEq : -1000;
 
     using Scalar = typename FluidSystem::Scalar;
     using IndexTraits = typename FluidSystem::IndexTraitsType;

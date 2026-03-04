@@ -80,6 +80,16 @@ public:
                                const int numWellEq,
                                StandardWellEquationsType& eqns) const;
 
+    //! \brief Assemble energy equation for a perforation.
+    //! \details Uses separate well equation index and reservoir equation index
+    //!          since they may differ for the energy equation.
+    void assemblePerforationEqEnergy(const EvalWell& energy_flux,
+                                     const int well_eq_idx,
+                                     const int res_eq_idx,
+                                     const int cell_idx,
+                                     const int numWellEq,
+                                     StandardWellEquationsType& eqns) const;
+
     //! \brief Assemble equation for Z fraction.
     void assembleZFracEq(const EvalWell& cq_s_zfrac_effective,
                          const int cell_idx,
