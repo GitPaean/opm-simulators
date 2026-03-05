@@ -505,7 +505,8 @@ protected:
    FluidState<ValueType>
    createFluidState(const std::vector<ValueType>& fluid_composition,
                     const ValueType& pressure,
-                    const ValueType& temperature) const;
+                    const ValueType& temperature,
+                    const Scalar saltConcentration = 0.0) const;
 };
 
 } // namespace Opm

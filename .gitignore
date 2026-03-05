@@ -51,3 +51,4 @@ python/sphinx_docs/docs/_build/
 /python/docker/wheelhouse*
 /python/docker/build*.log
 /python/docker/extracted_wheels/
+CMakeFiles/
