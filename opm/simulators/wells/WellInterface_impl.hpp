@@ -2370,7 +2370,14 @@ namespace Opm
                      const ValueType& temperature,
                      const Scalar saltConcentration) const
     {
-        return createBlackOilFluidState<TypeTag>(fluid_composition,
+        return createBlackOilFluidState<FluidSystem, Indices,
+                                         energyModuleType != EnergyModules::NoTemperature,
+                                         has_energy,
+                                         has_watVapor,
+                                         has_brine,
+                                         has_saltPrecip,
+                                         has_disgas_in_water,
+                                         Scalar>(fluid_composition,
                                                  pressure,
                                                  temperature,
                                                  saltConcentration,

@@ -23,9 +23,6 @@
 #define OPM_BLACKOIL_FLUID_STATE_UTILS_HPP
 
 #include <opm/material/fluidstates/BlackOilFluidState.hpp>
-#include <opm/material/thermal/EnergyModuleType.hpp>
-
-#include <opm/models/blackoil/blackoilproperties.hh>
 
 #include <fmt/format.h>
 
@@ -46,21 +43,31 @@ namespace Opm {
 /// and returns the fully-populated BlackOilFluidState.
 ///
 /// This is a general-purpose factory function that is not tied to any
-/// specific well or reservoir class — it only requires a TypeTag that
-/// exposes FluidSystem, Indices, and the standard BlackOil property flags.
+/// specific well or reservoir class. The template parameters mirror the
+/// boolean flags already present as template arguments of BlackOilFluidState,
+/// so callers can pass them directly without going through a TypeTag.
 ///
-/// \tparam TypeTag  OPM TypeTag that provides FluidSystem, Indices,
-///                  EnableBrine, EnergyModuleType, EnableVapwat, etc.
-/// \tparam ValueType  Scalar or Evaluation (AD) type for the computation.
+/// \tparam FluidSystem          The fluid-system type (e.g. BlackOilFluidSystem).
+///                               Used for all static fluid property lookups.
+/// \tparam Indices              Index traits type providing compositionSwitchIdx,
+///                               waterSwitchIdx, and numPhases.
+/// \tparam enableTemperature    Whether temperature storage is active.
+/// \tparam enableEnergy         Whether the full energy equation is active.
+/// \tparam enableEvaporation    Whether vaporized-water (Rvw) is active.
+/// \tparam enableBrine          Whether brine / salt-concentration is active.
+/// \tparam enableSaltPrecipitation  Whether salt precipitation is active.
+/// \tparam enableDisgasInWater  Whether dissolved-gas-in-water (Rsw) is active.
+/// \tparam Scalar               Floating-point scalar type for saltConcentration.
+/// \tparam ValueType            Scalar or Evaluation (AD) type for the computation.
 ///
 /// \param[in] fluid_composition  Surface-volume fractions, indexed by
 ///                               active component index.
 /// \param[in] pressure           Phase pressure (same for all phases;
 ///                               capillary pressure is neglected).
-/// \param[in] temperature        Fluid temperature (only used when the
-///                               energy equation is active).
+/// \param[in] temperature        Fluid temperature (only used when
+///                               enableTemperature is true).
 /// \param[in] saltConcentration  Brine salt concentration (only used when
-///                               brine support is enabled).
+///                               enableBrine is true).
 /// \param[in] pvtRegionIdx       PVT region index for fluid property
 ///                               table lookups.
 /// \param[in] name               Descriptive name used in error messages
@@ -68,47 +75,41 @@ namespace Opm {
 ///
 /// \returns A BlackOilFluidState with pressures, dissolution factors,
 ///          invB, saturations, densities (and enthalpies) populated.
-template <typename TypeTag, typename ValueType>
-auto createBlackOilFluidState(const std::vector<ValueType>& fluid_composition,
-                               const ValueType&              pressure,
-                               const ValueType&              temperature,
-                               GetPropType<TypeTag, Properties::Scalar> saltConcentration,
-                               int         pvtRegionIdx,
-                               std::string_view name = "")
+template <class FluidSystem,
+          class Indices,
+          bool enableTemperature,
+          bool enableEnergy,
+          bool enableEvaporation,
+          bool enableBrine,
+          bool enableSaltPrecipitation,
+          bool enableDisgasInWater,
+          typename Scalar,
+          typename ValueType>
+auto
+createBlackOilFluidState(const std::vector<ValueType>& fluid_composition,
+                          const ValueType&              pressure,
+                          const ValueType&              temperature,
+                          Scalar                        saltConcentration,
+                          int                           pvtRegionIdx,
+                          std::string_view              name = "")
 {
-    using FluidSystem = GetPropType<TypeTag, Properties::FluidSystem>;
-    using Indices     = GetPropType<TypeTag, Properties::Indices>;
-
-    static constexpr EnergyModules energyModuleType =
-        getPropValue<TypeTag, Properties::EnergyModuleType>();
-    static constexpr bool has_energy =
-        energyModuleType == EnergyModules::FullyImplicitThermal;
-    static constexpr bool has_brine =
-        getPropValue<TypeTag, Properties::EnableBrine>();
-    static constexpr bool has_watVapor =
-        getPropValue<TypeTag, Properties::EnableVapwat>();
-    static constexpr bool has_saltPrecip =
-        getPropValue<TypeTag, Properties::EnableSaltPrecipitation>();
-    static constexpr bool has_disgas_in_water =
-        getPropValue<TypeTag, Properties::EnableDisgasInWater>();
-
     using FluidState = BlackOilFluidState<ValueType,
                                           FluidSystem,
-                                          energyModuleType != EnergyModules::NoTemperature,
-                                          energyModuleType == EnergyModules::FullyImplicitThermal,
+                                          enableTemperature,
+                                          enableEnergy,
                                           Indices::compositionSwitchIdx >= 0,
-                                          has_watVapor,
-                                          has_brine,
-                                          has_saltPrecip,
-                                          has_disgas_in_water,
+                                          enableEvaporation,
+                                          enableBrine,
+                                          enableSaltPrecipitation,
+                                          enableDisgasInWater,
                                           Indices::numPhases>;
 
     FluidState fluid_state;
 
-    if constexpr (has_energy) {
+    if constexpr (enableTemperature) {
         fluid_state.setTemperature(temperature);
     }
-    if constexpr (has_brine) {
+    if constexpr (enableBrine) {
         fluid_state.setSaltConcentration(saltConcentration);
     }
 
@@ -312,7 +313,7 @@ auto createBlackOilFluidState(const std::vector<ValueType>& fluid_composition,
         paramCache.setRegionIndex(fluid_state.pvtRegionIndex());
         paramCache.updatePhase(fluid_state, phaseIdx);
         fluid_state.setDensity(phaseIdx, FluidSystem::density(fluid_state, paramCache, phaseIdx));
-        if constexpr (has_energy) {
+        if constexpr (enableEnergy) {
             fluid_state.setEnthalpy(phaseIdx,
                                     FluidSystem::enthalpy(fluid_state, paramCache, phaseIdx));
         }
