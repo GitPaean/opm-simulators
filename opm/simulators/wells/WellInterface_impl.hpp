@@ -2366,11 +2366,15 @@ namespace Opm
     WellInterface<TypeTag>::
     createFluidState(const std::vector<ValueType>& fluid_composition,
                      const ValueType& pressure,
-                     const ValueType& temperature) const
+                     const ValueType& temperature,
+                     const Scalar saltConcentration) const
     {
         FluidState<ValueType> fluid_state;
         if constexpr (has_energy) {
             fluid_state.setTemperature(temperature);
+        }
+        if constexpr (has_brine) {
+            fluid_state.setSaltConcentration(saltConcentration);
         }
         for (unsigned phaseIdx = 0; phaseIdx < FluidSystem::numPhases; ++phaseIdx) {
             if (!FluidSystem::phaseIsActive(phaseIdx)) {
