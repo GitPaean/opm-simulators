@@ -2382,6 +2382,7 @@ namespace Opm
         fluid_state.setPvtRegionIndex(this->pvtRegionIdx());
 
         const bool both_oil_gas = FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx) && FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx);
+        const bool both_water_gas = FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx) && FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx);
 
         const ValueType zero_value {0.};
         // let us handle the dissolution first
@@ -2420,10 +2421,31 @@ namespace Opm
                             fluid_state.setRv(zero_value);
                         }
                     }
+                    if constexpr (Indices::waterSwitchIdx >= 0) {
+                        if (both_water_gas && FluidSystem::enableVaporizedWater()) {
+                            const ValueType saturated_rvw = FluidSystem::saturatedVaporizationFactor(fluid_state, phaseIdx, fluid_state.pvtRegionIndex());
+                            const unsigned waterCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::solventComponentIndex(FluidSystem::waterPhaseIdx));
+                            const ValueType max_possible_rvw = fluid_composition[waterCompIdx] / fluid_composition[activeCompIdx];
+                            const ValueType rvw = std::min(saturated_rvw, max_possible_rvw);
+                            fluid_state.setRvw(rvw);
+                        } else {
+                            fluid_state.setRvw(zero_value);
+                        }
+                    }
                     break;
                 }
                 case FluidSystem::waterPhaseIdx: {
-                    // TODO: handle the water phase dissolution with gas later
+                    if constexpr (Indices::waterSwitchIdx >= 0) {
+                        if (both_water_gas && FluidSystem::enableDissolvedGasInWater()) {
+                            const ValueType saturated_rsw = FluidSystem::saturatedDissolutionFactor(fluid_state, phaseIdx, fluid_state.pvtRegionIndex());
+                            const unsigned gasCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::solventComponentIndex(FluidSystem::gasPhaseIdx));
+                            const ValueType max_possible_rsw = fluid_composition[gasCompIdx] / fluid_composition[activeCompIdx];
+                            const ValueType rsw = std::min(saturated_rsw, max_possible_rsw);
+                            fluid_state.setRsw(rsw);
+                        } else {
+                            fluid_state.setRsw(zero_value);
+                        }
+                    }
                     break;
                 }
                 default: {
@@ -2434,6 +2456,9 @@ namespace Opm
             fluid_state.setInvB(phaseIdx, inv_b);
         }
 
+        const bool both_water_gas_disgas = both_water_gas &&
+            (FluidSystem::enableDissolvedGasInWater() || FluidSystem::enableVaporizedWater());
+
         std::vector<ValueType> saturation (FluidSystem::numPhases, zero_value);
         ValueType total_saturation {0.0};
         // calculate the saturation for all the phases
@@ -2442,7 +2467,35 @@ namespace Opm
             if (!FluidSystem::phaseIsActive(phaseIdx)) {
                 continue;
             }
-            if (!both_oil_gas || FluidSystem::waterPhaseIdx == phaseIdx) {
+            const bool water_gas_disgas_phase = both_water_gas_disgas &&
+                (FluidSystem::waterPhaseIdx == phaseIdx || FluidSystem::gasPhaseIdx == phaseIdx);
+            if (water_gas_disgas_phase) {
+                // remove dissolved gas in water and vaporized water in gas
+                const unsigned waterCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::waterCompIdx);
+                const unsigned gasCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::gasCompIdx);
+                // q_ws = q_wr * b_w + rvw * q_gr * b_g
+                // q_gs = q_gr * b_g + rsw * q_wr * b_w
+                // q_wr = 1 / (b_w * d) * (q_ws - rvw * q_gs)
+                // q_gr = 1 / (b_g * d) * (q_gs - rsw * q_ws)
+                // d = 1.0 - rsw * rvw
+                const ValueType d = 1.0 - fluid_state.Rvw() * fluid_state.Rsw();
+                if (d <= 0.0) {
+                    throw std::logic_error(fmt::format("Problematic d value {} obtained for well {}"
+                                                       " during createFluidState with rsw {}"
+                                                       ", rvw {}.",
+                                                       d, this->name(), fluid_state.Rsw(), fluid_state.Rvw()));
+                }
+                if (FluidSystem::gasPhaseIdx == phaseIdx) {
+                    saturation[phaseIdx] = (fluid_composition[gasCompIdx] -
+                                             fluid_state.Rsw() * fluid_composition[waterCompIdx]) /
+                                            (d * fluid_state.invB(phaseIdx));
+                } else { // waterPhaseIdx
+                    saturation[phaseIdx] = (fluid_composition[waterCompIdx] -
+                                             fluid_state.Rvw() * fluid_composition[gasCompIdx]) /
+                                            (d * fluid_state.invB(phaseIdx));
+                }
+                total_saturation += saturation[phaseIdx];
+            } else if (!both_oil_gas || FluidSystem::waterPhaseIdx == phaseIdx) {
                 const unsigned activeCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::solventComponentIndex(phaseIdx));
                 saturation[phaseIdx] = fluid_composition[activeCompIdx] / fluid_state.invB(phaseIdx);
             } else {
