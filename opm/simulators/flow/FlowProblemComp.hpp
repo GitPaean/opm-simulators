@@ -40,6 +40,12 @@
 #include <opm/material/thermal/EclThermalLawManager.hpp>
 
 #include <opm/input/eclipse/EclipseState/Compositional/CompositionalConfig.hpp>
+#include <opm/input/eclipse/EclipseState/Tables/RtempvdTable.hpp>
+#include <opm/input/eclipse/EclipseState/Tables/ZmfvdTable.hpp>
+
+#include <opm/material/common/Tabulated1DFunction.hpp>
+
+#include <opm/common/OpmLog/OpmLog.hpp>
 
 #include <algorithm>
 #include <functional>
@@ -84,6 +90,7 @@ class FlowProblemComp : public FlowProblem<TypeTag>
     using typename FlowProblemType::Evaluation;
     using typename FlowProblemType::MaterialLaw;
     using typename FlowProblemType::RateVector;
+    using typename FlowProblemType::TabulatedFunction;
 
     using InitialFluidState = CompositionalFluidState<Scalar, FluidSystem>;
     using EclWriterType = EclWriter<TypeTag, OutputCompositionalModule<TypeTag> >;
@@ -438,7 +445,348 @@ protected:
 
     void readEquilInitialCondition_() override
     {
-        throw std::logic_error("Equilibration is not supported by compositional modeling yet");
+        const auto& simulator = this->simulator();
+        const auto& vanguard = simulator.vanguard();
+        const auto& eclState = vanguard.eclState();
+        const auto& tables = eclState.getTableManager();
+        const auto eos_type = getEosType();
+        const Scalar grav = this->gravity_[dim - 1];
+        const auto& cellCenterDepths = vanguard.cellCenterDepths();
+        const std::size_t numDof = this->model().numGridDof();
+
+        initialFluidStates_.resize(numDof);
+
+        const bool water_active = FluidSystem::phaseIsActive(waterPhaseIdx);
+        const bool gas_active = FluidSystem::phaseIsActive(gasPhaseIdx);
+        const bool oil_active = FluidSystem::phaseIsActive(oilPhaseIdx);
+
+        // --- Temperature vs depth ---
+        const Scalar refTemp = tables.rtemp();
+        TabulatedFunction tempVdFunc;
+        if (tables.hasTables("RTEMPVD")) {
+            const auto& tempvdTables = tables.getRtempvdTables();
+            const auto& rtempvdTable = tempvdTables.template getTable<RtempvdTable>(0);
+            tempVdFunc.setXYContainers(rtempvdTable.getDepthColumn(),
+                                       rtempvdTable.getTemperatureColumn());
+        } else {
+            std::vector<Scalar> defaultDepths = {Scalar(0), Scalar(1e6)};
+            std::vector<Scalar> defaultTemps = {refTemp, refTemp};
+            tempVdFunc.setXYContainers(defaultDepths, defaultTemps);
+        }
+
+        // --- Overall composition vs depth ---
+        // If ZMFVD is present, create per-component interpolation tables;
+        // otherwise use uniform molar fractions as a default.
+        const bool hasZmfvd = tables.hasTables("ZMFVD");
+        std::vector<TabulatedFunction> compVdFuncs(numComponents);
+
+        if (hasZmfvd) {
+            const auto& zmfvdTables = tables.getZmfvdTables();
+            const auto& zmfvdTable = zmfvdTables.template getTable<ZmfvdTable>(0);
+            const auto& depthCol = zmfvdTable.getDepthColumn();
+            for (unsigned c = 0; c < numComponents; ++c) {
+                const auto& fracCol = zmfvdTable.getMoleFractionColumn(c);
+                compVdFuncs[c].setXYContainers(depthCol, fracCol);
+            }
+            OpmLog::info("Compositional equilibration: using ZMFVD for "
+                         "depth-dependent composition.");
+        } else {
+            const Scalar uniformFrac = Scalar(1.0) / static_cast<Scalar>(numComponents);
+            std::vector<Scalar> defaultDepths = {Scalar(0), Scalar(1e6)};
+            for (unsigned c = 0; c < numComponents; ++c) {
+                std::vector<Scalar> defaultFracs = {uniformFrac, uniformFrac};
+                compVdFuncs[c].setXYContainers(defaultDepths, defaultFracs);
+            }
+            OpmLog::info("Compositional equilibration: using uniform molar "
+                         "composition for pressure profile computation.");
+        }
+
+        // Helper: return overall composition at a given depth
+        auto compositionAtDepth = [&](Scalar depth, std::vector<Scalar>& comp) {
+            Scalar sum = 0;
+            for (unsigned c = 0; c < numComponents; ++c) {
+                comp[c] = std::max(Scalar(0), compVdFuncs[c].eval(depth, true));
+                sum += comp[c];
+            }
+            // Normalize so that mole fractions sum to 1
+            if (sum > Scalar(0)) {
+                for (unsigned c = 0; c < numComponents; ++c)
+                    comp[c] /= sum;
+            }
+        };
+
+        // --- EQUIL data ---
+        const auto& initConfig = eclState.getInitConfig();
+        const auto& equil = initConfig.getEquil();
+        // Process first equilibration region
+        // TODO: support multiple equilibration regions
+        const auto& rec = equil.getRecord(0);
+        const Scalar datumDepth = rec.datumDepth();
+        const Scalar datumPressure = rec.datumDepthPressure();
+
+        // Contact depths: use extreme values when phase pair is not active
+        constexpr Scalar noContactBelow = Scalar(1e20);
+        constexpr Scalar noContactAbove = Scalar(-1e20);
+        const Scalar wocDepth = (water_active && oil_active)
+            ? rec.waterOilContactDepth() : noContactBelow;
+        const Scalar gocDepth = (gas_active && oil_active)
+            ? rec.gasOilContactDepth() : noContactAbove;
+        const Scalar wocPc = (water_active && oil_active)
+            ? rec.waterOilContactCapillaryPressure() : Scalar(0);
+        const Scalar gocPc = (gas_active && oil_active)
+            ? rec.gasOilContactCapillaryPressure() : Scalar(0);
+
+        // --- Depth range ---
+        Scalar minDepth = cellCenterDepths[0];
+        Scalar maxDepth = cellCenterDepths[0];
+        for (std::size_t i = 1; i < numDof; ++i) {
+            minDepth = std::min(minDepth, cellCenterDepths[i]);
+            maxDepth = std::max(maxDepth, cellCenterDepths[i]);
+        }
+        if (gas_active && oil_active)
+            minDepth = std::min(minDepth, gocDepth);
+        if (water_active && oil_active)
+            maxDepth = std::max(maxDepth, wocDepth);
+        minDepth = std::min(minDepth, datumDepth) - Scalar(1.0);
+        maxDepth = std::max(maxDepth, datumDepth) + Scalar(1.0);
+        const Scalar depthRange = maxDepth - minDepth;
+
+        // --- Density computation ---
+        // For oil/gas: uses cubic EOS with overall composition.
+        // The ParameterCache selects the liquid root for oil and the gas root
+        // for gas, so no flash is needed for the pressure integration.
+        auto hydrocarbonDensity = [&](Scalar depth, Scalar pressure,
+                                      unsigned phaseIdx) -> Scalar {
+            CompositionalFluidState<Scalar, FluidSystem> fs;
+            fs.setTemperature(tempVdFunc.eval(depth, true));
+            for (unsigned p = 0; p < numPhases; ++p)
+                fs.setPressure(p, pressure);
+            // Evaluate composition at the given depth
+            std::vector<Scalar> comp(numComponents);
+            compositionAtDepth(depth, comp);
+            // Set composition for all hydrocarbon phases (ParameterCache needs both)
+            for (unsigned c = 0; c < numComponents; ++c) {
+                if (oil_active)
+                    fs.setMoleFraction(oilPhaseIdx, c, comp[c]);
+                if (gas_active)
+                    fs.setMoleFraction(gasPhaseIdx, c, comp[c]);
+            }
+            typename FluidSystem::template ParameterCache<Scalar> paramCache(eos_type);
+            paramCache.updatePhase(fs, phaseIdx);
+            return FluidSystem::density(fs, paramCache, phaseIdx);
+        };
+
+        // For water: uses water PVT tables (no EOS needed)
+        auto waterDensityFn = [&](Scalar depth, Scalar pressure) -> Scalar {
+            CompositionalFluidState<Scalar, FluidSystem> fs;
+            fs.setTemperature(tempVdFunc.eval(depth, true));
+            fs.setPressure(waterPhaseIdx, pressure);
+            typename FluidSystem::template ParameterCache<Scalar> paramCache(eos_type);
+            return FluidSystem::density(fs, paramCache, waterPhaseIdx);
+        };
+
+        // --- RK4 pressure integration: dP/dz = rho(z,P) * g ---
+        const int numPressureSamples = 2000;
+        constexpr Scalar minRangeLength = Scalar(1e-6);
+
+        auto integratePhase = [&](Scalar startDepth, Scalar startPressure,
+                                  Scalar endDepth, auto densityFn)
+        {
+            const Scalar rangeLen = std::abs(endDepth - startDepth);
+            if (rangeLen < minRangeLength) {
+                return std::make_pair(
+                    std::vector<Scalar>{startDepth},
+                    std::vector<Scalar>{startPressure});
+            }
+            const int nSteps = std::max(10,
+                static_cast<int>(rangeLen / (depthRange + Scalar(1)) * numPressureSamples));
+            const Scalar dz = (endDepth - startDepth) / nSteps;
+
+            std::vector<Scalar> depths(nSteps + 1);
+            std::vector<Scalar> pressures(nSteps + 1);
+            depths[0] = startDepth;
+            pressures[0] = startPressure;
+
+            for (int i = 0; i < nSteps; ++i) {
+                const Scalar z = depths[i];
+                const Scalar P = pressures[i];
+                const Scalar k1 = densityFn(z, P) * grav * dz;
+                const Scalar k2 = densityFn(z + Scalar(0.5) * dz,
+                                            P + Scalar(0.5) * k1) * grav * dz;
+                const Scalar k3 = densityFn(z + Scalar(0.5) * dz,
+                                            P + Scalar(0.5) * k2) * grav * dz;
+                const Scalar k4 = densityFn(z + dz, P + k3) * grav * dz;
+                depths[i + 1] = z + dz;
+                pressures[i + 1] = P + (k1 + Scalar(2) * k2
+                                        + Scalar(2) * k3 + k4) / Scalar(6);
+            }
+            return std::make_pair(std::move(depths), std::move(pressures));
+        };
+
+        // Builds a pressure lookup table by integrating up and down from a
+        // known (depth, pressure) pair and merging the results.
+        auto buildPressureTable = [&](Scalar startDepth, Scalar startPressure,
+                                      auto densityFn) -> TabulatedFunction
+        {
+            auto [dUp, pUp] = integratePhase(startDepth, startPressure,
+                                             minDepth, densityFn);
+            auto [dDown, pDown] = integratePhase(startDepth, startPressure,
+                                                 maxDepth, densityFn);
+
+            // Merge: reversed upward (skip first = startDepth) + downward
+            std::vector<Scalar> allDepths;
+            std::vector<Scalar> allPressures;
+            allDepths.reserve(dUp.size() + dDown.size());
+            allPressures.reserve(pUp.size() + pDown.size());
+
+            for (int i = static_cast<int>(dUp.size()) - 1; i >= 1; --i) {
+                allDepths.push_back(dUp[i]);
+                allPressures.push_back(pUp[i]);
+            }
+            for (std::size_t i = 0; i < dDown.size(); ++i) {
+                allDepths.push_back(dDown[i]);
+                allPressures.push_back(pDown[i]);
+            }
+
+            // Ensure at least 2 points for interpolation
+            if (allDepths.size() < 2) {
+                allDepths = {minDepth, maxDepth};
+                allPressures = {startPressure, startPressure};
+            }
+
+            TabulatedFunction func;
+            func.setXYContainers(allDepths, allPressures);
+            return func;
+        };
+
+        // --- Build phase pressure tables ---
+        // Strategy depends on datum depth relative to contacts.
+        // The convention is: Pcow = Po - Pw, Pcgo = Pg - Po
+        TabulatedFunction oilPressFunc, gasPressFunc, waterPressFunc;
+        bool oilBuilt = false, gasBuilt = false, waterBuilt = false;
+
+        const bool datumInGas = oil_active && gas_active && (datumDepth < gocDepth);
+        const bool datumInWater = oil_active && water_active && (datumDepth > wocDepth);
+
+        if (oil_active) {
+            auto oilDensityFn = [&](Scalar depth, Scalar press) {
+                return hydrocarbonDensity(depth, press, oilPhaseIdx);
+            };
+
+            if (datumInGas) {
+                // Datum in gas zone: build gas first, derive oil from GOC
+                auto gasDensityFn = [&](Scalar depth, Scalar press) {
+                    return hydrocarbonDensity(depth, press, gasPhaseIdx);
+                };
+                gasPressFunc = buildPressureTable(datumDepth, datumPressure,
+                                                  gasDensityFn);
+                gasBuilt = true;
+                const Scalar oilPAtGoc = gasPressFunc.eval(gocDepth, true) - gocPc;
+                oilPressFunc = buildPressureTable(gocDepth, oilPAtGoc, oilDensityFn);
+                oilBuilt = true;
+            } else if (datumInWater) {
+                // Datum in water zone: build water first, derive oil from WOC
+                auto wDensFn = [&](Scalar depth, Scalar press) {
+                    return waterDensityFn(depth, press);
+                };
+                waterPressFunc = buildPressureTable(datumDepth, datumPressure,
+                                                    wDensFn);
+                waterBuilt = true;
+                const Scalar oilPAtWoc = waterPressFunc.eval(wocDepth, true) + wocPc;
+                oilPressFunc = buildPressureTable(wocDepth, oilPAtWoc, oilDensityFn);
+                oilBuilt = true;
+            } else {
+                // Datum in oil zone (most common): build oil directly
+                oilPressFunc = buildPressureTable(datumDepth, datumPressure,
+                                                  oilDensityFn);
+                oilBuilt = true;
+            }
+        }
+
+        // Build gas pressure table if not yet built
+        if (gas_active && !gasBuilt) {
+            auto gasDensityFn = [&](Scalar depth, Scalar press) {
+                return hydrocarbonDensity(depth, press, gasPhaseIdx);
+            };
+            if (oilBuilt) {
+                const Scalar gasPAtGoc = oilPressFunc.eval(gocDepth, true) + gocPc;
+                gasPressFunc = buildPressureTable(gocDepth, gasPAtGoc, gasDensityFn);
+            } else {
+                gasPressFunc = buildPressureTable(datumDepth, datumPressure,
+                                                  gasDensityFn);
+            }
+            gasBuilt = true;
+        }
+
+        // Build water pressure table if not yet built
+        if (water_active && !waterBuilt) {
+            auto wDensFn = [&](Scalar depth, Scalar press) {
+                return waterDensityFn(depth, press);
+            };
+            if (oilBuilt) {
+                const Scalar wPAtWoc = oilPressFunc.eval(wocDepth, true) - wocPc;
+                waterPressFunc = buildPressureTable(wocDepth, wPAtWoc, wDensFn);
+            } else {
+                waterPressFunc = buildPressureTable(datumDepth, datumPressure,
+                                                    wDensFn);
+            }
+            waterBuilt = true;
+        }
+
+        // --- Populate initial fluid states ---
+        zmf_initialization_ = true;
+
+        for (std::size_t dofIdx = 0; dofIdx < numDof; ++dofIdx) {
+            auto& fs = initialFluidStates_[dofIdx];
+            const Scalar depth = cellCenterDepths[dofIdx];
+
+            // Temperature
+            fs.setTemperature(tempVdFunc.eval(depth, true));
+
+            // Phase pressures from the integrated tables
+            if (oil_active)
+                fs.setPressure(oilPhaseIdx, oilPressFunc.eval(depth, true));
+            if (gas_active)
+                fs.setPressure(gasPhaseIdx, gasPressFunc.eval(depth, true));
+            if (water_active)
+                fs.setPressure(waterPhaseIdx, waterPressFunc.eval(depth, true));
+
+            // Saturations based on contact depths
+            Scalar Sg = Scalar(0), So = Scalar(0), Sw = Scalar(0);
+            if (gas_active && oil_active && depth <= gocDepth) {
+                // Gas zone (above GOC)
+                Sg = Scalar(1);
+            } else if (water_active && oil_active && depth >= wocDepth) {
+                // Water zone (below WOC)
+                Sw = Scalar(1);
+            } else {
+                // Oil zone (between contacts) or the only active zone
+                if (oil_active)
+                    So = Scalar(1);
+                else if (gas_active)
+                    Sg = Scalar(1);
+                else
+                    Sw = Scalar(1);
+            }
+
+            if (gas_active) fs.setSaturation(gasPhaseIdx, Sg);
+            if (oil_active) fs.setSaturation(oilPhaseIdx, So);
+            if (water_active) fs.setSaturation(waterPhaseIdx, Sw);
+
+            // Overall (total) mole fractions from ZMFVD or uniform default
+            std::vector<Scalar> comp(numComponents);
+            compositionAtDepth(depth, comp);
+            for (unsigned c = 0; c < numComponents; ++c)
+                fs.setMoleFraction(c, comp[c]);
+
+            // Phase compositions (initial guess; the simulator will flash)
+            for (unsigned c = 0; c < numComponents; ++c) {
+                if (oil_active)
+                    fs.setMoleFraction(oilPhaseIdx, c, comp[c]);
+                if (gas_active)
+                    fs.setMoleFraction(gasPhaseIdx, c, comp[c]);
+            }
+        }
     }
 
     void readEclRestartSolution_()
