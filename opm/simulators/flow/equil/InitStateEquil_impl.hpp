@@ -152,7 +152,7 @@ std::pair<Scalar,Scalar> cellCenterXY(const Element& element)
     static constexpr int yCoord = Element::dimension - 2;
     Scalar yy = 0.0;
     Scalar xx = 0.0;
-        
+
 
     const Geometry& geometry = element.geometry();
     const int corners = geometry.corners();
@@ -282,7 +282,7 @@ Scalar calculateTrueVerticalDepth(Scalar z, Scalar x, Scalar y,
                                 const std::array<Scalar, 3>& referencePoint)
 {
     // For True Vertical Depth calculation:
-    // TVD = reference_depth + (z - reference_z) * cos(dipAngle) 
+    // TVD = reference_depth + (z - reference_z) * cos(dipAngle)
     //       + lateral_distance * sin(dipAngle) * cos(azimuth_difference)
 
     // Calculate lateral displacement from reference point
@@ -1425,7 +1425,7 @@ makeWatPressure(const typename WPress::InitCond& ic,
 
 namespace DeckDependent {
 
-std::vector<EquilRecord>
+inline std::vector<EquilRecord>
 getEquil(const EclipseState& state)
 {
     const auto& init = state.getInitConfig();

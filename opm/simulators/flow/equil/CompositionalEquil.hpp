@@ -38,6 +38,9 @@
 #include <opm/material/constraintsolvers/PTFlash.hpp>
 #include <opm/material/Constants.hpp>
 
+#include <opm/simulators/flow/equil/InitStateEquil.hpp>
+#include <opm/simulators/flow/equil/InitStateEquil_impl.hpp>
+
 #include <opm/input/eclipse/EclipseState/Compositional/CompositionalConfig.hpp>
 
 #include <array>
@@ -204,7 +207,18 @@ private:
     Scalar density(const Scalar depth, const Scalar press) const
     {
         const Scalar temp = tempVdTable_.eval(depth, /*extrapolate=*/true);
-        const auto zi = zVsDepth_.eval(depth);
+        auto zi = zVsDepth_.eval(depth);
+
+        {
+            Scalar sum_z = 0.;
+            for (auto& z : zi) {
+                z = std::clamp(z, Scalar{1e-10}, Scalar{1.0});
+                sum_z += z;
+            }
+            for (auto& z: zi) {
+                z /= sum_z;
+            }
+        }
 
         // Set up a CompositionalFluidState
         FluidState fluidState;
@@ -222,7 +236,7 @@ private:
 
         // Set overall compositions as initial guess for flash
         for (int c = 0; c < numComponents; ++c) {
-            fluidState.setMoleFraction(c, zi[c]);
+            fluidState.setMoleFraction(c, std::max(zi[c], Scalar{1.e-10}));
         }
 
         // Initialize K-values with Wilson correlation as initial guess:
@@ -240,8 +254,8 @@ private:
         // Initial guess for liquid fraction using Rachford-Rice perspective
         fluidState.setLvalue(Scalar{0.5});
 
-        // Perform PT flash
-        const bool isSinglePhase = FlashSolver::solve(
+        // Perform PT flash (scalar version — no AD derivatives)
+        const bool isSinglePhase = FlashSolver::flash_solve_scalar_(
             fluidState, "ssi", /*tolerance=*/1e-6, eosType_, /*verbosity=*/0
         );
 
@@ -554,7 +568,7 @@ public:
 
         // Set overall mole fractions
         for (int c = 0; c < numComponents; ++c) {
-            fluidState.setMoleFraction(c, zi[c]);
+            fluidState.setMoleFraction(c, std::max(zi[c], 1.e-10));
         }
 
         // Wilson K-value initial guess
@@ -568,7 +582,7 @@ public:
         }
         fluidState.setLvalue(Scalar{0.5});
 
-        const bool isSinglePhase = FlashSolver::solve(
+        const bool isSinglePhase = FlashSolver::flash_solve_scalar_(
             fluidState, "ssi", 1e-6, eosType_, 0
         );
 
