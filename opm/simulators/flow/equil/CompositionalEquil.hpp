@@ -520,6 +520,7 @@ private:
 /// Given the phase pressures from the CompositionalPressureTable and
 /// the composition from ZMFVD, a flash at each cell centre gives
 /// the phase split (L, V), from which saturations are derived.
+// TODO: We should not do this because we should use the capillary pressure to do the saturation calculaiton
 template <class FluidSystem>
 class CompositionalPhaseSaturations
 {
