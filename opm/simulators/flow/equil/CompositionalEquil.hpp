@@ -100,20 +100,24 @@ public:
     }
 
     /// Return all component mole fractions at the given depth.
-    std::vector<Scalar> eval(const Scalar depth) const
-    {
-        std::vector<Scalar> z(numComp_);
-        for (int c = 0; c < numComp_; ++c) {
-            z[c] = (*this)(c, depth);
-        }
-        // Normalize to ensure sum = 1
-        Scalar sum = 0.0;
-        for (int c = 0; c < numComp_; ++c) sum += z[c];
-        if (sum > 0.0) {
-            for (int c = 0; c < numComp_; ++c) z[c] /= sum;
-        }
-        return z;
+std::vector<Scalar> eval(const Scalar depth) const
+{
+    std::vector<Scalar> z(numComp_);
+    Scalar sum = 0.0;
+
+    for (int c = 0; c < numComp_; ++c) {
+        const Scalar clampedDepth = std::clamp(depth,
+                                            zTables_[c].xMin(),
+                                            zTables_[c].xMax());
+        z[c] = std::clamp((*this)(c, clampedDepth), Scalar{1.e-10}, Scalar{1.0});
+        sum += z[c];
     }
+    // Normalize to ensure sum = 1
+    if (sum > 0.0) {
+        for (int c = 0; c < numComp_; ++c) z[c] /= sum;
+    }
+    return z;
+}
 
     int numComponents() const { return numComp_; }
 
@@ -209,17 +213,6 @@ private:
         const Scalar temp = tempVdTable_.eval(depth, /*extrapolate=*/true);
         auto zi = zVsDepth_.eval(depth);
 
-        {
-            Scalar sum_z = 0.;
-            for (auto& z : zi) {
-                z = std::clamp(z, Scalar{1e-10}, Scalar{1.0});
-                sum_z += z;
-            }
-            for (auto& z: zi) {
-                z /= sum_z;
-            }
-        }
-
         // Set up a CompositionalFluidState
         FluidState fluidState;
         fluidState.setTemperature(temp);
@@ -239,12 +232,14 @@ private:
             fluidState.setMoleFraction(c, std::max(zi[c], Scalar{1.e-10}));
         }
 
+        std::cout << " at depth " << depth << " pressure " << press << " temp " << temp << " zi " << zi[0] << " " << zi[1] << " " << zi[2] << std::endl;
+
         // Initialize K-values with Wilson correlation as initial guess:
         //   K_i = (Pc_i / P) * exp(5.373 * (1 + omega_i) * (1 - Tc_i/T))
         for (int c = 0; c < numComponents; ++c) {
             const Scalar Tc = FluidSystem::criticalTemperature(c);
             const Scalar Pc = FluidSystem::criticalPressure(c);
-            const Scalar omega = FluidSystem::acentricFactor(c);
+             const Scalar omega = FluidSystem::acentricFactor(c);
             Scalar Ki = (Pc / press) * std::exp(5.373 * (1.0 + omega) * (1.0 - Tc / temp));
             Ki = std::max(Ki, Scalar{1e-10});
             Ki = std::min(Ki, Scalar{1e10});
@@ -256,16 +251,19 @@ private:
 
         // Perform PT flash (scalar version — no AD derivatives)
         const bool isSinglePhase = FlashSolver::flash_solve_scalar_(
-            fluidState, "ssi", /*tolerance=*/1e-6, eosType_, /*verbosity=*/0
+            fluidState, "ssi", /*tolerance=*/1e-7, eosType_, /*verbosity=*/0
         );
 
         // Compute the molar volume and density of the requested phase
         // using the EoS parameter cache.
         ParamCache paramCache(eosType_);
 
+        Scalar density {0.};
+
         if (isSinglePhase) {
             // Single phase: use whichever phase exists.
             // If L ~ 1 => only liquid (oil), if L ~ 0 => only vapor (gas).
+            // TODO: using the approach in CompWell_impl.hpp to do the single phase labeling
             const Scalar L = fluidState.L();
             const unsigned existingPhase = (L > 0.5) ? oilPhaseIdx : gasPhaseIdx;
 
@@ -276,15 +274,18 @@ private:
             paramCache.updatePhase(fluidState, existingPhase);
             const Scalar Vm = paramCache.molarVolume(existingPhase);
             const Scalar avgMW = fluidState.averageMolarMass(existingPhase);
-            return avgMW / Vm;
+            density = avgMW / Vm;
         }
         else {
+            // TODO: we need to think about how the density should be calculated
             // Two-phase: compute density of the specific phase
             paramCache.updatePhase(fluidState, phaseIdx);
             const Scalar Vm = paramCache.molarVolume(phaseIdx);
             const Scalar avgMW = fluidState.averageMolarMass(phaseIdx);
-            return avgMW / Vm;
+            density = avgMW / Vm;
         }
+        std::cout << " is single phase ? " << isSinglePhase << " density of phase " << phaseIdx << " is " << density << std::endl;
+        return density;
     }
 };
 
@@ -422,33 +423,38 @@ public:
     {
         const auto& tempVdTable = reg.tempVdTable();
 
-        // --- Oil pressure ---
-        {
-            const auto oilODE = OilPressODE{
-                tempVdTable, zVsDepth_, eosType_, gravity_
-            };
-            const auto ic = typename OPress::InitCond{
-                reg.datum(), reg.pressure()
-            };
-            oil_ = std::make_unique<OPress>(oilODE, ic, nsample_, span);
-        }
+        // TODO: this EQUIL setup, the datum depth is in the gas region, we should do the gas region first
+        // same with the blackoil version, we should do the different strategy
+        // then the gas-oil contact point, the gas pressure is the same as oil pressure,
+        // then based on this pressure, we can calculate the oil pressure
 
-        // --- Gas pressure ---
+        // --- gas pressure ---
         {
             const auto gasODE = GasPressODE{
                 tempVdTable, zVsDepth_, eosType_, gravity_
             };
-
-            // Gas initial condition from GOC:
-            //   P_gas(GOC) = P_oil(GOC) + Pcgo
-            const Scalar zgoc = reg.zgoc();
-            const Scalar pOilAtGoc = oil_->value(zgoc);
-            const Scalar pcgoGoc = reg.pcgoGoc();
-
             const auto ic = typename GPress::InitCond{
-                zgoc, pOilAtGoc + pcgoGoc
+                reg.datum(), reg.pressure()
             };
             gas_ = std::make_unique<GPress>(gasODE, ic, nsample_, span);
+        }
+
+        // --- oil pressure ---
+        {
+            const auto oilODE = OilPressODE{
+                tempVdTable, zVsDepth_, eosType_, gravity_
+            };
+
+            // Gas initial condition from GOC:
+            //   P_oil(GOC) = P_gas(GOC) - Pcgo
+            const Scalar zgoc = reg.zgoc();
+            const Scalar pGasAtGoc = gas_->value(zgoc);
+            const Scalar pcgoGoc = reg.pcgoGoc();
+
+            const auto ic = typename OPress::InitCond{
+                zgoc, pGasAtGoc - pcgoGoc
+            };
+            oil_ = std::make_unique<OPress>(oilODE, ic, nsample_, span);
         }
 
         // --- Water pressure ---
@@ -583,12 +589,14 @@ public:
         fluidState.setLvalue(Scalar{0.5});
 
         const bool isSinglePhase = FlashSolver::flash_solve_scalar_(
-            fluidState, "ssi", 1e-6, eosType_, 0
+            fluidState, "ssi", 1e-7, eosType_, 0
         );
 
         ParamCache paramCache(eosType_);
 
         if (isSinglePhase) {
+            // TODO: we should the slightly better way in CompWell_impl.hpp to mark the phase
+            // and calculate the saturations
             const Scalar L = fluidState.L();
             if (L > 0.5) {
                 // All liquid (oil)

@@ -119,6 +119,7 @@ public:
         }
 
         // --- EoS type ---
+        // TODO: EOSNUM is not handled yet
         const auto eosType = eclState.compositionalConfig().eosType(0);
 
         // --- Cell center depths ---
@@ -142,6 +143,15 @@ public:
                                                tvd.getTemperatureColumn());
             }
         }
+
+        // --- Compute cell temperatures (for later use) ---
+        std::vector<Scalar> cellTemperature(numDof);
+        for (std::size_t dofIdx = 0; dofIdx < numDof; ++dofIdx) {
+            const int reg = eqlnum[dofIdx];
+            cellTemperature[dofIdx] = tempVdTable[reg].eval(
+                cellCenterDepth[dofIdx], /*extrapolate=*/true);
+        }
+
 
         // --- Composition vs depth (ZMFVD) ---
         using CompositionVsDepth = EQUIL::Details::CompositionVsDepth<Scalar>;
@@ -197,14 +207,6 @@ public:
             }
         }
 
-        // --- Compute cell temperatures (for later use) ---
-        std::vector<Scalar> cellTemperature(numDof);
-        for (std::size_t dofIdx = 0; dofIdx < numDof; ++dofIdx) {
-            const int reg = eqlnum[dofIdx];
-            cellTemperature[dofIdx] = tempVdTable[reg].eval(
-                cellCenterDepth[dofIdx], /*extrapolate=*/true);
-        }
-
         // --- Build pressure tables and compute initial state per region ---
         using CompPressureTable =
             EQUIL::Details::CompositionalPressureTable<FluidSystem, EQUIL::EquilReg<Scalar>>;
@@ -239,6 +241,9 @@ public:
                 zMax = std::max(zMax, depth);
             }
 
+            zMin = 2000.;
+            zMax = 2100.;
+
             // Extend span to include contacts — but only for active phases.
             // For a two-phase oil+gas compositional system, the WOC is
             // irrelevant and should NOT extend the span.  Each depth in
@@ -256,14 +261,16 @@ public:
                 zMax = std::max(zMax, zwoc);
             }
 
-            // Add a small buffer
-            const Scalar dz = (zMax - zMin) * 0.01;
-            std::array<Scalar, 2> vspan = {{ zMin - dz, zMax + dz }};
+            // TODO: we should the way that
+            std::array<Scalar, 2> vspan = {zMin, zMax};
 
             // Build EquilReg for this region (compositional uses NoMixing)
+            // TODO: rs, rv and rvw should not be in the compositional setting
             const auto rsFunc  = std::make_shared<EQUIL::Miscibility::NoMixing<Scalar>>();
             const auto rvFunc  = std::make_shared<EQUIL::Miscibility::NoMixing<Scalar>>();
             const auto rvwFunc = std::make_shared<EQUIL::Miscibility::NoMixing<Scalar>>();
+
+            // TODO: we should not handle SALTVD yet.
             TabulatedFunction saltVdTable;
             {
                 std::vector<Scalar> x = {0.0, 1.0};
@@ -271,6 +278,7 @@ public:
                 saltVdTable.setXYContainers(x, y);
             }
 
+            // TODO: this EquilReg is based on the black oil setting, we should use a different one for compositional
             const auto eqreg = EQUIL::EquilReg<Scalar>{
                 rec[r], rsFunc, rvFunc, rvwFunc,
                 tempVdTable[r], saltVdTable, /*pvtIdx=*/0
