@@ -177,7 +177,17 @@ getViscosity(FluidSystem input, double* output)
 } // namespace
 
 using ScalarT = double;
-using FluidState = Opm::BlackOilFluidState<ScalarT, DummyFluidSystem<ScalarT>>;
+using FluidState = Opm::BlackOilFluidState<ScalarT, DummyFluidSystem<ScalarT>,
+                                           /*storeTemperature=*/false,
+                                           /*storeEnthalpy=*/false,
+                                           /*enableDissolution=*/true,
+                                           /*enableVapwat=*/false,
+                                           /*enableBrine=*/false,
+                                           /*enableSaltPrecipitation=*/false,
+                                           /*enableDissolutionInWater=*/false,
+                                           /*enableSolvent=*/false,
+                                           DummyFluidSystem<ScalarT>::numPhases,
+                                           /*enableTotalSaturation=*/true>;
 using FluidStateDynamic = Opm::BlackOilFluidState<ScalarT, DummyFluidSystemDynamic<ScalarT>>;
 
 
