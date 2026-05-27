@@ -58,6 +58,10 @@ public:
     template <class Restarter>
     void deserialize(Restarter& /*res*/){};
 
+    template <class Serializer>
+    void serializeOp(Serializer&)
+    {}
+
     void beginEpisode(){};
     void beginTimeStep(){};
     void beginIteration(){};

@@ -95,6 +95,10 @@ public:
     void deserialize(Restarter& /*res*/)
     {}
 
+    template <class Serializer>
+    void serializeOp(Serializer&)
+    {}
+
 
     void beginEpisode() { beginReportStep(simulator_.episodeIndex()); }
     void beginReportStep(unsigned report_step);
