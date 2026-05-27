@@ -90,6 +90,14 @@ public:
 
     using ParentType::operator=; //!< Import base class assignment operators.
 
+    template<class Serializer>
+    void serializeOp(Serializer& serializer)
+    {
+        for (unsigned i = 0; i < this->size(); ++i) {
+            serializer((*this)[i]);
+        }
+    }
+
     /*!
      * \copydoc ImmisciblePrimaryVariables::assignMassConservative
      */
