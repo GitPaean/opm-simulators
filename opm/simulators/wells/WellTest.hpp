@@ -50,6 +50,17 @@ public:
                                      bool zero_group_target,
                                      DeferredLogger& deferred_logger) const;
 
+    /// Apply per-connection economic limits (CECON) and the configured
+    /// workover procedure (CON, +CON / CONP, or WELL) to the violating
+    /// connections.  Each connection's surface phase rates are summed
+    /// across all MPI ranks so that every rank applies the same decisions
+    /// to \p well_test_state.
+    void updateWellTestStateConnectionEconomic(const SingleWellState<Scalar, IndexTraits>& ws,
+                                               const double simulation_time,
+                                               const bool write_message_to_opmlog,
+                                               WellTestState& well_test_state,
+                                               DeferredLogger& deferred_logger) const;
+
     void updateWellTestStatePhysical(const double simulation_time,
                                      const bool write_message_to_opmlog,
                                      WellTestState& well_test_state,

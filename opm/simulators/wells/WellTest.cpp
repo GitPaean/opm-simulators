@@ -22,6 +22,8 @@
 #include <config.h>
 #include <opm/simulators/wells/WellTest.hpp>
 
+#include <opm/input/eclipse/Schedule/Well/Connection.hpp>
+#include <opm/input/eclipse/Schedule/Well/ConnectionEconLimits.hpp>
 #include <opm/input/eclipse/Schedule/Well/WellConnections.hpp>
 #include <opm/input/eclipse/Schedule/Well/WellEconProductionLimits.hpp>
 #include <opm/input/eclipse/Schedule/Well/WellTestConfig.hpp>
@@ -31,6 +33,7 @@
 
 #include <opm/simulators/utils/DeferredLogger.hpp>
 #include <opm/simulators/wells/ParallelWellInfo.hpp>
+#include <opm/simulators/wells/PerforationData.hpp>
 #include <opm/simulators/wells/SingleWellState.hpp>
 #include <opm/simulators/wells/WellInterfaceGeneric.hpp>
 
@@ -451,6 +454,275 @@ updateWellTestStateEconomic(const SingleWellState<Scalar, IndexTraits>& ws,
                 deferred_logger.warning("NOT_SUPPORTED_WORKOVER_TYPE",
                                         "not supporting workover type " + WellEconProductionLimits::EconWorkover2String(workover));
             }
+        }
+    }
+}
+
+template<typename Scalar, typename IndexTraits>
+void WellTest<Scalar, IndexTraits>::
+updateWellTestStateConnectionEconomic(const SingleWellState<Scalar, IndexTraits>& ws,
+                                      const double simulation_time,
+                                      const bool write_message_to_opmlog,
+                                      WellTestState& well_test_state,
+                                      DeferredLogger& deferred_logger) const
+{
+    using EconWorkover = ConnectionEconLimits::EconWorkover;
+
+    if (well_.isInjector()) {
+        return;
+    }
+
+    const auto& well_ecl = well_.wellEcl();
+    const auto& connections = well_ecl.getConnections();
+    const std::size_t num_conns = connections.size();
+    if (num_conns == 0) {
+        return;
+    }
+
+    // Skip altogether unless at least one connection has effective CECON
+    // limits.  When the well is stopped, only connections that explicitly
+    // request checking on stopped wells (CECON item 10 = YES) are
+    // considered.
+    const bool well_stopped = well_.wellIsStopped();
+    bool any_active_limits = false;
+    for (const auto& conn : connections) {
+        if (!conn.hasEconLimits()) {
+            continue;
+        }
+        const auto& limits = conn.econLimits();
+        if (!limits.onAnyEffectiveLimit()) {
+            continue;
+        }
+        if (well_stopped && !limits.check_stopped_wells) {
+            continue;
+        }
+        any_active_limits = true;
+        break;
+    }
+    if (!any_active_limits) {
+        return;
+    }
+
+    // Aggregate per-connection surface phase rates across all MPI ranks.
+    // Each local perforation contributes to exactly one connection (its
+    // ecl_index in the WellConnections list).  After the sum-allreduce
+    // every rank holds the same global per-connection rates and the
+    // subsequent workover decisions are identical on all ranks.
+    const int np = well_.numPhases();
+    std::vector<Scalar> conn_rates(num_conns * static_cast<std::size_t>(np), Scalar{0});
+
+    const auto& perf_data = ws.perf_data;
+    const auto& perf_phase_rates = perf_data.phase_rates;
+    const auto& perfData = well_.perforationData();
+    const std::size_t n_local = perfData.size();
+    for (std::size_t i = 0; i < n_local; ++i) {
+        const std::size_t c = perfData[i].ecl_index;
+        if (c >= num_conns) {
+            continue;
+        }
+        for (int p = 0; p < np; ++p) {
+            conn_rates[c * np + p] += perf_phase_rates[i * np + p];
+        }
+    }
+    if (well_.parallelWellInfo().communication().size() > 1) {
+        well_.parallelWellInfo().communication()
+            .sum(conn_rates.data(), conn_rates.size());
+    }
+
+    const auto& pu = well_.phaseUsage();
+    const bool has_oil = pu.phaseIsActive(IndexTraits::oilPhaseIdx);
+    const bool has_gas = pu.phaseIsActive(IndexTraits::gasPhaseIdx);
+    const bool has_wat = pu.phaseIsActive(IndexTraits::waterPhaseIdx);
+    const int oil_pos = has_oil ? pu.canonicalToActivePhaseIdx(IndexTraits::oilPhaseIdx)   : -1;
+    const int gas_pos = has_gas ? pu.canonicalToActivePhaseIdx(IndexTraits::gasPhaseIdx)   : -1;
+    const int wat_pos = has_wat ? pu.canonicalToActivePhaseIdx(IndexTraits::waterPhaseIdx) : -1;
+
+    bool close_full_well = false;
+    std::size_t first_conp_index = num_conns;
+    std::vector<int> close_complnums;
+
+    for (std::size_t c = 0; c < num_conns; ++c) {
+        const auto& conn = connections[c];
+        if (!conn.hasEconLimits()) {
+            continue;
+        }
+        const auto& limits = conn.econLimits();
+        if (!limits.onAnyEffectiveLimit()) {
+            continue;
+        }
+        if (well_stopped && !limits.check_stopped_wells) {
+            continue;
+        }
+        if (conn.state() != Connection::State::OPEN) {
+            continue;
+        }
+        if (well_test_state.completion_is_closed(well_.name(), conn.complnum())) {
+            continue;
+        }
+
+        // Production rates are stored as negative values in OPM's
+        // convention; flip the sign for the limit comparisons.
+        const Scalar oil_rate = has_oil ? -conn_rates[c * np + oil_pos] : Scalar{0};
+        const Scalar gas_rate = has_gas ? -conn_rates[c * np + gas_pos] : Scalar{0};
+        const Scalar wat_rate = has_wat ? -conn_rates[c * np + wat_pos] : Scalar{0};
+        const Scalar liq_rate = oil_rate + wat_rate;
+
+        bool violated = false;
+        std::string reason;
+
+        if (!violated && limits.onMaxWaterCut() && liq_rate > Scalar{0}
+            && wat_rate > Scalar{0})
+        {
+            const Scalar wcut = wat_rate / liq_rate;
+            if (wcut > static_cast<Scalar>(limits.max_water_cut)) {
+                violated = true;
+                reason = "max water cut";
+            }
+        }
+        if (!violated && limits.onMaxGasOilRatio() && gas_rate > Scalar{0}) {
+            if (oil_rate <= Scalar{0}) {
+                violated = true;
+                reason = "max gas/oil ratio (no oil production)";
+            } else {
+                const Scalar gor = gas_rate / oil_rate;
+                if (gor > static_cast<Scalar>(limits.max_gas_oil_ratio)) {
+                    violated = true;
+                    reason = "max gas/oil ratio";
+                }
+            }
+        }
+        if (!violated && limits.onMaxWaterGasRatio() && wat_rate > Scalar{0}) {
+            if (gas_rate <= Scalar{0}) {
+                violated = true;
+                reason = "max water/gas ratio (no gas production)";
+            } else {
+                const Scalar wgr = wat_rate / gas_rate;
+                if (wgr > static_cast<Scalar>(limits.max_water_gas_ratio)) {
+                    violated = true;
+                    reason = "max water/gas ratio";
+                }
+            }
+        }
+        if (!violated && limits.onMinOilRate()
+            && oil_rate < static_cast<Scalar>(limits.min_oil_rate))
+        {
+            violated = true;
+            reason = "min oil rate";
+        }
+        if (!violated && limits.onMinGasRate()
+            && gas_rate < static_cast<Scalar>(limits.min_gas_rate))
+        {
+            violated = true;
+            reason = "min gas rate";
+        }
+
+        if (!violated) {
+            continue;
+        }
+
+        const std::string conn_id = std::to_string(conn.complnum());
+        // Supported CECON workover actions (item 9): CON shuts the
+        // violating connection, CONP (+CON) shuts the violating
+        // connection and every connection ordered below it, WELL shuts
+        // the entire well, and NONE is a no-op.  All other ECLIPSE
+        // workover keywords (e.g. PLUG, LAST, RED) fall through to the
+        // warning below.
+        switch (limits.workover) {
+        case EconWorkover::CON:
+            close_complnums.push_back(conn.complnum());
+            if (write_message_to_opmlog) {
+                deferred_logger.info("CECON: connection " + conn_id + " of well "
+                                     + well_.name() + " will be shut due to "
+                                     + reason + " violation");
+            }
+            break;
+        case EconWorkover::CONP:
+            if (c < first_conp_index) {
+                first_conp_index = c;
+            }
+            if (write_message_to_opmlog) {
+                deferred_logger.info("CECON: connection " + conn_id + " of well "
+                                     + well_.name() + " and all connections below"
+                                     + " will be shut (+CON workover) due to "
+                                     + reason + " violation");
+            }
+            break;
+        case EconWorkover::WELL:
+            close_full_well = true;
+            if (write_message_to_opmlog) {
+                deferred_logger.info("CECON: well " + well_.name()
+                                     + " will be shut (WELL workover) due to "
+                                     + reason + " violation at connection "
+                                     + conn_id);
+            }
+            break;
+        default:
+            deferred_logger.warning(
+                "CECON_NOT_SUPPORTED_WORKOVER",
+                "CECON workover type "
+                    + ConnectionEconLimits::EconWorkover2String(limits.workover)
+                    + " is not supported for well " + well_.name()
+                    + "; the violation at connection " + conn_id
+                    + " will be ignored");
+            break;
+        }
+
+        if (close_full_well) {
+            break;
+        }
+    }
+
+    if (close_full_well) {
+        well_test_state.close_well(well_.name(),
+                                   WellTestConfig::Reason::ECONOMIC,
+                                   simulation_time);
+        return;
+    }
+
+    // +CON / CONP: shut the first +CON violator and every connection
+    // listed after it (the WellConnections list already reflects the
+    // COMPORD ordering, so "below" maps to a strictly larger index).
+    if (first_conp_index < num_conns) {
+        for (std::size_t c = first_conp_index; c < num_conns; ++c) {
+            const auto& conn = connections[c];
+            if (conn.state() != Connection::State::OPEN) {
+                continue;
+            }
+            well_test_state.close_completion(well_.name(),
+                                             conn.complnum(),
+                                             simulation_time);
+        }
+    }
+
+    for (const int complnum : close_complnums) {
+        well_test_state.close_completion(well_.name(), complnum, simulation_time);
+    }
+
+    if (close_complnums.empty() && first_conp_index >= num_conns) {
+        return;
+    }
+
+    // If every open completion has now been closed, mark the well itself
+    // as closed for the economic reason.
+    bool any_open = false;
+    for (const auto& conn : connections) {
+        if (conn.state() == Connection::State::OPEN
+            && !well_test_state.completion_is_closed(well_.name(), conn.complnum()))
+        {
+            any_open = true;
+            break;
+        }
+    }
+    if (!any_open) {
+        well_test_state.close_well(well_.name(),
+                                   WellTestConfig::Reason::ECONOMIC,
+                                   simulation_time);
+        if (write_message_to_opmlog) {
+            const std::string action = well_.wellEcl().getAutomaticShutIn()
+                ? "shut" : "stopped";
+            deferred_logger.info("Well " + well_.name() + " will be "
+                                 + action + " as the last open connection"
+                                 + " was closed by CECON workover");
         }
     }
 }
