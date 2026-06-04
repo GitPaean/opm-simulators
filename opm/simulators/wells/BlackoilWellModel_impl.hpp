@@ -909,16 +909,7 @@ namespace Opm {
                 // something like wellTestState().hasWell(well_name)?
                 if (this->wellTestState().well_is_closed(well_name))
                 {
-                    const bool all_open_completions_closed =
-                        std::ranges::all_of(well_ecl.getConnections(),
-                                            [this, &well_name](const auto& connection)
-                                            {
-                                                return connection.state() != Connection::State::OPEN
-                                                    || this->wellTestState().completion_is_closed(
-                                                        well_name, connection.complnum());
-                                            });
-
-                    if (all_open_completions_closed) {
+                    if (this->wellTestState().well_closed_due_to_all_completions_closed(well_name)) {
                         // If all open completions/connections are closed due to
                         // well testing, the well can only be SHUT.
                         this->wellState().shutWell(w);
