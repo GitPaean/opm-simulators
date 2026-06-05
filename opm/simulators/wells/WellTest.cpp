@@ -29,6 +29,8 @@
 
 #include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 
+#include <fmt/format.h>
+
 #include <opm/simulators/utils/DeferredLogger.hpp>
 #include <opm/simulators/wells/ParallelWellInfo.hpp>
 #include <opm/simulators/wells/SingleWellState.hpp>
@@ -472,18 +474,27 @@ closeOffendingConnections(const int worst_offending_completion,
 
     if (write_message_to_opmlog) {
         const std::string below_msg = close_connections_below
-            ? std::string(" and all connections below it")
-            : std::string("");
+            ? " and all connections below it" : "";
+        const int match_complnum = (worst_offending_completion < 0)
+            ? -worst_offending_completion : worst_offending_completion;
+        std::string block_msg;
+        for (const auto& connection : connections) {
+            if (connection.complnum() == match_complnum) {
+                block_msg = fmt::format(" - block ({}, {}, {})",
+                                        connection.getI() + 1,
+                                        connection.getJ() + 1,
+                                        connection.getK() + 1);
+                break;
+            }
+        }
         if (worst_offending_completion < 0) {
-            const std::string msg = std::string("Connection ") + std::to_string(- worst_offending_completion)
-                    + std::string(" for well ") + well_.name() + below_msg
-                    + std::string(" will be closed due to economic limit");
-            deferred_logger.info(msg);
+            deferred_logger.info(fmt::format("Connection {}{} for well {}{} will be closed due to economic limit",
+                                             -worst_offending_completion, block_msg,
+                                             well_.name(), below_msg));
         } else {
-            const std::string msg = std::string("Completion ") + std::to_string(worst_offending_completion)
-                    + std::string(" for well ") + well_.name() + below_msg
-                    + std::string(" will be closed due to economic limit");
-            deferred_logger.info(msg);
+            deferred_logger.info(fmt::format("Completion {}{} for well {}{} will be closed due to economic limit",
+                                             worst_offending_completion, block_msg,
+                                             well_.name(), below_msg));
         }
     }
 
@@ -499,8 +510,7 @@ closeOffendingConnections(const int worst_offending_completion,
         well_test_state.close_well(well_.name(), WellTestConfig::Reason::ECONOMIC, simulation_time);
         // if all the completion/connections are closed, the well can only be SHUT
         if (write_message_to_opmlog) {
-            const std::string msg = well_.name() + std::string(" will be shut due to last completion closed");
-            deferred_logger.info(msg);
+            deferred_logger.info(fmt::format("{} will be shut due to last completion closed", well_.name()));
         }
     }
 }
