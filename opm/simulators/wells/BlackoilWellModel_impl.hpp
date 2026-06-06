@@ -905,6 +905,34 @@ namespace Opm {
                     }
                 }
 
+                // WELOPEN/COMPDAT can explicitly reopen individual completions
+                // that were closed by the well testing mechanism (economic or
+                // physical limits).  The well-level event tells us that some
+                // connection of this well was requested OPEN this report step;
+                // the per-connection open-request flag identifies exactly which
+                // ones, so we reopen only those and leave the rest untouched.
+                {
+                    auto& events = this->wellState().well(w).events;
+                    if (events.hasEvent(ScheduleEvents::REQUEST_OPEN_COMPLETION)) {
+                        for (const auto& connection : well_ecl.getConnections()) {
+                            if (connection.openCompletionRequest() &&
+                                connection.state() == Connection::State::OPEN &&
+                                this->wellTestState().completion_is_closed(well_name, connection.complnum())) {
+                                this->wellTestState().open_completion(well_name, connection.complnum());
+                                local_deferredLogger.info(
+                                    fmt::format("Completion {} - block ({}, {}, {}) for well {}"
+                                                " is re-opened due to WELOPEN",
+                                                connection.complnum(),
+                                                connection.getI() + 1,
+                                                connection.getJ() + 1,
+                                                connection.getK() + 1,
+                                                well_name));
+                            }
+                        }
+                        events.clearEvent(ScheduleEvents::REQUEST_OPEN_COMPLETION);
+                    }
+                }
+
                 // TODO: should we do this for all kinds of closing reasons?
                 // something like wellTestState().hasWell(well_name)?
                 if (this->wellTestState().well_is_closed(well_name))
