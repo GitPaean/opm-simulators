@@ -442,6 +442,18 @@ closeOffendingConnections(const int worst_offending_completion,
                           WellTestState& well_test_state,
                           DeferredLogger& deferred_logger) const
 {
+    // Completion numbers are positive (1-based). Non-positive values are
+    // sentinels from the parallel worst-offender search (e.g. INT_MIN when no
+    // rank holds a valid candidate) and must not be registered as closed.
+    if (worst_offending_completion <= 0) {
+        deferred_logger.warning("ECON_WORKOVER_INVALID_COMPLETION",
+                                fmt::format("Economic limit workover for well {} did not find a "
+                                            "valid completion to close (completion number {}). "
+                                            "No connection will be closed.",
+                                            well_.name(), worst_offending_completion));
+        return;
+    }
+
     // The wellbore ordering of the connections is the one given by COMPORD and
     // reflected in the order of the connections returned by getConnections().
     const auto& connections = well_.wellEcl().getConnections();
@@ -475,11 +487,9 @@ closeOffendingConnections(const int worst_offending_completion,
     if (write_message_to_opmlog) {
         const std::string below_msg = close_connections_below
             ? " and all connections below it" : "";
-        const int match_complnum = (worst_offending_completion < 0)
-            ? -worst_offending_completion : worst_offending_completion;
         std::string block_msg;
         for (const auto& connection : connections) {
-            if (connection.complnum() == match_complnum) {
+            if (connection.complnum() == worst_offending_completion) {
                 block_msg = fmt::format(" - block ({}, {}, {})",
                                         connection.getI() + 1,
                                         connection.getJ() + 1,
@@ -487,15 +497,9 @@ closeOffendingConnections(const int worst_offending_completion,
                 break;
             }
         }
-        if (worst_offending_completion < 0) {
-            deferred_logger.info(fmt::format("Connection {}{} for well {}{} will be closed due to economic limit",
-                                             -worst_offending_completion, block_msg,
-                                             well_.name(), below_msg));
-        } else {
-            deferred_logger.info(fmt::format("Completion {}{} for well {}{} will be closed due to economic limit",
-                                             worst_offending_completion, block_msg,
-                                             well_.name(), below_msg));
-        }
+        deferred_logger.info(fmt::format("Completion {}{} for well {}{} will be closed due to economic limit",
+                                         worst_offending_completion, block_msg,
+                                         well_.name(), below_msg));
     }
 
     bool allCompletionsClosed = true;
