@@ -280,9 +280,15 @@ public:
         return gravity_;
     }
 
-    Opm::CompositionalConfig::EOSType getEosType() const
+    Opm::CompositionalConfig::EOSType getEosType(unsigned /*elemIdx*/) const
     {
         return Opm::CompositionalConfig::EOSType::PR;
+    }
+
+    unsigned eosRegionIndex(unsigned /*elemIdx*/) const
+    {
+        // the problem uses a single EOS region
+        return 0;
     }
 
     /*!

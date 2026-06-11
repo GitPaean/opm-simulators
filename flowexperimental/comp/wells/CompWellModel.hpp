@@ -36,6 +36,8 @@
 #include <opm/simulators/wells/PerforationData.hpp>
 
 
+#include <set>
+#include <string>
 #include <vector>
 
 namespace Opm {
@@ -151,6 +153,9 @@ private:
      std::vector<std::vector<CompConnectionData> > well_connection_data_;
      // const Schedule& schedule_;
      std::vector<CompWellPtr> well_container_;
+
+     // names of wells for which the multi-EOS-region warning has already been issued
+     std::set<std::string> eos_region_warned_;
 
      mutable BVector x_local_;
 

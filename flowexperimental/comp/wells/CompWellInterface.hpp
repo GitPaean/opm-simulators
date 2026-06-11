@@ -69,6 +69,11 @@ public:
 
     const std::vector<std::size_t>& cells() const { return well_cells_; }
 
+    // the EOS region used for the flash calculations of this well
+    void setEosRegion(unsigned eos_region) { eos_region_ = eos_region; }
+
+    unsigned eosRegion() const { return eos_region_; }
+
     virtual void apply(BVector& r) const = 0;
 
     /// using the solution x to recover the solution xw for wells and applying
@@ -96,6 +101,9 @@ protected:
     // TODO: should it called trans_index
     std::vector<Scalar> well_index_;
     std::vector<int> saturation_table_number_;
+
+    // EOS region for the well, determined from the connection cells
+    unsigned eos_region_ {0};
 
     // std::string name_;
 

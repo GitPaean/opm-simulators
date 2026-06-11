@@ -386,7 +386,6 @@ protected:
         return [this](unsigned elemIdx) { return lookUpData_.template getFieldPropIdx<Grid>(elemIdx);};
     }
 
-private:
     template<class T>
     void updateNum(const std::string& name, std::vector<T>& numbers, std::size_t num_regions);
 };

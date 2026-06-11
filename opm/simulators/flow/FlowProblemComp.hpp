@@ -105,11 +105,22 @@ public:
         Parameters::SetDefault<Parameters::NewtonTolerance<Scalar>>(1e-7);
     }
 
-    Opm::CompositionalConfig::EOSType getEosType() const
+    /*!
+     * \brief Returns the index of the relevant EOS region given a cell index
+     */
+    unsigned eosRegionIndex(unsigned elemIdx) const
     {
-        auto& simulator = this->simulator();
-        const auto& eclState = simulator.vanguard().eclState();
-        return eclState.compositionalConfig().eosType(0);
+        if (eosnum_.empty()) {
+            return 0;
+        }
+        return eosnum_[elemIdx];
+    }
+
+    Opm::CompositionalConfig::EOSType getEosType(unsigned elemIdx) const
+    {
+        // the per-region EOS types are cached in the fluid system at initialization,
+        // so this avoids walking the EclipseState on the flash hot path
+        return FluidSystem::eosType(eosRegionIndex(elemIdx));
     }
 
     /*!
@@ -187,6 +198,7 @@ public:
         }
 
         this->initFluidSystem_();
+        updateEosnum_();
 
         if (FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx)
             && FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
@@ -332,6 +344,7 @@ public:
         const unsigned globalDofIdx = context.globalSpaceIndex(spaceIdx, timeIdx);
         const auto& initial_fs = initialFluidStates_[globalDofIdx];
         Opm::CompositionalFluidState<Scalar, FluidSystem> fs;
+        fs.setEosRegionIndex(eosRegionIndex(globalDofIdx));
         for (unsigned p = 0; p < numPhases; ++p) { // TODO: assuming the phaseidx continuous
             // pressure
             fs.setPressure(p, initial_fs.pressure(p));
@@ -352,8 +365,8 @@ public:
             }
 
             {
-                const auto& eos_type = getEosType();
-                typename FluidSystem::template ParameterCache<Scalar> paramCache(eos_type);
+                const auto eos_type = getEosType(globalDofIdx);
+                typename FluidSystem::template ParameterCache<Scalar> paramCache(eos_type, eosRegionIndex(globalDofIdx));
                 paramCache.updatePhase(fs, FluidSystem::oilPhaseIdx);
                 paramCache.updatePhase(fs, FluidSystem::gasPhaseIdx);
                 fs.setDensity(FluidSystem::oilPhaseIdx, FluidSystem::density(fs, paramCache, FluidSystem::oilPhaseIdx));
@@ -387,7 +400,7 @@ public:
 
         // Set initial K and L
         for (unsigned compIdx = 0; compIdx < numComponents; ++compIdx) {
-            const auto& Ktmp = fs.wilsonK_(compIdx);
+            const auto& Ktmp = fs.wilsonK_(compIdx, eosRegionIndex(globalDofIdx));
             fs.setKvalue(compIdx, Ktmp);
         }
 
@@ -451,6 +464,13 @@ protected:
     void readExplicitInitialCondition_() override
     {
         readExplicitInitialConditionCompositional_();
+    }
+
+    void updateEosnum_()
+    {
+        const auto& eclState = this->simulator().vanguard().eclState();
+        const auto num_regions = eclState.compositionalConfig().numEosRegions();
+        this->updateNum("EOSNUM", eosnum_, num_regions);
     }
 
     void readExplicitInitialConditionCompositional_()
@@ -626,6 +646,9 @@ private:
     FlowThresholdPressure<TypeTag> thresholdPressures_;
 
     std::vector<InitialFluidState> initialFluidStates_;
+
+    // EOS region index (EOSNUM, zero-based) for each cell; empty means single region
+    std::vector<int> eosnum_;
 
     bool zmf_initialization_ {false};
 

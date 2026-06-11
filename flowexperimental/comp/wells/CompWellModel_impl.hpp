@@ -26,9 +26,15 @@
 #include <flowexperimental/comp/wells/CompWellModel.hpp>
 #endif
 
+#include <opm/common/OpmLog/OpmLog.hpp>
+
 #include <opm/input/eclipse/EclipseState/EclipseState.hpp>
 #include <opm/input/eclipse/Schedule/Schedule.hpp>
 #include <opm/input/eclipse/Schedule/Well/WellConnections.hpp>
+
+#include <fmt/format.h>
+
+#include <algorithm>
 
 namespace Opm {
 
@@ -92,7 +98,22 @@ void
 CompWellModel<TypeTag>::
 initWellContainer()
 {
+    const auto& problem = simulator_.problem();
     for (auto& well : well_container_) {
+        const auto& cells = well->cells();
+        if (!cells.empty()) {
+            const unsigned eos_region = problem.eosRegionIndex(cells.front());
+            const bool same_region =
+                std::all_of(cells.begin(), cells.end(),
+                            [&problem, eos_region](const std::size_t cell)
+                            { return problem.eosRegionIndex(cell) == eos_region; });
+            if (!same_region && eos_region_warned_.insert(well->name()).second) {
+                OpmLog::warning(fmt::format("Well {} has connections in more than one EOS region, "
+                                            "using EOS region {} of the first connection for the "
+                                            "well calculations.", well->name(), eos_region + 1));
+            }
+            well->setEosRegion(eos_region);
+        }
         well->init();
     }
 }

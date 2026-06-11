@@ -117,6 +117,10 @@ public:
         const auto& priVars = elemCtx.primaryVars(dofIdx, timeIdx);
         const auto& problem = elemCtx.problem();
 
+        const unsigned globalSpaceIdx = elemCtx.globalSpaceIndex(dofIdx, timeIdx);
+        const unsigned eosRegionIdx = problem.eosRegionIndex(globalSpaceIdx);
+        fluidState_.setEosRegionIndex(eosRegionIdx);
+
         const Scalar flashTolerance = Parameters::Get<Parameters::FlashTolerance<Scalar>>();
         const int flashVerbosity = Parameters::Get<Parameters::FlashVerbosity>();
         const std::string flashTwoPhaseMethod = Parameters::Get<Parameters::FlashTwoPhaseMethod>();
@@ -172,7 +176,7 @@ public:
         }
         else {
              for (unsigned compIdx = 0; compIdx < numComponents; ++compIdx) {
-                 const Evaluation Ktmp = fluidState_.wilsonK_(compIdx);
+                 const Evaluation Ktmp = fluidState_.wilsonK_(compIdx, eosRegionIdx);
                  fluidState_.setKvalue(compIdx, Ktmp);
              }
              const Evaluation& Ltmp = -1.0;
@@ -183,16 +187,14 @@ public:
         // Compute the phase compositions and densities
         /////////////
         if (flashVerbosity >= 1) {
-            const int spatialIdx = elemCtx.globalSpaceIndex(dofIdx, timeIdx);
-            std::cout << " updating the intensive quantities for Cell " << spatialIdx << std::endl;
+            std::cout << " updating the intensive quantities for Cell " << globalSpaceIdx << std::endl;
         }
-        const auto& eos_type = problem.getEosType();
-        FlashSolver::solve(fluidState_, flashTwoPhaseMethod, flashTolerance, eos_type, flashVerbosity);
+        const auto eos_type = problem.getEosType(globalSpaceIdx);
+        FlashSolver::solve(fluidState_, flashTwoPhaseMethod, flashTolerance, eos_type, eosRegionIdx, flashVerbosity);
 
         if (flashVerbosity >= 5) {
             // printing of flash result after solve
-            const int spatialIdx = elemCtx.globalSpaceIndex(dofIdx, timeIdx);
-            std::cout << " \n After flash solve for cell " << spatialIdx << std::endl;
+            std::cout << " \n After flash solve for cell " << globalSpaceIdx << std::endl;
             ComponentVector x, y;
             for (unsigned comp_idx = 0; comp_idx < numComponents; ++comp_idx) {
                 x[comp_idx] = fluidState_.moleFraction(FluidSystem::oilPhaseIdx, comp_idx);
@@ -211,7 +213,7 @@ public:
         }
 
         // Update phases
-        typename FluidSystem::template ParameterCache<Evaluation> paramCache(eos_type);
+        typename FluidSystem::template ParameterCache<Evaluation> paramCache(eos_type, eosRegionIdx);
         paramCache.updatePhase(fluidState_, FluidSystem::oilPhaseIdx);
 
         const Scalar R = Opm::Constants<Scalar>::R;
