@@ -50,6 +50,12 @@ public:
                                      bool zero_group_target,
                                      DeferredLogger& deferred_logger) const;
 
+    void updateWellTestStateCECON(const SingleWellState<Scalar, IndexTraits>& ws,
+                                  const double simulation_time,
+                                  const bool write_message_to_opmlog,
+                                  WellTestState& well_test_state,
+                                  DeferredLogger& deferred_logger) const;
+
     void updateWellTestStatePhysical(const double simulation_time,
                                      const bool write_message_to_opmlog,
                                      WellTestState& well_test_state,
