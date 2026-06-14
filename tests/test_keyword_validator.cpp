@@ -94,8 +94,21 @@ const SupportedKeywordItems<double> test_double_items = {
     },
 };
 
-const SupportedKeywords partiallySupported { test_string_items, test_int_items, test_double_items };
-const SupportedKeywords fullySupported { {}, {}, {} };
+const SupportedKeywordItems<UDAValue> test_uda_items = {
+    {
+        "CECON",
+        {
+            // UDA evaluation is not implemented; numeric values are fine, but
+            // a UDQ name must be flagged.
+            {6, {false, [](const UDAValue& x) { return x.is_numeric(); }, "UDQ values are not supported"}}, // MAX_WCUT
+            // No values allowed: any explicit user value should fail.
+            {11, {false, allow_values<UDAValue> {}, "should be defaulted"}}, // MIN_OIL
+        },
+    },
+};
+
+const SupportedKeywords partiallySupported { test_string_items, test_int_items, test_double_items, test_uda_items };
+const SupportedKeywords fullySupported { {}, {}, {}, {} };
 
 BOOST_AUTO_TEST_CASE(non_critical_keyword)
 {
@@ -633,4 +646,36 @@ EQUIL
     BOOST_CHECK_EQUAL(errors.size(), 1);
     BOOST_CHECK(errors[0].item_number == 10);
     BOOST_CHECK(errors[0].item_value == "1");
+}
+
+
+BOOST_AUTO_TEST_CASE(uda_items_validated)
+{
+    // CECON item 6 (MAX_WCUT) accepts numeric values but flags UDQ names,
+    // while item 11 (MIN_OIL) flags any explicit value. Defaulted items must
+    // not be validated.
+    const auto keywords_string = std::string {R"(
+SCHEDULE
+CECON
+ 'P1' 4* 'CUWCT1' /
+ 'P2' 4* 0.7 4* 100.0 /
+/
+)"};
+    const auto deck = Parser {}.parseString(keywords_string);
+    const auto& test_keyword = deck["CECON"].back();
+    KeywordValidator validator(test_unsupported_keywords, partiallySupported, fullySupported, {});
+    std::vector<ValidationError> errors;
+    validator.validateDeckKeyword(test_keyword, errors);
+    BOOST_REQUIRE_EQUAL(errors.size(), 2);
+
+    BOOST_CHECK(!errors[0].critical);
+    BOOST_CHECK_EQUAL(errors[0].record_number, 1);
+    BOOST_CHECK(errors[0].item_number == 6);
+    BOOST_CHECK(errors[0].item_value == "CUWCT1");
+    BOOST_CHECK(*(errors[0].user_message) == "UDQ values are not supported");
+
+    BOOST_CHECK(!errors[1].critical);
+    BOOST_CHECK_EQUAL(errors[1].record_number, 2);
+    BOOST_CHECK(errors[1].item_number == 11);
+    BOOST_CHECK(*(errors[1].user_message) == "should be defaulted");
 }

@@ -30,6 +30,7 @@
 #include <opm/common/utility/OpmInputError.hpp>
 #include <opm/input/eclipse/Deck/Deck.hpp>
 #include <opm/input/eclipse/Deck/DeckKeyword.hpp>
+#include <opm/input/eclipse/Deck/UDAValue.hpp>
 #include <opm/input/eclipse/Parser/ErrorGuard.hpp>
 #include <opm/input/eclipse/Parser/InputErrorAction.hpp>
 #include <opm/input/eclipse/Parser/ParseContext.hpp>
@@ -143,6 +144,7 @@ namespace Opm::KeywordValidation {
         validateKeywordItems(keyword, keyword_items.string_items, errors);
         validateKeywordItems(keyword, keyword_items.int_items, errors);
         validateKeywordItems(keyword, keyword_items.double_items, errors);
+        validateKeywordItems(keyword, keyword_items.uda_items, errors);
     }
 
     template <typename T>
@@ -191,6 +193,10 @@ namespace Opm::KeywordValidation {
             std::string formatted_value;
             if constexpr (std::is_arithmetic<T>::value)
                 formatted_value = std::to_string(item_value);
+            else if constexpr (std::is_same_v<T, UDAValue>)
+                formatted_value = item_value.is_numeric()
+                    ? std::to_string(item_value.template get<double>())
+                    : item_value.template get<std::string>();
             else
                 formatted_value = item_value;
             // Add the relevant information to the vector of errors. Record and

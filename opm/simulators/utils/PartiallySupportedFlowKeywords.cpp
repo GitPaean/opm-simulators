@@ -552,13 +552,6 @@ partiallySupported()
             },
          },
          {
-            "CECON",
-            {
-               {11,{false, allow_values<double> {}, "CECON(MIN_OIL): minimum oil rate limit is not supported and should be defaulted (1*) – value ignored"}}, // MIN_OIL
-               {12,{false, allow_values<double> {}, "CECON(MIN_GAS): minimum gas rate limit is not supported and should be defaulted (1*) – value ignored"}}, // MIN_GAS
-            },
-         },
-         {
             "DIFFC",
             {
                {7,{false, allow_values<double> {0}, "DIFFC(ISATNUM1): only default value of 0 supported – will continue"}}, // GAS_OIL_CROSS_DIFF_COEFF
@@ -733,6 +726,31 @@ partiallySupported()
    };
 
    return partially_supported_keywords_double;
+}
+
+template <>
+const KeywordValidation::SupportedKeywordItems<UDAValue>&
+partiallySupported()
+{
+   // UDA evaluation (UDQ names as item values) is not implemented for these
+   // items; a numeric-only validator flags UDQ names, which would otherwise
+   // fail Schedule construction with an internal error.
+   static const auto is_numeric = [](const UDAValue& value) { return value.is_numeric(); };
+
+   static const KeywordValidation::SupportedKeywordItems<UDAValue> partially_supported_keywords_uda = {
+         {
+            "CECON",
+            {
+               {6,{true, is_numeric, "CECON(WCUT): UDQ values are not supported – use a numeric value"}}, // MAX_WCUT
+               {7,{true, is_numeric, "CECON(GOR): UDQ values are not supported – use a numeric value"}}, // MAX_GOR
+               {8,{true, is_numeric, "CECON(WGRA): UDQ values are not supported – use a numeric value"}}, // MAX_WGR
+               {11,{false, allow_values<UDAValue> {}, "CECON(MIN_OIL): minimum oil rate limit is not supported and should be defaulted (1*) – value ignored"}}, // MIN_OIL
+               {12,{false, allow_values<UDAValue> {}, "CECON(MIN_GAS): minimum gas rate limit is not supported and should be defaulted (1*) – value ignored"}}, // MIN_GAS
+            },
+         },
+   };
+
+   return partially_supported_keywords_uda;
 }
 
 } // namespace Opm::FlowKeywordValidation

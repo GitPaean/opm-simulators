@@ -21,6 +21,7 @@
 #define OPM_KEYWORDVALIDATION_HEADER_INCLUDED
 
 #include <opm/input/eclipse/Deck/DeckItem.hpp>
+#include <opm/input/eclipse/Deck/UDAValue.hpp>
 #include <opm/common/OpmLog/KeywordLocation.hpp>
 #include <opm/simulators/flow/ValidationFunctions.hpp>
 
@@ -93,6 +94,7 @@ struct SupportedKeywords {
     const SupportedKeywordItems<std::string> string_items;
     const SupportedKeywordItems<int> int_items;
     const SupportedKeywordItems<double> double_items;
+    const SupportedKeywordItems<UDAValue> uda_items;
 };
 
     class KeywordValidator
