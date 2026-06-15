@@ -27,6 +27,8 @@
 #include <opm/input/eclipse/Schedule/Well/WellTestConfig.hpp>
 #include <opm/input/eclipse/Schedule/Well/WellTestState.hpp>
 
+#include <opm/input/eclipse/Units/UnitSystem.hpp>
+
 #include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 
 #include <opm/simulators/utils/DeferredLogger.hpp>
@@ -37,6 +39,27 @@
 #include <fmt/format.h>
 
 #include <algorithm>
+#include <chrono>
+#include <ctime>
+#include <iomanip>
+#include <sstream>
+#include <string>
+
+namespace {
+
+//! \brief Calendar date (DD-Mon-YYYY) reached at start_time + sim_time seconds.
+std::string ceconDateString(const std::time_t start_time, const double sim_time)
+{
+    const auto start_tp = std::chrono::system_clock::from_time_t(start_time);
+    const auto duration = std::chrono::duration_cast<std::chrono::system_clock::duration>(
+        std::chrono::duration<double>(sim_time));
+    const std::time_t cur_time = std::chrono::system_clock::to_time_t(start_tp + duration);
+    std::ostringstream ss;
+    ss << std::put_time(std::localtime(&cur_time), "%d-%b-%Y");
+    return ss.str();
+}
+
+} // anonymous namespace
 
 namespace Opm {
 
@@ -461,6 +484,8 @@ updateWellTestStateCECON(const SingleWellState<Scalar, IndexTraits>& ws,
                          const double simulation_time,
                          const bool write_message_to_opmlog,
                          WellTestState& well_test_state,
+                         const UnitSystem& unit_system,
+                         const std::time_t start_time,
                          DeferredLogger& deferred_logger) const
 {
     if (well_.isInjector())
@@ -524,7 +549,13 @@ updateWellTestStateCECON(const SingleWellState<Scalar, IndexTraits>& ws,
             ? -conn_rates[pu.canonicalToActivePhaseIdx(IndexTraits::waterPhaseIdx)]
             : Scalar{0};
 
+        // Record which ratio limit was violated together with its actual value
+        // and limit, so the closing message can report the offending quantity.
         bool violated = false;
+        const char* ratio_name = nullptr;
+        UnitSystem::measure ratio_measure = UnitSystem::measure::identity;
+        Scalar ratio_value = Scalar{0};
+        Scalar ratio_limit = Scalar{0};
 
         if (!violated && limits.onMaxWaterCut()) {
             const Scalar liquid = oil_rate + water_rate;
@@ -532,26 +563,63 @@ updateWellTestStateCECON(const SingleWellState<Scalar, IndexTraits>& ws,
                 const Scalar wcut = (oil_rate >= Scalar{0})
                     ? water_rate / liquid
                     : Scalar{1};
-                violated = wcut > limits.max_water_cut;
+                if (wcut > limits.max_water_cut) {
+                    violated = true;
+                    ratio_name = "water cut";
+                    ratio_measure = UnitSystem::measure::water_cut;
+                    ratio_value = wcut;
+                    ratio_limit = limits.max_water_cut;
+                }
             }
         }
 
         if (!violated && limits.onMaxGasOilRatio()) {
             if (gas_rate > Scalar{0}) {
-                violated = (oil_rate <= Scalar{0})
-                    || (gas_rate / oil_rate > limits.max_gas_oil_ratio);
+                const bool no_oil = (oil_rate <= Scalar{0});
+                if (no_oil || (gas_rate / oil_rate > limits.max_gas_oil_ratio)) {
+                    violated = true;
+                    ratio_name = "gas-oil ratio";
+                    ratio_measure = UnitSystem::measure::gas_oil_ratio;
+                    ratio_value = no_oil ? std::numeric_limits<Scalar>::infinity()
+                                         : gas_rate / oil_rate;
+                    ratio_limit = limits.max_gas_oil_ratio;
+                }
             }
         }
 
         if (!violated && limits.onMaxWaterGasRatio()) {
             if (water_rate > Scalar{0}) {
-                violated = (gas_rate <= Scalar{0})
-                    || (water_rate / gas_rate > limits.max_water_gas_ratio);
+                const bool no_gas = (gas_rate <= Scalar{0});
+                if (no_gas || (water_rate / gas_rate > limits.max_water_gas_ratio)) {
+                    violated = true;
+                    ratio_name = "water-gas ratio";
+                    ratio_measure = UnitSystem::measure::water_gas_ratio;
+                    ratio_value = no_gas ? std::numeric_limits<Scalar>::infinity()
+                                         : water_rate / gas_rate;
+                    ratio_limit = limits.max_water_gas_ratio;
+                }
             }
         }
 
         if (!violated)
             continue;
+
+        // Build the "at time ... (date = ...)" and ratio-violation clauses that
+        // are shared by all CECON workover messages below.
+        const std::string when = fmt::format(
+            "at time {:.2f} {} (date = {})",
+            unit_system.from_si(UnitSystem::measure::time, simulation_time),
+            unit_system.name(UnitSystem::measure::time),
+            ceconDateString(start_time, simulation_time));
+
+        const std::string ratio_unit = unit_system.name(ratio_measure);
+        const std::string unit_suffix = ratio_unit.empty() ? std::string{}
+                                                           : " " + ratio_unit;
+        const std::string reason = fmt::format(
+            "{} {:.4e}{} exceeds the limit {:.4e}{}",
+            ratio_name,
+            unit_system.from_si(ratio_measure, ratio_value), unit_suffix,
+            unit_system.from_si(ratio_measure, ratio_limit), unit_suffix);
 
         switch (limits.workover) {
         case ConnectionEconLimits::EconWorkover::CON:
@@ -561,7 +629,8 @@ updateWellTestStateCECON(const SingleWellState<Scalar, IndexTraits>& ws,
                     (limits.workover == ConnectionEconLimits::EconWorkover::CONP);
                 this->closeOffendingCompletion(complnum, close_below,
                                                 simulation_time, write_message_to_opmlog,
-                                                well_test_state, deferred_logger);
+                                                well_test_state, when, reason,
+                                                deferred_logger);
                 if (well_test_state.well_is_closed(well_.name()))
                     return;
                 break;
@@ -570,21 +639,12 @@ updateWellTestStateCECON(const SingleWellState<Scalar, IndexTraits>& ws,
             well_test_state.close_well(well_.name(), WellTestConfig::Reason::ECONOMIC,
                                        simulation_time);
             if (write_message_to_opmlog) {
-                const auto& connections = well_.wellEcl().getConnections();
-                const auto num_connections =
-                    std::count_if(connections.begin(), connections.end(),
-                                  [complnum](const auto& conn)
-                                  { return conn.complnum() == complnum; });
-                const std::string completion_msg = (num_connections == 1)
-                    ? fmt::format("Completion {} - block ({}, {}, {})", complnum,
-                                  connection.getI() + 1,
-                                  connection.getJ() + 1,
-                                  connection.getK() + 1)
-                    : fmt::format("Completion {}", complnum);
                 const std::string action = well_.wellEcl().getAutomaticShutIn() ? "shut" : "stopped";
-                deferred_logger.info(fmt::format("{} will be {} due to connection ratio economic limit "
-                                                 "violated at {}",
-                                                 well_.name(), action, completion_msg));
+                const std::string sep = this->message_separator();
+                deferred_logger.info(
+                    fmt::format("{}\nWell {} will be {} {},\nBecause {} {}.\n{}",
+                                sep, well_.name(), action, when,
+                                this->completionDescriptor(complnum), reason, sep));
             }
             return;
         case ConnectionEconLimits::EconWorkover::PLUG:
@@ -602,6 +662,8 @@ closeOffendingCompletion(const int offending_completion,
                          const double simulation_time,
                          const bool write_message_to_opmlog,
                          WellTestState& well_test_state,
+                         const std::string& when,
+                         const std::string& reason,
                          DeferredLogger& deferred_logger) const
 {
     // Completion numbers are positive (1-based). Non-positive values are
@@ -647,21 +709,17 @@ closeOffendingCompletion(const int offending_completion,
     }
 
     if (write_message_to_opmlog) {
-        const std::string below_msg = close_connections_below
-            ? " and all connections below it" : "";
-        std::string block_msg;
-        for (const auto& connection : connections) {
-            if (connection.complnum() == offending_completion) {
-                block_msg = fmt::format(" - block ({}, {}, {})",
-                                        connection.getI() + 1,
-                                        connection.getJ() + 1,
-                                        connection.getK() + 1);
-                break;
-            }
-        }
-        deferred_logger.info(fmt::format("Completion {}{} for well {}{} will be closed due to economic limit",
-                                         offending_completion, block_msg,
-                                         well_.name(), below_msg));
+        // "and all below" is only appended for the +CON workover, which also
+        // closes every connection below the offending completion.
+        const std::string subject = close_connections_below
+            ? fmt::format("{}, and all below, in Well {}",
+                          this->completionDescriptor(offending_completion), well_.name())
+            : fmt::format("{} in Well {}",
+                          this->completionDescriptor(offending_completion), well_.name());
+        const std::string sep = this->message_separator();
+        deferred_logger.info(
+            fmt::format("{}\n{} will be closed {},\nBecause its {}.\n{}",
+                        sep, subject, when, reason, sep));
     }
 
     bool allCompletionsClosed = true;
@@ -676,9 +734,40 @@ closeOffendingCompletion(const int offending_completion,
         well_test_state.close_well(well_.name(), WellTestConfig::Reason::ECONOMIC, simulation_time);
         // if all the completion/connections are closed, the well can only be SHUT
         if (write_message_to_opmlog) {
-            deferred_logger.info(fmt::format("{} will be shut due to last completion closed", well_.name()));
+            const std::string sep = this->message_separator();
+            deferred_logger.info(
+                fmt::format("{}\nWell {} will be shut {},\n"
+                            "Because all its completions are closed.\n{}",
+                            sep, well_.name(), when, sep));
         }
     }
+}
+
+template<typename Scalar, typename IndexTraits>
+std::string WellTest<Scalar, IndexTraits>::
+completionDescriptor(const int complnum) const
+{
+    const auto& connections = well_.wellEcl().getConnections();
+    const Connection* first = nullptr;
+    int num_connections = 0;
+    for (const auto& connection : connections) {
+        if (connection.complnum() == complnum) {
+            if (first == nullptr) {
+                first = &connection;
+            }
+            ++num_connections;
+        }
+    }
+
+    // A completion that spans several connections/blocks is identified by its
+    // number only; a single-connection completion also reports its block.
+    if (num_connections == 1 && first != nullptr) {
+        return fmt::format("Completion {} - block ({}, {}, {})", complnum,
+                           first->getI() + 1,
+                           first->getJ() + 1,
+                           first->getK() + 1);
+    }
+    return fmt::format("Completion {}", complnum);
 }
 
 template<typename Scalar, typename IndexTraits>

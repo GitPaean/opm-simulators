@@ -24,7 +24,10 @@
 #ifndef OPM_WELL_TEST_HEADER_INCLUDED
 #define OPM_WELL_TEST_HEADER_INCLUDED
 
+#include <cstddef>
+#include <ctime>
 #include <limits>
+#include <string>
 #include <vector>
 
 namespace Opm
@@ -32,6 +35,7 @@ namespace Opm
 
 class DeferredLogger;
 template<typename Scalar, typename IndexTraits> class SingleWellState;
+class UnitSystem;
 class WellEconProductionLimits;
 template<typename Scalar, typename IndexTraits> class WellInterfaceGeneric;
 class WellTestState;
@@ -54,6 +58,8 @@ public:
                                   const double simulation_time,
                                   const bool write_message_to_opmlog,
                                   WellTestState& well_test_state,
+                                  const UnitSystem& unit_system,
+                                  const std::time_t start_time,
                                   DeferredLogger& deferred_logger) const;
 
     void updateWellTestStatePhysical(const double simulation_time,
@@ -101,14 +107,31 @@ private:
                          const SingleWellState<Scalar, IndexTraits>& ws,
                          DeferredLogger& deferred_logger) const;
 
+    //! \brief Describe a completion as "Completion N - block (i, j, k)" when it
+    //!        owns a single connection, or just "Completion N" when it spans
+    //!        several connections/blocks.
+    std::string completionDescriptor(int complnum) const;
+
     //! \brief Apply the CON / +CON (close-connection) workover procedure.
+    //!
+    //! \param when    Human-readable "at time ... (date = ...)" clause shared
+    //!                with the triggering CECON message.
+    //! \param reason  Human-readable ratio-violation clause (e.g.
+    //!                "water-gas ratio 1.0353e-06 SM3/SM3 exceeds the limit ...").
     void closeOffendingCompletion(int offending_completion,
                                   bool close_connections_below,
                                   double simulation_time,
                                   bool write_message_to_opmlog,
                                   WellTestState& well_test_state,
+                                  const std::string& when,
+                                  const std::string& reason,
                                   DeferredLogger& deferred_logger) const;
 
+    //! \brief A line of \p sep_length repetitions of \p sep_char used to frame
+    //!        CECON workover messages (mirrors GroupEconomicLimitsChecker).
+    std::string message_separator(const char sep_char = '*',
+                                  const std::size_t sep_length = 110) const
+    { return std::string(sep_length, sep_char); }
 
     const WellInterfaceGeneric<Scalar, IndexTraits>& well_; //!< Reference to well interface
 };
