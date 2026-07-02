@@ -32,10 +32,13 @@
 #include <opm/simulators/flow/FlowProblemComp.hpp>
 #include <opm/simulators/flow/FlowProblemCompProperties.hpp>
 
+#include <opm/simulators/linalg/ISTLSolverRuntimeOptionProxy.hpp>
 #include <opm/simulators/linalg/parallelbicgstabbackend.hh>
 
 #include <flowexperimental/comp/EmptyModel.hpp>
 #include <flowexperimental/comp/wells/CompWellModel.hpp>
+
+#include <type_traits>
 
 // // the current code use eclnewtonmethod adding other conditions to proceed_ should do the trick for KA
 // // adding linearshe sould be chaning the update_ function in the same class with condition that the error is reduced.
@@ -79,6 +82,23 @@ private:
 
 public:
     using type = typename Linear::IstlSparseMatrixAdapter<Block>;
+};
+
+// Use the same ISTL linear solver backend (FlexibleSolver with runtime
+// preconditioner selection via --linear-solver) as the flow black-oil
+// simulators. FlexibleSolver and PreconditionerFactory are only explicitly
+// instantiated up to matrix block size 7, so larger component counts stay on
+// the ParallelBiCGStab backend.
+template<class TypeTag, int NumComp, bool EnableWater>
+struct LinearSolverSplice<TypeTag, TTag::FlowCompProblem<NumComp, EnableWater>>
+{
+private:
+    static constexpr int numEq = NumComp + (EnableWater ? 1 : 0);
+
+public:
+    using type = std::conditional_t<(numEq <= 7),
+                                    TTag::FlowIstlSolver,
+                                    TTag::ParallelBiCGStabLinearSolver>;
 };
 
 // NOTE: Do NOT override NewtonMethod here.

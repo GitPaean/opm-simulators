@@ -168,10 +168,31 @@ std::unique_ptr<Matrix> blockJacobiAdjacency(const Grid& grid,
         using ElementMapper = GetPropType<TypeTag, Properties::ElementMapper>;
         using ElementChunksType = ElementChunks<GridView, Dune::Partitions::All>;
 
-        constexpr static std::size_t pressureIndex = GetPropType<TypeTag, Properties::Indices>::pressureSwitchIdx;
+        // Index of the pressure variable, used e.g. for the CPR pressure system.
+        // The black-oil indices call it pressureSwitchIdx, other models
+        // (e.g. the compositional flash model) pressure0Idx.
+        constexpr static std::size_t pressureIndex = []() constexpr -> std::size_t {
+            if constexpr (requires { Indices::pressureSwitchIdx; }) {
+                return Indices::pressureSwitchIdx;
+            } else {
+                return Indices::pressure0Idx;
+            }
+        }();
+
+        // Whether the well model implements the interface needed to treat the
+        // wells as a linear operator next to the reservoir matrix and to form
+        // the well parts of the CPRW pressure system. Well models without it
+        // (e.g. the compositional CompWellModel) apply their coupling to the
+        // reservoir system during assembly instead.
+        static constexpr bool supportsWellOperator_ =
+            requires(WellModel& wm,
+                     typename LinearOperatorExtra<Vector, Vector>::PressureMatrix& pjac,
+                     const Vector& weights) {
+                wm.addWellPressureEquations(pjac, weights, true);
+            };
 
         static constexpr bool enablePolymerMolarWeight = getPropValue<TypeTag, Properties::EnablePolymerMW>();
-        constexpr static bool isIncompatibleWithCprw = enablePolymerMolarWeight;
+        constexpr static bool isIncompatibleWithCprw = enablePolymerMolarWeight || !supportsWellOperator_;
 
 #if HAVE_MPI
         using CommunicationType = Dune::OwnerOverlapCopyCommunication<int,int>;
@@ -224,17 +245,34 @@ std::unique_ptr<Matrix> blockJacobiAdjacency(const Grid& grid,
             OPM_TIMEBLOCK(IstlSolver);
 
             if (isIncompatibleWithCprw) {
-                // Polymer injectivity is incompatible with the CPRW linear solver.
-                // Instead of aborting the run, emit a warning and fall back to ILU0
-                // so that polymer injectivity cases work with default parameters.
-                if (parameters_[0].linsolver_ == "cprw" || parameters_[0].linsolver_ == "hybrid") {
+                // Polymer injectivity and well models without the linear-operator
+                // interface are incompatible with the CPRW linear solver.
+                // Instead of aborting the run, emit a message and fall back to ILU0
+                // so that such cases work with default parameters.
+                // ("cpr" is an alias for "cprw" here, see setupPropertyTree(); the
+                // well-free CPR variants are cpr_quasiimpes and cpr_trueimpes.)
+                if (parameters_[0].linsolver_ == "cprw" || parameters_[0].linsolver_ == "cpr"
+                    || parameters_[0].linsolver_ == "hybrid") {
                     const bool on_io_rank = (simulator_.gridView().comm().rank() == 0);
-                    const std::string msg =
-                        fmt::format("The polymer injectivity model is incompatible with the '{}' "
-                                    "linear solver. Falling back to --linear-solver=ilu0.",
-                                    parameters_[0].linsolver_);
-                    if (on_io_rank) {
-                        OpmLog::warning(msg);
+                    if constexpr (enablePolymerMolarWeight) {
+                        const std::string msg =
+                            fmt::format("The polymer injectivity model is incompatible with the '{}' "
+                                        "linear solver. Falling back to --linear-solver=ilu0.",
+                                        parameters_[0].linsolver_);
+                        if (on_io_rank) {
+                            OpmLog::warning(msg);
+                        }
+                    } else {
+                        // this is the default for simulators whose well model does not
+                        // support the '{cprw, hybrid}' solvers, so only note it in the
+                        // debug log instead of warning on every run
+                        const std::string msg =
+                            fmt::format("The well model does not support the '{}' linear "
+                                        "solver. Falling back to --linear-solver=ilu0.",
+                                        parameters_[0].linsolver_);
+                        if (on_io_rank) {
+                            OpmLog::debug(msg);
+                        }
                     }
                     parameters_[0].linsolver_ = "ilu0";
                 }
@@ -490,15 +528,20 @@ std::unique_ptr<Matrix> blockJacobiAdjacency(const Grid& grid,
         {
             OPM_TIMEBLOCK(flexibleSolverPrepare);
             if (shouldCreateSolver()) {
-                if (!useWellConn_) {
-                    if (isNlddLocalSolver()) {
-                        auto wellOp = std::make_unique<DomainWellModelAsLinearOperator<WellModel, Vector, Vector>>(simulator_.problem().wellModel());
-                        wellOp->setDomainIndex(domainIndex_);
-                        flexibleSolver_[activeSolverNum_].wellOperator_ = std::move(wellOp);
-                    }
-                    else {
-                        auto wellOp = std::make_unique<WellModelOperator>(simulator_.problem().wellModel());
-                        flexibleSolver_[activeSolverNum_].wellOperator_ = std::move(wellOp);
+                // If the well model does not support acting as a linear operator
+                // (supportsWellOperator_ == false), its coupling to the reservoir
+                // system is already contained in the assembled matrix and residual.
+                if constexpr (supportsWellOperator_) {
+                    if (!useWellConn_) {
+                        if (isNlddLocalSolver()) {
+                            auto wellOp = std::make_unique<DomainWellModelAsLinearOperator<WellModel, Vector, Vector>>(simulator_.problem().wellModel());
+                            wellOp->setDomainIndex(domainIndex_);
+                            flexibleSolver_[activeSolverNum_].wellOperator_ = std::move(wellOp);
+                        }
+                        else {
+                            auto wellOp = std::make_unique<WellModelOperator>(simulator_.problem().wellModel());
+                            flexibleSolver_[activeSolverNum_].wellOperator_ = std::move(wellOp);
+                        }
                     }
                 }
                 std::function<Vector()> weightCalculator = this->getWeightsCalculator(prm_[activeSolverNum_], getMatrix(), pressureIndex);
@@ -618,20 +661,29 @@ std::unique_ptr<Matrix> blockJacobiAdjacency(const Grid& grid,
                             return weights;
                         };
                 } else if  (weightsType == "trueimpesanalytic" ) {
-                    weightsCalculator =
-                        [this, pressIndex, enableThreadParallel]
-                        {
-                            Vector weights(rhs_->size());
-                            ElementContext elemCtx(simulator_);
-                            Amg::getTrueImpesWeightsAnalytic(pressIndex,
-                                                             weights,
-                                                             elemCtx,
-                                                             simulator_.model(),
-                                                             *element_chunks_,
-                                                             enableThreadParallel
-                            );
-                            return weights;
-                        };
+                    // the analytic weights are derived from the black-oil equations
+                    // and only compile for black-oil primary variables
+                    using PV = GetPropType<TypeTag, Properties::PrimaryVariables>;
+                    if constexpr (requires { typename PV::GasMeaning; }) {
+                        weightsCalculator =
+                            [this, pressIndex, enableThreadParallel]
+                            {
+                                Vector weights(rhs_->size());
+                                ElementContext elemCtx(simulator_);
+                                Amg::getTrueImpesWeightsAnalytic(pressIndex,
+                                                                 weights,
+                                                                 elemCtx,
+                                                                 simulator_.model(),
+                                                                 *element_chunks_,
+                                                                 enableThreadParallel
+                                );
+                                return weights;
+                            };
+                    } else {
+                        OPM_THROW(std::invalid_argument,
+                                  "Weights type trueimpesanalytic is only supported "
+                                  "for black-oil models.");
+                    }
                 } else {
                     OPM_THROW(std::invalid_argument,
                               "Weights type " + weightsType +

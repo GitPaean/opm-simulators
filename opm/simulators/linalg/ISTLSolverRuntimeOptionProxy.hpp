@@ -173,7 +173,7 @@ private:
                           "supports --linear-solver-accelerator=cpu");
             }
             // System solver types are hardcoded for 3-equation blackoil (see SystemTypes.hpp).
-            if constexpr (Indices::numEq == 3) {
+            if constexpr (Indices::numEq == 3 && requires { Indices::pressureSwitchIdx; }) {
                 istlSolver_ = std::make_unique<ISTLSolverSystem<TypeTag>>(
                     simulator, std::forward<Args>(args)...);
             } else {
@@ -190,7 +190,18 @@ private:
         if (backend == Parameters::LinearSolverAcceleratorType::CPU) {
         // Note that for now we keep the old behavior of using the bridge solver if it is available.
 #if COMPILE_GPU_BRIDGE
-            istlSolver_ = std::make_unique<ISTLSolverGpuBridge<TypeTag>>(simulator, std::forward<Args>(args)...);
+            // The GPU bridge solver requires the black-oil well model interface
+            // (getWellContributions); use the plain ISTL solver for well models
+            // without it (e.g. the compositional well model).
+            using WellModel = GetPropType<TypeTag, Properties::WellModel>;
+            using Scalar = GetPropType<TypeTag, Properties::Scalar>;
+            if constexpr (requires(WellModel& wm, WellContributions<Scalar>& w) {
+                              wm.getWellContributions(w);
+                          }) {
+                istlSolver_ = std::make_unique<ISTLSolverGpuBridge<TypeTag>>(simulator, std::forward<Args>(args)...);
+            } else {
+                istlSolver_ = std::make_unique<ISTLSolver<TypeTag>>(simulator, std::forward<Args>(args)...);
+            }
 #else
             istlSolver_ = std::make_unique<ISTLSolver<TypeTag>>(simulator, std::forward<Args>(args)...);
 #endif
