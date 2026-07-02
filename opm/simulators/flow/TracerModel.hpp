@@ -628,7 +628,7 @@ protected:
             #pragma omp parallel for
             #endif
             for (std::size_t ci = 0; ci < element_chunks_.size(); ++ci) {
-                const auto chunk = element_chunks_[ci];
+                const auto& chunk = element_chunks_[ci];
                 ElementContext elemCtx(simulator_);
                 const Scalar dt = elemCtx.simulator().timeStepSize();
 
@@ -735,7 +735,7 @@ protected:
         #pragma omp parallel for
         #endif
         for (std::size_t ci = 0; ci < element_chunks_.size(); ++ci) {
-            const auto chunk = element_chunks_[ci];
+            const auto& chunk = element_chunks_[ci];
             ElementContext elemCtx(simulator_);
 
             for (const auto& elem : chunk) {
