@@ -132,6 +132,22 @@ protected:
            nextValue[z0Idx + compIdx] = std::clamp(nextValue[z0Idx + compIdx], tol, 1-tol);
         }
 
+        // the mole fraction of the last component is 1 - sum(z_i); the
+        // per-component clamps above do not prevent the sum from exceeding 1,
+        // which would leave the (dependent) last component with a negative
+        // mole fraction and feed the flash an infeasible composition. Project
+        // back onto the simplex by rescaling when necessary.
+        Scalar sumZ = 0.0;
+        for (unsigned compIdx = 0; compIdx < numComponents - 1; ++compIdx) {
+            sumZ += nextValue[z0Idx + compIdx];
+        }
+        if (sumZ > 1 - tol) {
+            const Scalar scale = (1 - tol) / sumZ;
+            for (unsigned compIdx = 0; compIdx < numComponents - 1; ++compIdx) {
+                nextValue[z0Idx + compIdx] = std::max(nextValue[z0Idx + compIdx] * scale, tol);
+            }
+        }
+
         if constexpr (waterEnabled) {
             // limit change in water saturation
             constexpr Scalar dSwMax = 0.2;

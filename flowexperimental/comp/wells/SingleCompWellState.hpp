@@ -23,6 +23,7 @@
 #include <opm/input/eclipse/Schedule/Well/WellEnums.hpp>
 #include <opm/simulators/wells/PerforationData.hpp>
 
+#include <algorithm>
 #include <string>
 #include <vector>
 

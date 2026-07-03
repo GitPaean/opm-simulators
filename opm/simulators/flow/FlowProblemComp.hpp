@@ -574,13 +574,24 @@ protected:
                     dofFluidState.setPressure(phaseIdx, pressure);
             }
 
+            // the deck data only covers the active components; the padding
+            // components (if this simulator was compiled for more components
+            // than the deck contains) are initialized at a trace mole
+            // fraction, matching the mole-fraction floor that the nonlinear
+            // solver enforces anyway, and the active fractions are
+            // renormalized accordingly.
+            const unsigned numActiveComponents = FluidSystem::numActiveComponents();
+            constexpr Scalar padding_zmf = 1e-8;
+            const Scalar active_scaling = 1.0 - (numComponents - numActiveComponents) * padding_zmf;
+
             if (has_xmf && has_ymf) {
                 const auto& xmfData = fp.get_double("XMF");
                 const auto& ymfData = fp.get_double("YMF");
                 for (unsigned compIdx = 0; compIdx < numComponents; ++compIdx) {
                     const std::size_t data_idx = compIdx * numDof + dofIdx;
-                    const Scalar xmf = xmfData[data_idx];
-                    const Scalar ymf = ymfData[data_idx];
+                    const bool active = compIdx < numActiveComponents;
+                    const Scalar xmf = active ? xmfData[data_idx] * active_scaling : padding_zmf;
+                    const Scalar ymf = active ? ymfData[data_idx] * active_scaling : padding_zmf;
 
                     dofFluidState.setMoleFraction(FluidSystem::oilPhaseIdx, compIdx, xmf);
                     dofFluidState.setMoleFraction(FluidSystem::gasPhaseIdx, compIdx, ymf);
@@ -592,7 +603,8 @@ protected:
                 const auto& zmfData = fp.get_double("ZMF");
                 for (unsigned compIdx = 0; compIdx < numComponents; ++compIdx) {
                     const std::size_t data_idx = compIdx * numDof + dofIdx;
-                    const Scalar zmf = zmfData[data_idx];
+                    const bool active = compIdx < numActiveComponents;
+                    const Scalar zmf = active ? zmfData[data_idx] * active_scaling : padding_zmf;
                     dofFluidState.setMoleFraction(compIdx, zmf);
 
                     if (gas_active) {

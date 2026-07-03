@@ -122,6 +122,26 @@ public:
             addPhaseStorage(storage, elemCtx, dofIdx, timeIdx, phaseIdx);
         }
 
+        // If the fluid system holds fewer (runtime-)active components than its
+        // compile-time capacity, the inactive padding components are decoupled
+        // from the physics: their conservation equations are replaced by
+        // trivial equations that pin their mole fractions to the initial trace
+        // value. This keeps the Jacobian rows of the padding components well
+        // conditioned (they would otherwise scale with the trace mole
+        // fraction) and prevents them from obstructing convergence. Together
+        // with zero flux (see computeFlux) and zero well rates, the residual
+        // of a padding component becomes (z - z_old) * scale / dt.
+        if constexpr (requires { FluidSystem::numActiveComponents(); }) {
+            const auto& fs = elemCtx.intensiveQuantities(dofIdx, timeIdx).fluidState();
+            // mass-like scale to roughly match the magnitude of the real
+            // storage terms (density * saturation * porosity)
+            constexpr double padding_scale = 1000.0;
+            for (int compIdx = FluidSystem::numActiveComponents(); compIdx < numComponents; ++compIdx) {
+                storage[conti0EqIdx + compIdx] =
+                    Toolbox::template decay<LhsEval>(fs.moleFraction(compIdx)) * padding_scale;
+            }
+        }
+
         EnergyModule::addSolidEnergyStorage(storage, elemCtx.intensiveQuantities(dofIdx, timeIdx));
     }
 
@@ -139,6 +159,13 @@ public:
 
         addDiffusiveFlux(flux, elemCtx, scvfIdx, timeIdx);
         Valgrind::CheckDefined(flux);
+
+        // padding components are decoupled from the physics, see computeStorage()
+        if constexpr (requires { FluidSystem::numActiveComponents(); }) {
+            for (int compIdx = FluidSystem::numActiveComponents(); compIdx < numComponents; ++compIdx) {
+                flux[conti0EqIdx + compIdx] = 0.0;
+            }
+        }
     }
 
     /*!

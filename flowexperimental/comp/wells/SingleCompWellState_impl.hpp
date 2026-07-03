@@ -62,7 +62,9 @@ SingleCompWellState(const std::string& well_name,
    , surface_phase_rates(FluidSystem::numPhases)
    , phase_fractions(FluidSystem::numPhases)
    , reservoir_phase_rates(FluidSystem::numPhases)
-   , total_molar_fractions(comp_config.numComps())
+   // sized by the compile-time component count; components the deck does not
+   // contain are inert padding components with zero molar fraction
+   , total_molar_fractions(FluidSystem::numComponents)
    , connection_data(connections, FluidSystem::numPhases, comp_config)
 {
 }
@@ -76,7 +78,7 @@ update_injector_targets(const Well& well,
     const auto& injection_properties = well.getInjectionProperties();
     const auto& inj_composition = injection_properties.gasInjComposition();
 #ifndef NDEBUG
-    assert(this->total_molar_fractions.size() == inj_composition.size());
+    assert(this->total_molar_fractions.size() >= inj_composition.size());
     const bool cmode_is_undefined = (inj_controls.cmode == Well::InjectorCMode::CMODE_UNDEFINED);
     assert(!cmode_is_undefined && "control types should be specified");
     const auto injection_type = injection_properties.injectorType;
@@ -86,7 +88,10 @@ update_injector_targets(const Well& well,
     this->bhp = inj_controls.bhp_limit;
     this->injection_cmode = inj_controls.cmode;
     // TODO: this might not be correct when crossing flow is involved
-    this->total_molar_fractions = inj_composition;
+    // the deck composition only covers the active components; the padding
+    // components (if any) are not injected
+    std::fill(this->total_molar_fractions.begin(), this->total_molar_fractions.end(), Scalar{0.0});
+    std::copy(inj_composition.begin(), inj_composition.end(), this->total_molar_fractions.begin());
 
     // we initialize all open wells with a rate to avoid singularities
     Scalar inj_surf_rate = 10.0 * Opm::unit::cubic(Opm::unit::meter) / Opm::unit::day;

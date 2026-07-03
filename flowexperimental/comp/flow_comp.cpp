@@ -102,8 +102,31 @@ main(int argc, char** argv)
 
     Opm::Parameters::reset();
 
+    // The number of components is determined at run time: the deck components
+    // become the active components of the smallest compiled simulator that can
+    // hold them, and any remaining slots are treated as inert padding
+    // components. An exact match is preferred (no padding overhead).
+    constexpr std::array compiledComponents {OPM_COMPILE_COMPONENTS_TEMPLATE_LIST};
+    int dispatchComps = -1;
+    for (const int candidate : compiledComponents) {
+        if (candidate >= static_cast<int>(numComps) &&
+            (dispatchComps < 0 || candidate < dispatchComps)) {
+            dispatchComps = candidate;
+        }
+    }
+    if (dispatchComps < 0) {
+        // no compiled simulator is large enough; keep the deck value so that
+        // the error message below reports the deck's component count
+        dispatchComps = static_cast<int>(numComps);
+    }
+    else if (dispatchComps != static_cast<int>(numComps)) {
+        fmt::print("Deck has {} components; running the {}-component simulator with {} active "
+                   "components and {} inert padding components.\n",
+                   numComps, dispatchComps, numComps, dispatchComps - static_cast<int>(numComps));
+    }
+
     auto [componentSupported, executionStatus]
-        = runComponent<OPM_COMPILE_COMPONENTS_TEMPLATE_LIST>(numComps, wat, argc, argv);
+        = runComponent<OPM_COMPILE_COMPONENTS_TEMPLATE_LIST>(dispatchComps, wat, argc, argv);
 
     if (!componentSupported) {
         fmt::print("Deck has {} components, not supported. In this build of the simulator, we support the "

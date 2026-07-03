@@ -129,7 +129,11 @@ updateSurfaceQuantities(const Simulator& simulator)
         const auto& inj_composition = this->well_ecl_.getInjectionProperties().gasInjComposition();
         FluidState<Scalar> fluid_state;
         for (unsigned comp_idx = 0; comp_idx < FluidSystem::numComponents; ++comp_idx) {
-            fluid_state.setMoleFraction(comp_idx, std::max(inj_composition[comp_idx], 1.e-10));
+            // the deck composition only covers the active components; padding
+            // components (if any) are kept at the trace floor
+            const Scalar deck_fraction = comp_idx < inj_composition.size()
+                ? inj_composition[comp_idx] : Scalar{0.0};
+            fluid_state.setMoleFraction(comp_idx, std::max(deck_fraction, Scalar{1.e-10}));
         }
         updateSurfaceCondition_(surface_cond, fluid_state);
     } else { // the composition will be from the wellbore
@@ -180,6 +184,13 @@ calculateSingleConnectionRate(const Simulator& simulator,
         for (unsigned comp_idx = 0; comp_idx < FluidSystem::numComponents; comp_idx++) {
             con_rates[comp_idx] = cq_v * fluid_density_ * mass_fractions_[comp_idx];
         }
+    }
+
+    // padding components are decoupled from the reservoir physics
+    // (their conservation equations are trivial, see FlashLocalResidual),
+    // so they must not be injected or produced
+    for (int comp_idx = FluidSystem::numActiveComponents(); comp_idx < static_cast<int>(FluidSystem::numComponents); ++comp_idx) {
+        con_rates[comp_idx] = 0.;
     }
 }
 
