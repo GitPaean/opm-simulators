@@ -126,11 +126,15 @@ public:
         // (Hermite interpolation)
         const Scalar h = stepsize();
         int i = (x - span_[0]) / h;
-        const Scalar t = (x - (span_[0] + i*h)) / h;
 
-        // Crude handling of evaluation point outside "span_";
+        // Crude handling of evaluation point outside "span_".  The interval
+        // index must be clamped before computing the local coordinate, so
+        // that evaluation at the far end of the span yields the final node
+        // value instead of the value one node before it.
         if (i  <  0) { i = 0;      }
         if (N_ <= i) { i = N_ - 1; }
+
+        const Scalar t = (x - (span_[0] + i*h)) / h;
 
         const Scalar y0 = y_[i], y1 = y_[i + 1];
         const Scalar f0 = f_[i], f1 = f_[i + 1];
