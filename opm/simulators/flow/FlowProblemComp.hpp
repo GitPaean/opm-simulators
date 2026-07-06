@@ -34,6 +34,7 @@
 #include <opm/simulators/flow/FlowProblem.hpp>
 #include <opm/simulators/flow/FlowThresholdPressure.hpp>
 #include <opm/simulators/flow/OutputCompositionalModule.hpp>
+#include <opm/simulators/flow/equil/EquilInitializerComp.hpp>
 
 #include <opm/material/fluidstates/CompositionalFluidState.hpp>
 
@@ -452,7 +453,33 @@ protected:
 
     void readEquilInitialCondition_() override
     {
-        throw std::logic_error("Equilibration is not supported by compositional modeling yet");
+        const auto& simulator = this->simulator();
+        const auto& vanguard = simulator.vanguard();
+        const auto& eclState = vanguard.eclState();
+
+        const auto& cellDepth = vanguard.cellCenterDepths();
+        const std::size_t numDof = this->model().numGridDof();
+
+        // Zero-based equilibration region for every cell (EQLNUM; region 0 by default).
+        std::vector<int> eqlnum(numDof, 0);
+        const auto& fp = eclState.fieldProps();
+        if (fp.has_int("EQLNUM")) {
+            const auto& e = fp.get_int("EQLNUM");
+            std::ranges::transform(e, eqlnum.begin(), [](const int n) { return n - 1; });
+        }
+
+        EQUIL::CompositionalInitializer<FluidSystem, Scalar> initializer(
+            eclState,
+            getEosType(),
+            cellDepth,
+            eqlnum,
+            this->gravity()[dimWorld - 1],
+            simulator.problem().numPressurePointsEquil());
+
+        initialFluidStates_ = std::move(initializer.initialFluidStates());
+        // The compositional primary variables are initialized from the total
+        // composition; see initial().
+        zmf_initialization_ = true;
     }
 
     void readEclRestartSolution_()
