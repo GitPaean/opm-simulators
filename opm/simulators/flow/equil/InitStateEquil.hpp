@@ -37,6 +37,7 @@
 #include <opm/simulators/utils/ParallelCommunication.hpp>
 
 #include <array>
+#include <cassert>
 #include <cstddef>
 #include <memory>
 #include <utility>
@@ -75,6 +76,13 @@ template<class Scalar> class EquilReg;
 namespace Miscibility { template<class Scalar> class RsFunction; }
 
 namespace Details {
+
+/// Fixed-step fourth-order Runge-Kutta integrator for a scalar initial value
+/// problem y' = f(x, y), with O(h^3) Hermite dense output.
+///
+/// Defined inline in the header so that the integrator can be reused by both
+/// the black-oil and the compositional equilibration code without duplicating
+/// the implementation.
 template <class Scalar, class RHS>
 class RK4IVP
 {
@@ -82,9 +90,58 @@ public:
     RK4IVP(const RHS& f,
            const std::array<Scalar,2>& span,
            const Scalar y0,
-           const int N);
+           const int N)
+        : N_(N)
+        , span_(span)
+    {
+        const Scalar h = stepsize();
+        const Scalar h2 = h / 2;
+        const Scalar h6 = h / 6;
 
-    Scalar operator()(const Scalar x) const;
+        y_.reserve(N + 1);
+        f_.reserve(N + 1);
+
+        y_.push_back(y0);
+        f_.push_back(f(span_[0], y0));
+
+        for (int i = 0; i < N; ++i) {
+            const Scalar x = span_[0] + i*h;
+            const Scalar y = y_.back();
+
+            const Scalar k1 = f_[i];
+            const Scalar k2 = f(x + h2, y + h2*k1);
+            const Scalar k3 = f(x + h2, y + h2*k2);
+            const Scalar k4 = f(x + h, y + h*k3);
+
+            y_.push_back(y + h6*(k1 + 2*(k2 + k3) + k4));
+            f_.push_back(f(x + h, y_.back()));
+        }
+
+        assert (y_.size() == typename std::vector<Scalar>::size_type(N + 1));
+    }
+
+    Scalar operator()(const Scalar x) const
+    {
+        // Dense output (O(h**3)) according to Shampine
+        // (Hermite interpolation)
+        const Scalar h = stepsize();
+        int i = (x - span_[0]) / h;
+        const Scalar t = (x - (span_[0] + i*h)) / h;
+
+        // Crude handling of evaluation point outside "span_";
+        if (i  <  0) { i = 0;      }
+        if (N_ <= i) { i = N_ - 1; }
+
+        const Scalar y0 = y_[i], y1 = y_[i + 1];
+        const Scalar f0 = f_[i], f1 = f_[i + 1];
+
+        Scalar u = (1 - 2*t) * (y1 - y0);
+        u += h * ((t - 1)*f0 + t*f1);
+        u *= t * (t - 1);
+        u += (1 - t)*y0 + t*y1;
+
+        return u;
+    }
 
 private:
     int N_;
@@ -92,7 +149,10 @@ private:
     std::vector<Scalar>  y_;
     std::vector<Scalar>  f_;
 
-    Scalar stepsize() const;
+    Scalar stepsize() const
+    {
+        return (span_[1] - span_[0]) / N_;
+    }
 };
 
 namespace PhasePressODE {
@@ -773,7 +833,7 @@ private:
                                PhaseSat&               psat);
 
      template<class CellRange, class PressTable, class PhaseSat>
-     void equilibrateTiltedFaultBlock(const CellRange& cells, 
+     void equilibrateTiltedFaultBlock(const CellRange& cells,
                             const EquilReg<Scalar>& eqreg,
                             const GridView& gridView, const int numLevels,
                             const PressTable& ptable, PhaseSat& psat);

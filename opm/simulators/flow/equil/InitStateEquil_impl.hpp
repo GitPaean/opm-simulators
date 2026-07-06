@@ -152,7 +152,7 @@ std::pair<Scalar,Scalar> cellCenterXY(const Element& element)
     static constexpr int yCoord = Element::dimension - 2;
     Scalar yy = 0.0;
     Scalar xx = 0.0;
-        
+
 
     const Geometry& geometry = element.geometry();
     const int corners = geometry.corners();
@@ -282,7 +282,7 @@ Scalar calculateTrueVerticalDepth(Scalar z, Scalar x, Scalar y,
                                 const std::array<Scalar, 3>& referencePoint)
 {
     // For True Vertical Depth calculation:
-    // TVD = reference_depth + (z - reference_z) * cos(dipAngle) 
+    // TVD = reference_depth + (z - reference_z) * cos(dipAngle)
     //       + lateral_distance * sin(dipAngle) * cos(azimuth_difference)
 
     // Calculate lateral displacement from reference point
@@ -315,71 +315,8 @@ Scalar calculateTrueVerticalDepth(Scalar z, Scalar x, Scalar y,
     return tvd;
 }
 
-template<class Scalar, class RHS>
-RK4IVP<Scalar,RHS>::RK4IVP(const RHS& f,
-                           const std::array<Scalar,2>& span,
-                           const Scalar y0,
-                           const int N)
-    : N_(N)
-    , span_(span)
-{
-    const Scalar h = stepsize();
-    const Scalar h2 = h / 2;
-    const Scalar h6 = h / 6;
-
-    y_.reserve(N + 1);
-    f_.reserve(N + 1);
-
-    y_.push_back(y0);
-    f_.push_back(f(span_[0], y0));
-
-    for (int i = 0; i < N; ++i) {
-        const Scalar x = span_[0] + i*h;
-        const Scalar y = y_.back();
-
-        const Scalar k1 = f_[i];
-        const Scalar k2 = f(x + h2, y + h2*k1);
-        const Scalar k3 = f(x + h2, y + h2*k2);
-        const Scalar k4 = f(x + h, y + h*k3);
-
-        y_.push_back(y + h6*(k1 + 2*(k2 + k3) + k4));
-        f_.push_back(f(x + h, y_.back()));
-    }
-
-    assert (y_.size() == typename std::vector<Scalar>::size_type(N + 1));
-}
-
-template<class Scalar, class RHS>
-Scalar RK4IVP<Scalar,RHS>::
-operator()(const Scalar x) const
-{
-    // Dense output (O(h**3)) according to Shampine
-    // (Hermite interpolation)
-    const Scalar h = stepsize();
-    int i = (x - span_[0]) / h;
-    const Scalar t = (x - (span_[0] + i*h)) / h;
-
-    // Crude handling of evaluation point outside "span_";
-    if (i  <  0) { i = 0;      }
-    if (N_ <= i) { i = N_ - 1; }
-
-    const Scalar y0 = y_[i], y1 = y_[i + 1];
-    const Scalar f0 = f_[i], f1 = f_[i + 1];
-
-    Scalar u = (1 - 2*t) * (y1 - y0);
-    u += h * ((t - 1)*f0 + t*f1);
-    u *= t * (t - 1);
-    u += (1 - t)*y0 + t*y1;
-
-    return u;
-}
-
-template<class Scalar, class RHS>
-Scalar RK4IVP<Scalar,RHS>::
-stepsize() const
-{
-    return (span_[1] - span_[0]) / N_;
-}
+// RK4IVP is defined inline in InitStateEquil.hpp so that it can be reused by
+// the compositional equilibration code as well.
 
 namespace PhasePressODE {
 
