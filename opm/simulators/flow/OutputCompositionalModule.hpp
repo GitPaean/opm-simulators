@@ -200,6 +200,32 @@ public:
     {
         this->compC_.outputRestart(sol, this->saturation_[oilPhaseIdx]);
         BaseType::assignToSolution(sol);
+
+        // The densities and viscosities are filled into the buffers of the
+        // black-oil output module, which emits them under the array names the
+        // reference simulator's black-oil formulation uses.  A compositional
+        // restart carries the same quantities under different names, so
+        // translate them here.  Both families are documented, and the
+        // relative permeabilities are named the same way (GASKR against KRG,
+        // for instance), so this is a naming convention rather than a
+        // difference in content.
+        using namespace std::string_literals;
+        for (const auto& [flowName, eclName] : {std::pair{"GAS_DEN"s, "DENG"s},
+                                                std::pair{"OIL_DEN"s, "DENO"s},
+                                                std::pair{"WAT_DEN"s, "DENW"s},
+                                                std::pair{"GAS_VISC"s, "VGAS"s},
+                                                std::pair{"OIL_VISC"s, "VOIL"s},
+                                                std::pair{"WAT_VISC"s, "VWAT"s}}) {
+            // insert() of an existing key is a no-op that would drop the array
+            // on the floor, so only rename when the target name is free.
+            if (auto it = sol.find(flowName);
+                it != sol.end() && !sol.contains(eclName))
+            {
+                auto node = sol.extract(it);
+                node.key() = eclName;
+                sol.insert(std::move(node));
+            }
+        }
     }
 
     void outputFipAndResvLog(const Inplace& inplace,
@@ -329,18 +355,61 @@ public:
                                                 [&fs = ectx.fs](const unsigned compIdx)
                                                 { return getValue(fs.moleFraction(compIdx)); });
 
+                      // The composition of a phase that is not present is
+                      // undefined; report it as zero rather than as whatever
+                      // the flash left behind.  A vanishing but non-zero
+                      // saturation still carries a meaningful composition.
                       if (FluidSystem::phaseIsActive(gasPhaseIdx)) {
+                          const bool hasGas =
+                              getValue(ectx.fs.saturation(gasPhaseIdx)) > Scalar{0};
                           compC.assignGasFractions(ectx.globalDofIdx,
-                                                   [&fs = ectx.fs](const unsigned compIdx)
-                                                   { return getValue(fs.moleFraction(gasPhaseIdx, compIdx)); });
+                                                   [&fs = ectx.fs, hasGas](const unsigned compIdx)
+                                                   {
+                                                       return hasGas
+                                                           ? getValue(fs.moleFraction(gasPhaseIdx, compIdx))
+                                                           : Scalar{0};
+                                                   });
                       }
 
                       if (FluidSystem::phaseIsActive(oilPhaseIdx)) {
+                          const bool hasOil =
+                              getValue(ectx.fs.saturation(oilPhaseIdx)) > Scalar{0};
                           compC.assignOilFractions(ectx.globalDofIdx,
-                                                   [&fs = ectx.fs](const unsigned compIdx)
-                                                   { return getValue(fs.moleFraction(oilPhaseIdx, compIdx)); });
+                                                   [&fs = ectx.fs, hasOil](const unsigned compIdx)
+                                                   {
+                                                       return hasOil
+                                                           ? getValue(fs.moleFraction(oilPhaseIdx, compIdx))
+                                                           : Scalar{0};
+                                                   });
                       }
+
+                      compC.assignPhasePressures(ectx.globalDofIdx,
+                                                 getValue(ectx.fs.pressure(oilPhaseIdx)),
+                                                 getValue(ectx.fs.pressure(gasPhaseIdx)));
+
+                      // Vapour mole fraction of the total mixture from the flash.
+                      const Scalar liquidFraction = getValue(ectx.fs.L());
+                      compC.assignVaporFraction(ectx.globalDofIdx,
+                                                std::clamp(Scalar{1} - liquidFraction,
+                                                           Scalar{0}, Scalar{1}));
                   }, this->compC_.allocated()
+            },
+            // The phase densities and viscosities, reported where the phase is present.
+            Entry{PhaseEntry{&this->density_,
+                  [](const unsigned phaseIdx, const ExtractContext& ectx)
+                  {
+                      return getValue(ectx.fs.saturation(phaseIdx)) > 0.0
+                          ? getValue(ectx.fs.density(phaseIdx))
+                          : Scalar{0};
+                  }}
+            },
+            Entry{PhaseEntry{&this->viscosity_,
+                  [](const unsigned phaseIdx, const ExtractContext& ectx)
+                  {
+                      return getValue(ectx.fs.saturation(phaseIdx)) > 0.0
+                          ? getValue(ectx.fs.viscosity(phaseIdx))
+                          : Scalar{0};
+                  }}
             },
         };
 
