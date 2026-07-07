@@ -64,11 +64,24 @@ public:
     void assignOilFractions(const unsigned globalDofIdx,
                             const AssignFunction& fractions);
 
+    void assignPhasePressures(const unsigned globalDofIdx,
+                              const Scalar oilPressure,
+                              const Scalar gasPressure);
+
+    void assignSaturationPressure(const unsigned globalDofIdx,
+                                  const Scalar psat);
+
+    void assignVaporFraction(const unsigned globalDofIdx,
+                             const Scalar vmf);
+
     void outputRestart(data::Solution& sol,
                        ScalarBuffer& oil_saturation);
 
     bool allocated() const
     { return allocated_; }
+
+    bool saturationPressureAllocated() const
+    { return !saturationPressure_.empty(); }
 
 private:
     bool allocated_ = false;
@@ -76,6 +89,13 @@ private:
     std::array<ScalarBuffer, numComponents> moleFractions_;
     // mole fractions for each component in each phase
     std::array<std::array<ScalarBuffer, numComponents>, numPhases> phaseMoleFractions_;
+    // phase pressures (POIL, PGAS)
+    ScalarBuffer oilPressure_;
+    ScalarBuffer gasPressure_;
+    // saturation pressure (PSAT)
+    ScalarBuffer saturationPressure_;
+    // vapour mole fraction of the total mixture (VMF)
+    ScalarBuffer vaporFraction_;
 };
 
 } // namespace Opm

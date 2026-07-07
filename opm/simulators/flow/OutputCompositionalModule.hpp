@@ -39,6 +39,7 @@
 #include <opm/input/eclipse/EclipseState/SummaryConfig/SummaryConfig.hpp>
 
 #include <opm/material/common/Valgrind.hpp>
+#include <opm/material/constraintsolvers/SaturationPressure.hpp>
 
 #include <opm/models/blackoil/blackoilproperties.hh>
 #include <opm/models/common/multiphasebaseproperties.hh>
@@ -126,6 +127,7 @@ public:
                    getPropValue<TypeTag, Properties::EnableBioeffects>(),
                    getPropValue<TypeTag, Properties::EnableGeochemistry>())
         , simulator_(simulator)
+        , eosType_(simulator.vanguard().eclState().compositionalConfig().eosType(0))
     {
         for (auto& region_pair : this->regions_) {
             this->createLocalRegion_(region_pair.second);
@@ -200,6 +202,22 @@ public:
     {
         this->compC_.outputRestart(sol, this->saturation_[oilPhaseIdx]);
         BaseType::assignToSolution(sol);
+
+        // Rename the arrays shared with the black-oil output to the names an
+        // ECLIPSE-style compositional restart file uses.
+        using namespace std::string_literals;
+        for (const auto& [flowName, eclName] : {std::pair{"GAS_DEN"s, "DENG"s},
+                                                std::pair{"OIL_DEN"s, "DENO"s},
+                                                std::pair{"WAT_DEN"s, "DENW"s},
+                                                std::pair{"GAS_VISC"s, "VGAS"s},
+                                                std::pair{"OIL_VISC"s, "VOIL"s},
+                                                std::pair{"WAT_VISC"s, "VWAT"s}}) {
+            if (auto it = sol.find(flowName); it != sol.end()) {
+                auto node = sol.extract(it);
+                node.key() = eclName;
+                sol.insert(std::move(node));
+            }
+        }
     }
 
     void outputFipAndResvLog(const Inplace& inplace,
@@ -340,7 +358,64 @@ public:
                                                    [&fs = ectx.fs](const unsigned compIdx)
                                                    { return getValue(fs.moleFraction(oilPhaseIdx, compIdx)); });
                       }
+
+                      compC.assignPhasePressures(ectx.globalDofIdx,
+                                                 getValue(ectx.fs.pressure(oilPhaseIdx)),
+                                                 getValue(ectx.fs.pressure(gasPhaseIdx)));
+
+                      // Vapour mole fraction of the total mixture from the flash.
+                      const Scalar liquidFraction = getValue(ectx.fs.L());
+                      compC.assignVaporFraction(ectx.globalDofIdx,
+                                                std::clamp(Scalar{1} - liquidFraction,
+                                                           Scalar{0}, Scalar{1}));
                   }, this->compC_.allocated()
+            },
+            // The phase densities and viscosities, reported where the phase is present.
+            Entry{PhaseEntry{&this->density_,
+                  [](const unsigned phaseIdx, const ExtractContext& ectx)
+                  {
+                      return getValue(ectx.fs.saturation(phaseIdx)) > 0.0
+                          ? getValue(ectx.fs.density(phaseIdx))
+                          : Scalar{0};
+                  }}
+            },
+            Entry{PhaseEntry{&this->viscosity_,
+                  [](const unsigned phaseIdx, const ExtractContext& ectx)
+                  {
+                      return getValue(ectx.fs.saturation(phaseIdx)) > 0.0
+                          ? getValue(ectx.fs.viscosity(phaseIdx))
+                          : Scalar{0};
+                  }}
+            },
+            // A cell where both phases are present is at its saturation pressure;
+            // elsewhere the bubble- (dew-) point pressure of the total composition.
+            Entry{[&compC = this->compC_, eosType = this->eosType_](const ExtractContext& ectx)
+                  {
+                      const auto& fs = ectx.fs;
+                      const Scalar sOil = getValue(fs.saturation(oilPhaseIdx));
+                      const Scalar sGas = getValue(fs.saturation(gasPhaseIdx));
+
+                      Scalar psat = 0.0;
+                      if (sOil > 0.0 && sGas > 0.0) {
+                          psat = getValue(fs.pressure(oilPhaseIdx));
+                      }
+                      else {
+                          using SatP = SaturationPressure<Scalar, FluidSystem>;
+                          typename SatP::CompVec z;
+                          typename SatP::CompVec incipient;
+                          for (int c = 0; c < numComponents; ++c) {
+                              z[c] = getValue(fs.moleFraction(c));
+                          }
+                          const Scalar temp = getValue(fs.temperature(oilPhaseIdx));
+                          const bool converged = (sGas <= 0.0)
+                              ? SatP::bubblePressure(z, temp, eosType, psat, incipient)
+                              : SatP::dewPressure(z, temp, eosType, psat, incipient);
+                          if (!converged) {
+                              psat = 0.0;
+                          }
+                      }
+                      compC.assignSaturationPressure(ectx.globalDofIdx, psat);
+                  }, this->compC_.saturationPressureAllocated()
             },
         };
 
@@ -504,6 +579,7 @@ private:
 
     const Simulator& simulator_;
     CompositionalContainer<FluidSystem> compC_;
+    CompositionalConfig::EOSType eosType_;
     std::vector<typename Extractor::Entry> extractors_;
 };
 
