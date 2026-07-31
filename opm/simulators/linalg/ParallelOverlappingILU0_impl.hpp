@@ -26,6 +26,7 @@
 #include <dune/istl/owneroverlapcopy.hh>
 
 #include <opm/common/ErrorMacros.hpp>
+#include <opm/common/Exceptions.hpp>
 #include <opm/common/TimingMacros.hpp>
 
 #include <opm/simulators/linalg/GraphColoring.hpp>
@@ -587,6 +588,17 @@ update()
     }
     catch (const Dune::MatrixBlockError& error)
     {
+        message = error.what();
+        std::cerr << "Exception occurred on process " << rank << " during " <<
+                     "setup of ILU0 preconditioner with message: "
+                  << message<<std::endl;
+        ilu_setup_successful = 0;
+    }
+    catch (const NumericalProblem& error)
+    {
+        // MatrixBlock::invert() throws NumericalProblem for singular blocks.
+        // It must be handled here like MatrixBlockError so that all processes
+        // reach the collective failure check below instead of unwinding past it.
         message = error.what();
         std::cerr << "Exception occurred on process " << rank << " during " <<
                      "setup of ILU0 preconditioner with message: "
