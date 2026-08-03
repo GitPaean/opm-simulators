@@ -32,6 +32,7 @@
 #include <opm/simulators/linalg/matrixblock.hh>
 
 #include <cassert>
+#include <sstream>
 
 namespace Opm
 {
@@ -92,8 +93,21 @@ void ghost_last_bilu0_decomposition (M& A, std::size_t interiorSize)
         try {
             (*ij).invert();   // compute inverse of diagonal block
         }
-        catch (Dune::FMatrixError & e) {
-            DUNE_THROW(Dune::ISTLError,"ILU failed to invert matrix block");
+        catch (Dune::FMatrixError&) {
+            // Report the same exception type as Dune::ILU::blockILU0Decomposition
+            // does for the identical failure, and carry the block indices with it.
+            // Dune::ISTLError, which was raised here before, is not caught by
+            // ParallelOverlappingILU0::update(), so it escaped the collective
+            // failure check and was turned into a fatal CriticalError by
+            // ISTLSolver::prepare() instead of chopping the time step.
+            std::ostringstream sstream;
+            sstream << "ILU failed to invert matrix block A["
+                    << i.index() << "][" << ij.index() << "]";
+            Dune::MatrixBlockError ex;
+            ex.message(sstream.str());
+            ex.r = i.index();
+            ex.c = ij.index();
+            throw ex;
         }
     }
 }
