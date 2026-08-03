@@ -33,6 +33,8 @@
 #include <cstdlib>
 #include <tuple>
 
+#include <flowexperimental/comp/CompositionalCaseCheck.hpp>
+
 #include "flow_comp.hpp"
 
 template <int compileTimeComponent>
@@ -96,6 +98,11 @@ main(int argc, char** argv)
     const auto deck
         = Opm::Parser {}.parseFile(inputFilename, Opm::ParseContext {}, std::vector {Opm::Ecl::SectionType::RUNSPEC});
     const auto runspec = Opm::Runspec(deck);
+
+    if (!Opm::isCompositionalCase(runspec, inputFilename)) {
+        return EXIT_FAILURE;
+    }
+
     const auto numComps = runspec.numComps();
     const auto& phases = runspec.phases();
     const auto wat = phases.active(Opm::Phase::WATER);
