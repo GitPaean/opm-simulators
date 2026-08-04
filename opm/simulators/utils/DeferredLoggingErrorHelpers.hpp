@@ -173,6 +173,9 @@ catch (const Opm::NumericalProblem& e){                    \
 } catch (const Dune::MatrixBlockError& e) {                \
     obptc_exc_type = Opm::ExceptionType::NUMERICAL_ISSUE;  \
     obptc_exc_msg = e.what();                              \
+} catch (const Dune::ISTLError& e) {                       \
+    obptc_exc_type = Opm::ExceptionType::NUMERICAL_ISSUE;  \
+    obptc_exc_msg = e.what();                              \
 } catch (const std::runtime_error& e) {                    \
     obptc_exc_type = Opm::ExceptionType::RUNTIME_ERROR;    \
     obptc_exc_msg = e.what();                              \
