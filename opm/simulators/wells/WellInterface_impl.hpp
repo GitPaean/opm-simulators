@@ -464,6 +464,10 @@ namespace Opm
         }
 
         WellTestState welltest_state_temp;
+        // Why a limit closed the well again, reported as part of the message below
+        // rather than logged as a shut-in that does not happen. Empty when the well
+        // was closed for a reason that does not spell itself out.
+        std::string closure_reason;
 
         bool testWell = true;
         // if a well is closed because all completions are closed, we need to check each completion
@@ -508,7 +512,8 @@ namespace Opm
                                       welltest_state_temp,
                                       simulator.vanguard().eclState().getUnits(),
                                       simulator.vanguard().schedule().getStartTime(),
-                                      deferred_logger);
+                                      deferred_logger,
+                                      &closure_reason);
             this->closeCompletions(welltest_state_temp);
 
             // Stop testing if the well is closed or shut due to all completions shut
@@ -525,8 +530,10 @@ namespace Opm
         if (!welltest_state_temp.well_is_closed(this->name())) {
             well_test_state.open_well(this->name());
 
+            const std::string& sep = economicLimitMessageSeparator();
             deferred_logger.info(
-                fmt::format("well {} is re-opened {}", this->name(), when));
+                fmt::format("{}\nWell {} is re-opened {}.\n{}",
+                            sep, this->name(), when, sep));
 
             // also reopen completions
             for (const auto& completion : this->well_ecl_.getCompletions()) {
@@ -535,6 +542,18 @@ namespace Opm
             }
             well_state = well_state_copy;
             open_times.try_emplace(this->name(), well_test_state.lastTestTime(this->name()));
+        }
+        else {
+            // The well solved, but a limit closed it again, so the tested state is
+            // discarded and the well stays shut. A well is re-tested every interval
+            // for as long as it stays shut, so this is a recurring message: the
+            // outcome is left unframed, unlike the one-off re-opening above, and
+            // the limit behind it is detail that only the debug log carries.
+            deferred_logger.info(
+                fmt::format(" well {} is not re-opened {}", this->name(), when));
+            if (!closure_reason.empty()) {
+                deferred_logger.debug(fmt::format(" Because {}.", closure_reason));
+            }
         }
     }
 

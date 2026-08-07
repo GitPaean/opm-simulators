@@ -189,6 +189,10 @@ public:
     //!        which re-solves the well after every completion closure; false for
     //!        the regular timestep update. See
     //!        WellTest::updateWellTestStateEconomic().
+    //! \param closure_reason  when non-null and a limit closes the well, receives
+    //!        the human-readable reason instead of it being logged here. Used by
+    //!        the WTEST re-open testing, which reports the reason as part of its
+    //!        own message rather than announcing a shut-in that does not happen.
     void updateWellTestState(const SingleWellState<Scalar, IndexTraits>& ws,
                              const double& simulationTime,
                              const bool& writeMessageToOPMLog,
@@ -197,7 +201,8 @@ public:
                              WellTestState& wellTestState,
                              const UnitSystem& unit_system,
                              const std::time_t start_time,
-                             DeferredLogger& deferred_logger) const;
+                             DeferredLogger& deferred_logger,
+                             std::string* closure_reason = nullptr) const;
 
     bool isPressureControlled(const WellStateType& well_state) const;
 

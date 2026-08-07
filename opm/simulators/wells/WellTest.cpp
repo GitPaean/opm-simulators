@@ -414,7 +414,8 @@ updateWellTestStateEconomic(const SingleWellState<Scalar, IndexTraits>& ws,
                             const bool zero_group_target,
                             const UnitSystem& unit_system,
                             const std::time_t start_time,
-                            DeferredLogger& deferred_logger) const
+                            DeferredLogger& deferred_logger,
+                            std::string* closure_reason) const
 {
     if (well_.wellIsStopped())
         return;
@@ -476,18 +477,13 @@ updateWellTestStateEconomic(const SingleWellState<Scalar, IndexTraits>& ws,
         }
 
         well_test_state.close_well(well_.name(), WellTestConfig::Reason::ECONOMIC, simulation_time);
-        if (write_message_to_opmlog) {
+        if (write_message_to_opmlog || closure_reason != nullptr) {
             // Same layout as the ratio-limit workover messages below: the well,
             // the action taken, when it happens and which limit caused it.
-            const std::string_view action =
-                well_.wellEcl().getAutomaticShutIn() ? "shut" : "stopped";
-            const std::string& sep = economicLimitMessageSeparator();
-            deferred_logger.info(
-                fmt::format("{}\nWell {} will be {} {},\nBecause {}.\n{}",
-                            sep, well_.name(), action,
-                            economicLimitWhenString(unit_system, start_time, simulation_time),
-                            rateViolationReason(unit_system, rate_report, limits_on_potentials),
-                            sep));
+            this->reportEconomicLimitClosure(
+                economicLimitWhenString(unit_system, start_time, simulation_time),
+                rateViolationReason(unit_system, rate_report, limits_on_potentials),
+                write_message_to_opmlog, closure_reason, deferred_logger);
         }
         // the well is closed, not need to check other limits
         return;
@@ -506,7 +502,9 @@ updateWellTestStateEconomic(const SingleWellState<Scalar, IndexTraits>& ws,
         const auto workover = econ_production_limits.workover();
 
         // Shared "at time ..." and ratio-violation clauses for the messages
-        // below; only built when a message will actually be logged.
+        // below; only built when they will actually be used, either for the PRT
+        // shut-in announcement or as the reason handed back to a well test.
+        const bool build_message = write_message_to_opmlog || (closure_reason != nullptr);
         std::string when;
         std::string reason;
         auto make_reason = [&unit_system](const RatioLimitCheckReport& report)
@@ -514,7 +512,7 @@ updateWellTestStateEconomic(const SingleWellState<Scalar, IndexTraits>& ws,
             return ratioViolationReason(unit_system, report.ratio_name, report.ratio_measure,
                                         report.ratio_value, report.ratio_limit);
         };
-        if (write_message_to_opmlog) {
+        if (build_message) {
             when = economicLimitWhenString(unit_system, start_time, simulation_time);
             reason = make_reason(ratio_report);
         }
@@ -575,7 +573,7 @@ updateWellTestStateEconomic(const SingleWellState<Scalar, IndexTraits>& ws,
                     }
                     ratio_report = this->checkRatioEconLimits(econ_production_limits, ws,
                                                               closed_this_event, deferred_logger);
-                    if (write_message_to_opmlog && ratio_report.ratio_limit_violated) {
+                    if (build_message && ratio_report.ratio_limit_violated) {
                         reason = make_reason(ratio_report);
                     }
                 }
@@ -584,14 +582,8 @@ updateWellTestStateEconomic(const SingleWellState<Scalar, IndexTraits>& ws,
         case WellEconProductionLimits::EconWorkover::WELL:
             {
             well_test_state.close_well(well_.name(), WellTestConfig::Reason::ECONOMIC, simulation_time);
-            if (write_message_to_opmlog) {
-                const std::string action =
-                    well_.wellEcl().getAutomaticShutIn() ? "shut" : "stopped";
-                const std::string& sep = economicLimitMessageSeparator();
-                deferred_logger.info(
-                    fmt::format("{}\nWell {} will be {} {},\nBecause {}.\n{}",
-                                sep, well_.name(), action, when, reason, sep));
-            }
+            this->reportEconomicLimitClosure(when, reason, write_message_to_opmlog,
+                                             closure_reason, deferred_logger);
                 break;
             }
         case WellEconProductionLimits::EconWorkover::NONE:
@@ -887,6 +879,27 @@ closeOffendingCompletion(const int offending_completion,
     }
 
     return allCompletionsClosed;
+}
+
+template<typename Scalar, typename IndexTraits>
+void WellTest<Scalar, IndexTraits>::
+reportEconomicLimitClosure(const std::string& when,
+                           const std::string& reason,
+                           const bool write_message_to_opmlog,
+                           std::string* closure_reason,
+                           DeferredLogger& deferred_logger) const
+{
+    if (write_message_to_opmlog) {
+        const std::string_view action =
+            well_.wellEcl().getAutomaticShutIn() ? "shut" : "stopped";
+        const std::string& sep = economicLimitMessageSeparator();
+        deferred_logger.info(
+            fmt::format("{}\nWell {} will be {} {},\nBecause {}.\n{}",
+                        sep, well_.name(), action, when, reason, sep));
+    }
+    else if (closure_reason != nullptr) {
+        *closure_reason = reason;
+    }
 }
 
 template<typename Scalar, typename IndexTraits>

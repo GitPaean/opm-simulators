@@ -66,7 +66,8 @@ public:
                                      bool zero_group_target,
                                      const UnitSystem& unit_system,
                                      const std::time_t start_time,
-                                     DeferredLogger& deferred_logger) const;
+                                     DeferredLogger& deferred_logger,
+                                     std::string* closure_reason = nullptr) const;
 
     void updateWellTestStateCECON(const SingleWellState<Scalar, IndexTraits>& ws,
                                   const double simulation_time,
@@ -115,6 +116,18 @@ private:
         Scalar rate_value = 0.0;
         Scalar rate_limit = 0.0;
     };
+
+    //! \brief Report that an economic limit closed the well.
+    //!
+    //! During the regular timestep update this announces the shut-in in the PRT.
+    //! During a well test nothing is actually shut -- the well is only being tried
+    //! out on a copy of the well state -- so \p closure_reason receives the reason
+    //! instead, for the caller to report as part of its own message.
+    void reportEconomicLimitClosure(const std::string& when,
+                                    const std::string& reason,
+                                    const bool write_message_to_opmlog,
+                                    std::string* closure_reason,
+                                    DeferredLogger& deferred_logger) const;
 
     //! \brief Format the "<quantity> production rate ... is below the limit ..."
     //!        clause of the WECON rate-limit closing message.
