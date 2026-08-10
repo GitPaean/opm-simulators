@@ -26,6 +26,7 @@
 #ifndef OPM_GENERIC_OUTPUT_BLACK_OIL_MODULE_HPP
 #define OPM_GENERIC_OUTPUT_BLACK_OIL_MODULE_HPP
 
+#include <opm/input/eclipse/Units/UnitSystem.hpp>
 #include <opm/input/eclipse/EclipseState/Grid/FaceDir.hpp>
 #include <opm/input/eclipse/EclipseState/SummaryConfig/SummaryConfig.hpp>
 
@@ -180,6 +181,14 @@ public:
     /// Move the phase density and viscosity buffers to \p sol under \p names.
     void assignPhaseProperties(data::Solution& sol,
                                const PhasePropertyNames& names);
+
+    /// Move a single buffer to \p sol.  A negative \p index marks a phase
+    /// that is not active, and an unallocated buffer has nothing to report.
+    void assignBuffer(data::Solution& sol,
+                      std::string_view name,
+                      UnitSystem::measure measure,
+                      std::vector<Scalar>& buffer,
+                      int index = 1);
 
     void setRestart(const data::Solution& sol,
                     unsigned elemIdx,
