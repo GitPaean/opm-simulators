@@ -68,6 +68,9 @@ public:
                               const Scalar oilPressure,
                               const Scalar gasPressure);
 
+    void assignSaturationPressure(const unsigned globalDofIdx,
+                                  const Scalar psat);
+
     void assignVaporFraction(const unsigned globalDofIdx,
                              const Scalar vmf);
 
@@ -89,6 +92,9 @@ public:
     bool vaporFractionAllocated() const
     { return !vaporFraction_.empty(); }
 
+    bool saturationPressureAllocated() const
+    { return !saturationPressure_.empty(); }
+
     bool allocated() const
     { return allocated_; }
 
@@ -101,6 +107,8 @@ private:
     // phase pressures (POIL, PGAS)
     ScalarBuffer oilPressure_;
     ScalarBuffer gasPressure_;
+    // saturation pressure (PSAT)
+    ScalarBuffer saturationPressure_;
     // vapour mole fraction of the total mixture (VMF)
     ScalarBuffer vaporFraction_;
 };
