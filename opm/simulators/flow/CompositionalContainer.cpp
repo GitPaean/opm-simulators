@@ -75,6 +75,12 @@ allocate(const unsigned bufferSize,
         gasPressure_.resize(bufferSize, 0.0);
     }
 
+    if (auto& psat = rstKeywords["PSAT"]; psat > 0) {
+        this->allocated_ = true;
+        psat = 0;
+        saturationPressure_.resize(bufferSize, 0.0);
+    }
+
     if (auto& vmf = rstKeywords["VMF"]; vmf > 0) {
         this->allocated_ = true;
         vmf = 0;
@@ -137,6 +143,16 @@ assignPhasePressures(const unsigned globalDofIdx,
     }
     if (!gasPressure_.empty()) {
         gasPressure_[globalDofIdx] = gasPressure;
+    }
+}
+
+template<class FluidSystem>
+void CompositionalContainer<FluidSystem>::
+assignSaturationPressure(const unsigned globalDofIdx,
+                         const Scalar psat)
+{
+    if (!saturationPressure_.empty()) {
+        saturationPressure_[globalDofIdx] = psat;
     }
 }
 
@@ -205,6 +221,7 @@ outputRestart(data::Solution& sol,
 
     entries.emplace_back("POIL", UnitSystem::measure::pressure, oilPressure_);
     entries.emplace_back("PGAS", UnitSystem::measure::pressure, gasPressure_);
+    entries.emplace_back("PSAT", UnitSystem::measure::pressure, saturationPressure_);
     entries.emplace_back("VMF", UnitSystem::measure::identity, vaporFraction_);
 
     std::ranges::for_each(entries,
