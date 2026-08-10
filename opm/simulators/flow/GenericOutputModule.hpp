@@ -79,12 +79,12 @@ class SummaryConfigNode;
 class SummaryState;
 
 template<class FluidSystem>
-class GenericOutputBlackoilModule {
+class GenericOutputModule {
 public:
     using Scalar = typename FluidSystem::Scalar;
 
     // Virtual destructor for safer inheritance.
-    virtual ~GenericOutputBlackoilModule();
+    virtual ~GenericOutputModule();
 
     /*!
      * \brief Register all run-time parameters for the Vtk output module.
@@ -347,7 +347,7 @@ protected:
     enum { waterCompIdx = FluidSystem::waterCompIdx };
     using Dir = FaceDir::DirEnum;
 
-    GenericOutputBlackoilModule(const EclipseState& eclState,
+    GenericOutputModule(const EclipseState& eclState,
                                 const Schedule& schedule,
                                 const SummaryConfig& summaryConfig,
                                 const SummaryState& summaryState,
