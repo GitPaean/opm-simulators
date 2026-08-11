@@ -161,6 +161,7 @@ copyRuntimeStateFrom(const SingleCompWellState& other)
     bhp = other.bhp;
     surface_phase_rates = other.surface_phase_rates;
     phase_fractions = other.phase_fractions;
+    wellbore_water_fraction = other.wellbore_water_fraction;
     reservoir_phase_rates = other.reservoir_phase_rates;
     if (producer) {
         total_molar_fractions = other.total_molar_fractions;

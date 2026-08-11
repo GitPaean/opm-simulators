@@ -77,6 +77,11 @@ public:
 
     std::vector<Scalar> surface_phase_rates;
     std::vector<Scalar> phase_fractions; // V or L
+    //! Volume fraction of water in the wellbore control volume. Part of the well's
+    //! state rather than something to re-derive from the rates: the wellbore holds
+    //! a water inventory across time steps, and rebuilding it from the reported
+    //! surface split each step tops it up out of nowhere.
+    Scalar wellbore_water_fraction{0};
     std::vector<Scalar> reservoir_phase_rates;
     // WZMF
     std::vector<Scalar> total_molar_fractions;

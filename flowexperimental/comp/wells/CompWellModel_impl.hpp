@@ -47,17 +47,6 @@ CompWellModel<TypeTag>::CompWellModel(Simulator& simulator, const NewtonIteratio
     , comp_well_states_(comp_config_)
     , last_valid_comp_well_states_(comp_config_)
 {
-    // CompWellInterface rejects water as well. Say so here instead: the wells are
-    // only built when they first open, so leaving it to the well constructor turns
-    // an unimplemented feature into ten time step chops mid-run with the reason
-    // buried in the debug log.
-    if (FluidSystem::waterEnabled && schedule_.numWells() > 0) {
-        throw std::runtime_error {
-            "The compositional well model does not support the water phase yet, but "
-            "the deck activates WATER and declares wells."
-        };
-    }
-
     local_num_cells_ = simulator.gridView().size(0);
 }
 

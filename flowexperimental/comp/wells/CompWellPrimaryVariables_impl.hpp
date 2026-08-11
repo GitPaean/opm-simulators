@@ -40,8 +40,12 @@ update(const SingleWellState& well_state)
         sum_mole_fraction += mole_fractions[i];
     }
     assert(sum_mole_fraction != 0.);
-    for (int i = 0; i < numWellConservationEq - 1; ++i) {
+    for (int i = 0; i < FluidSystem::numComponents - 1; ++i) {
         value_[i + 1] = mole_fractions[i] / sum_mole_fraction;
+    }
+    if constexpr (waterEnabled) {
+        value_[WFrac] = std::clamp(well_state.wellbore_water_fraction,
+                                   Scalar{0.}, Scalar{1.} - Scalar{1.e-10});
     }
     value_[Bhp] = well_state.bhp;
 
@@ -76,6 +80,18 @@ CompWellPrimaryVariables<FluidSystem, Indices>::
 getTotalRate() const
 {
     return evaluation_[QTotal];
+}
+
+template <typename FluidSystem, typename Indices>
+typename CompWellPrimaryVariables<FluidSystem, Indices>::EvalWell
+CompWellPrimaryVariables<FluidSystem, Indices>::
+getWaterFraction() const
+{
+    if constexpr (waterEnabled) {
+        return evaluation_[WFrac];
+    } else {
+        return EvalWell{0.};
+    }
 }
 
 template <typename FluidSystem, typename Indices>
@@ -131,6 +147,11 @@ updateNewton(const BVectorWell& dwells)
     for (int i = 0; i < FluidSystem::numComponents - 1; ++i) {
         value_[i + 1] = mole_fractions[i] / sum_mole_fraction;
     }
+    if constexpr (waterEnabled) {
+        // A wellbore that is all water leaves the hydrocarbon flash without a
+        // fluid to work on, so keep a sliver of hydrocarbon in the control volume.
+        value_[WFrac] = std::clamp(value_[WFrac], Scalar{0.}, Scalar{1.} - Scalar{1.e-10});
+    }
 
     updateEvaluation();
 }
@@ -179,6 +200,11 @@ toFluidState() const
 
     fluid_state.setPressure(FluidSystem::oilPhaseIdx, pressure);
     fluid_state.setPressure(FluidSystem::gasPhaseIdx, pressure);
+    if constexpr (waterEnabled) {
+        // No capillary pressure in the wellbore; the water phase needs a pressure
+        // of its own so its density can be evaluated from the same fluid state.
+        fluid_state.setPressure(FluidSystem::waterPhaseIdx, pressure);
+    }
 
     fluid_state.setTemperature(temperature_);
 

@@ -35,7 +35,11 @@ template <typename FluidSystem, typename Indices>
 class CompWellPrimaryVariables
 {
 public:
-    static constexpr int numWellConservationEq = FluidSystem::numComponents;
+    //! Water is an inert phase here: it takes no part in the flash and holds none
+    //! of the EOS components, so it adds one conservation equation of its own
+    //! rather than a component.
+    static constexpr bool waterEnabled = FluidSystem::waterEnabled;
+    static constexpr int numWellConservationEq = FluidSystem::numComponents + (waterEnabled ? 1 : 0);
     static constexpr int numWellControlEq = 1;
     static constexpr int numWellEq = numWellConservationEq + numWellControlEq;
     // the indices for the primary variables
@@ -44,7 +48,15 @@ public:
     // the one in the middle with will the mole fractions for the numWellEq - 1 components
     // this can be changed based on the implementation itself
     static constexpr int QTotal = 0; // TODO: for now, it is the total surface rate, but later, we might make it total mass rate
+    //! Volume fraction of water in the wellbore, the wellbore analogue of the
+    //! reservoir's water saturation. Only valid when waterEnabled; without water
+    //! this index is the BHP, so guard every use.
+    static constexpr int WFrac = FluidSystem::numComponents;
     static constexpr int Bhp = numWellEq - numWellControlEq;
+
+    //! Row of the water mass balance in the well equations, matching the
+    //! reservoir's layout in FlashIndices (components first, water last).
+    static constexpr int waterConservationEqIdx = FluidSystem::numComponents;
 
     using Scalar = typename FluidSystem::Scalar;
 
@@ -71,6 +83,9 @@ public:
     EvalWell getBhp() const;
 
     EvalWell getTotalRate() const;
+
+    //! Volume fraction of water in the wellbore; zero when water is inactive.
+    EvalWell getWaterFraction() const;
 
     static EvalWell extendEval(const Eval& in);
 

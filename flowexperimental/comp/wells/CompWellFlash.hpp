@@ -100,6 +100,23 @@ void flashWellboreFluidState(CompositionalFluidState<T, FluidSystem>& fluid_stat
     fluid_state.setDensity(FluidSystem::gasPhaseIdx, FluidSystem::density(fluid_state, param_cache, FluidSystem::gasPhaseIdx));
 }
 
+/// Density [kg/m3] of the inert water phase at the fluid state's pressure and
+/// temperature.
+///
+/// Water takes no part in the flash and holds none of the EOS components, so
+/// this only reaches the water PVT; the parameter cache is there to satisfy the
+/// fluid system's interface and is not filled for the water phase.
+template <typename FluidSystem, typename T>
+T wellboreWaterDensity(const CompositionalFluidState<T, FluidSystem>& fluid_state)
+{
+    static_assert(FluidSystem::waterEnabled,
+                  "wellboreWaterDensity requires a fluid system with a water phase");
+    using EOSType = CompositionalConfig::EOSType;
+
+    typename FluidSystem::template ParameterCache<T> param_cache {EOSType::PR};
+    return FluidSystem::density(fluid_state, param_cache, FluidSystem::waterPhaseIdx);
+}
+
 /// Mass [kg] of each component held in the wellbore control volume, given an
 /// already-flashed two-phase fluid state and the wellbore volume.
 ///

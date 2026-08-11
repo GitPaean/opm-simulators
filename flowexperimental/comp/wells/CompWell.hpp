@@ -45,6 +45,10 @@ public:
     using WellEquations = CompWellEquations<Scalar, PrimaryVariables::numWellEq, Indices::numEq>;
 
     constexpr static unsigned num_comp = FluidSystem::numComponents;
+    constexpr static bool water_enabled = FluidSystem::waterEnabled;
+    //! Number of wellbore mass balances: one per EOS component, plus one for the
+    //! inert water phase.
+    constexpr static unsigned num_well_conservation_eq = PrimaryVariables::numWellConservationEq;
 
     using EvalWell = typename PrimaryVariables::EvalWell;
     using BVectorWell = typename WellEquations::BVectorWell;
@@ -64,7 +68,10 @@ public:
     // it is part of the secondary variables used in the assembling of the well equations
     struct SurfaceConditons
     {
-        static constexpr int num_phases = 2;
+        // Three phases once water is active. The water entries hold no EOS
+        // component, so mass_fractions_[waterPhaseIdx] stays zero and water only
+        // shows up through its own surface density and volume fraction.
+        static constexpr int num_phases = FluidSystem::numPhases;
         std::array<EvalWell, num_phases> surface_densities_{};
         std::array<EvalWell, num_phases> volume_fractions_{};
         std::array<std::array<EvalWell, num_comp>, num_phases> mass_fractions_{};
@@ -84,6 +91,16 @@ public:
                 mass += surface_densities_[p] * volume_fractions_[p] * mass_fractions_[p][comp_idx];
             }
             return mass / density();
+        }
+
+        //! Fraction of the surface stream's mass that is water.
+        EvalWell waterMassFraction() const {
+            if constexpr (water_enabled) {
+                return surface_densities_[FluidSystem::waterPhaseIdx] *
+                       volume_fractions_[FluidSystem::waterPhaseIdx] / density();
+            } else {
+                return EvalWell{0.};
+            }
         }
     };
 
@@ -138,6 +155,10 @@ private:
     std::array<Scalar, num_comp> component_masses_{0.};
     // the new mass for each component in wellbore, derived from the primary variables
     std::array<EvalWell, num_comp> new_component_masses_{0.};
+    // the same pair for the inert water phase, and water's share of the wellbore mass
+    Scalar water_mass_{0.};
+    EvalWell new_water_mass_{0.};
+    EvalWell water_mass_fraction_{0.};
     // quantities used to calculate the quantities under the surface conditions
     SurfaceConditons surface_conditions_;
 
@@ -183,6 +204,11 @@ private:
     template <typename T>
     void
     updateSurfaceCondition_(const StandardCond& surface_cond, FluidState<T>& fluid_state);
+
+    //! Water's share of the mass of the stream crossing the surface node: the
+    //! injected stream for an injector, the wellbore mixture for a producer.
+    template <typename T>
+    T surfaceStreamWaterMassFraction_() const;
 
     template <typename T>
     void
