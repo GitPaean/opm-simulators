@@ -96,6 +96,8 @@ protected:
     // TODO: should it called trans_index
     std::vector<Scalar> well_index_;
     std::vector<int> saturation_table_number_;
+    // depth of each connection, for the hydrostatic head down the wellbore
+    std::vector<Scalar> connection_depths_;
 
     // std::string name_;
 

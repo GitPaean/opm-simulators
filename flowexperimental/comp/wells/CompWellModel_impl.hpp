@@ -158,7 +158,12 @@ initWellConnectionData()
 {
     // TODO: we need to consider the parallel running
     // we can refer to the BlackoilWellModelGeneric::initializeWellPerfData()
-    well_connection_data_.resize(wells_ecl_.size());
+    //
+    // This runs once per report step and the connections are appended below, so
+    // the per-well lists have to start empty: resize() alone leaves the entries
+    // from the previous report step in place and the well ends up with one
+    // duplicate of every connection per report step.
+    well_connection_data_.assign(wells_ecl_.size(), {});
 
     int well_index = 0;
     for (const auto& well : wells_ecl_) {

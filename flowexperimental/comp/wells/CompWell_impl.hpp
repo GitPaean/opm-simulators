@@ -47,6 +47,7 @@ init()
 {
     Base::init();
     well_equations_.init(this->number_of_connection_, this->well_cells_);
+    this->connection_pressure_diffs_.assign(this->number_of_connection_, Scalar{0.});
 }
 
 template <typename TypeTag>
@@ -92,7 +93,32 @@ CompWell<TypeTag>::
 updateSecondaryQuantities(const Simulator& simulator)
 {
     updateTotalMass();
+    updateConnectionPressureDiffs(simulator);
     updateSurfaceQuantities(simulator);
+}
+
+template <typename TypeTag>
+void
+CompWell<TypeTag>::
+updateConnectionPressureDiffs(const Simulator& simulator)
+{
+    this->connection_pressure_diffs_.assign(this->number_of_connection_, Scalar{0.});
+
+    // A single connection at the reference depth has no head to carry, which is
+    // also the state the model was in before multiple connections were handled.
+    if (this->number_of_connection_ < 2) {
+        return;
+    }
+
+    // Taken explicitly, as the black-oil model does: the head is a weak function
+    // of the primary variables next to the drawdown it corrects, and keeping it
+    // out of the AD keeps the wellbore Jacobian to the terms that matter.
+    const Scalar gravity = simulator.problem().gravity()[2];
+    const Scalar density = getValue(this->fluid_density_);
+    for (int con_idx = 0; con_idx < this->number_of_connection_; ++con_idx) {
+        const Scalar dz = this->connection_depths_[con_idx] - this->reference_depth_;
+        this->connection_pressure_diffs_[con_idx] = density * gravity * dz;
+    }
 }
 
 
@@ -176,28 +202,33 @@ updateSurfaceQuantities(const Simulator& simulator)
 template <typename TypeTag>
 void
 CompWell<TypeTag>::
-calculateSingleConnectionRate(const Simulator& simulator,
-                              std::vector<EvalWell>& con_rates) const
+calculateConnectionRates(const Simulator& simulator,
+                         const int con_idx,
+                         std::vector<EvalWell>& con_rates) const
 {
-    constexpr int con_idx = 0; // TODO: to be a function argument for multiple connection wells
     constexpr int np = FluidSystem::numPhases;
     // The hydrocarbon phases carry the components; water is handled on its own.
     constexpr int oil_phase = FluidSystem::oilPhaseIdx;
     constexpr int gas_phase = FluidSystem::gasPhaseIdx;
     constexpr int water_eq = PrimaryVariables::waterConservationEqIdx;
     const EvalWell& bhp = this->primary_variables_.getBhp();
-    const unsigned cell_idx = this->well_cells_[0];
+    const unsigned cell_idx = this->well_cells_[con_idx];
     const auto& int_quantities = simulator.problem().model().cachedIntensiveQuantities(cell_idx, 0);
     assert(int_quantities);
     std::vector<EvalWell> mob(np, 0.);
     getMobility(simulator, con_idx, mob);
 
-    const Scalar tw = this->well_index_[0]; // only one connection
+    const Scalar tw = this->well_index_[con_idx];
 
     const auto& fluid_state = int_quantities->fluidState();
 
+    // The connection sees the bhp carried down the wellbore to its own depth.
+    const EvalWell connection_pressure = bhp + this->connection_pressure_diffs_[con_idx];
     const EvalWell cell_pressure = PrimaryVariables::extendEval(fluid_state.pressure(FluidSystem::oilPhaseIdx));
-    const EvalWell drawdown = cell_pressure - bhp;
+    const EvalWell drawdown = cell_pressure - connection_pressure;
+
+    // The producing branch accumulates over the hydrocarbon phases.
+    std::fill(con_rates.begin(), con_rates.end(), EvalWell{0.});
 
     if (drawdown > 0.) { // producing connection
         for (const int phase_idx : {oil_phase, gas_phase}) {
@@ -279,26 +310,28 @@ assembleWellEq(const Simulator& simulator,
     // matches the reservoir's equation order, so these drop straight into the
     // reservoir residual.
     std::vector<EvalWell> connection_rates(num_well_conservation_eq, 0.);
-    calculateSingleConnectionRate(simulator, connection_rates);
-    // only one perforation for now
-    auto& con_rates = this->connectionRates_[0];
-    for (unsigned eq_idx = 0; eq_idx < num_well_conservation_eq; ++eq_idx) {
-        con_rates[eq_idx] = PrimaryVariables::restrictEval(connection_rates[eq_idx]);
-    }
+    for (int con_idx = 0; con_idx < this->number_of_connection_; ++con_idx) {
+        calculateConnectionRates(simulator, con_idx, connection_rates);
 
-    // here we use perf index, need to check how the things are done in the StandardWellAssemble
-    // assemble the well equations related to the production/injection mass rates for each component
-    for (unsigned comp_idx = 0; comp_idx < num_well_conservation_eq; ++comp_idx) {
-        // the signs need to be checked
-        this->well_equations_.residual()[0][comp_idx] += connection_rates[comp_idx].value();
-        for (unsigned pvIdx = 0; pvIdx < PrimaryVariables::numWellEq; ++pvIdx) {
-            // C, needs the cell_idx
-            this->well_equations_.C()[0][0][pvIdx][comp_idx] -= connection_rates[comp_idx].derivative(pvIdx + PrimaryVariables::numResEq);
-            this->well_equations_.D()[0][0][comp_idx][pvIdx] += connection_rates[comp_idx].derivative(pvIdx + PrimaryVariables::numResEq);
+        auto& con_rates = this->connectionRates_[con_idx];
+        for (unsigned eq_idx = 0; eq_idx < num_well_conservation_eq; ++eq_idx) {
+            con_rates[eq_idx] = PrimaryVariables::restrictEval(connection_rates[eq_idx]);
         }
 
-        for (unsigned pvIdx = 0; pvIdx < PrimaryVariables::numResEq; ++pvIdx) {
-            this->well_equations_.B()[0][0][comp_idx][pvIdx] += connection_rates[comp_idx].derivative(pvIdx);
+        // here we use perf index, need to check how the things are done in the StandardWellAssemble
+        // assemble the well equations related to the production/injection mass rates for each component
+        for (unsigned comp_idx = 0; comp_idx < num_well_conservation_eq; ++comp_idx) {
+            // the signs need to be checked
+            this->well_equations_.residual()[0][comp_idx] += connection_rates[comp_idx].value();
+            for (unsigned pvIdx = 0; pvIdx < PrimaryVariables::numWellEq; ++pvIdx) {
+                // C is indexed by connection: each one couples to its own cell
+                this->well_equations_.C()[0][con_idx][pvIdx][comp_idx] -= connection_rates[comp_idx].derivative(pvIdx + PrimaryVariables::numResEq);
+                this->well_equations_.D()[0][0][comp_idx][pvIdx] += connection_rates[comp_idx].derivative(pvIdx + PrimaryVariables::numResEq);
+            }
+
+            for (unsigned pvIdx = 0; pvIdx < PrimaryVariables::numResEq; ++pvIdx) {
+                this->well_equations_.B()[0][con_idx][comp_idx][pvIdx] += connection_rates[comp_idx].derivative(pvIdx);
+            }
         }
     }
 

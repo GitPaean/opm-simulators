@@ -159,12 +159,22 @@ private:
     Scalar water_mass_{0.};
     EvalWell new_water_mass_{0.};
     EvalWell water_mass_fraction_{0.};
+    // pressure at each connection relative to the bhp, one entry per connection
+    std::vector<Scalar> connection_pressure_diffs_;
     // quantities used to calculate the quantities under the surface conditions
     SurfaceConditons surface_conditions_;
 
     // following are some secondary property or variables to be used for later
-    void calculateSingleConnectionRate(const Simulator& simulator,
-                                       std::vector<EvalWell>& con_rates) const;
+    //! Mass rate of every conserved quantity across one connection. Positive into
+    //! the wellbore is not the convention here: the rates are what the reservoir
+    //! cell gains, so a producing connection returns negative values.
+    void calculateConnectionRates(const Simulator& simulator,
+                                  const int connection_idx,
+                                  std::vector<EvalWell>& con_rates) const;
+
+    //! Hydrostatic head from the bhp reference depth down to each connection,
+    //! taken explicitly from the current wellbore density.
+    void updateConnectionPressureDiffs(const Simulator& simulator);
 
     void updateTotalMass();
 
