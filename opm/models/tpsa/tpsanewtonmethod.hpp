@@ -478,11 +478,14 @@ protected:
             throw NumericalProblem("TPSA: Non-finite update in Newton!");
         }
 
+        // See NewtonMethod::update_() on why the current dof is copied rather
+        // than passed as an alias into nextSolution.
         std::size_t numGridDof = model().numGridDof();
         for (unsigned dofIdx = 0; dofIdx < numGridDof; ++dofIdx) {
+            const PrimaryVariables priVarsOld = currentSolution[dofIdx];
             updatePrimaryVariables_(dofIdx,
                                    nextSolution[dofIdx],
-                                   currentSolution[dofIdx],
+                                   priVarsOld,
                                    solutionUpdate[dofIdx],
                                    currentResidual[dofIdx]);
         }
