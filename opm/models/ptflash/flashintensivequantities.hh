@@ -135,7 +135,16 @@ public:
 
             Evaluation sumz = 0.0;
             for (unsigned compIdx = 0; compIdx < numComponents; ++compIdx) {
-                z[compIdx] = max(z[compIdx], 1e-8);
+                // Clamp the value only and keep the derivatives. Replacing the whole
+                // Evaluation (max() returns the constant when the bound wins) makes a
+                // vanished component's conservation equation independent of every
+                // composition primary variable, which collapses the cell's Jacobian
+                // block and yields useless Newton directions. This bites the implicit
+                // last component in particular: the Newton update clamps each explicit
+                // z into [1e-8, 1 - 1e-8] but not their sum, so 1 - sum can be <= 0.
+                if (z[compIdx] < 1e-8) {
+                    z[compIdx].setValue(1e-8);
+                }
                 sumz += z[compIdx];
             }
             z /= sumz;
