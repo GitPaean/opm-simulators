@@ -18,6 +18,7 @@
 */
 
 #include <opm/simulators/linalg/matrixblock.hh>
+#include <opm/simulators/linalg/SmallDenseMatrixUtils.hpp>
 
 #include <cmath>
 
@@ -142,6 +143,30 @@ apply(BVector& r) const
     invDuneD_.mv(resWell_, invDrw_);
     // r = r - duneC_^T * invDrw_
     duneC_.mmtv(invDrw_, r);
+}
+
+template <typename Scalar, int numWellEq, int numEq>
+template <class SparseMatrixAdapter>
+void
+CompWellEquations<Scalar, numWellEq, numEq>::
+extract(SparseMatrixAdapter& jacobian) const
+{
+    // A -= C^T D^-1 B, following StandardWellEquations::extract().
+    // B and C have one row of blocks, with a nonzero at (0, j) only if the
+    // well has a connection in cell j.
+    for (auto colC = duneC_[0].begin(), endC = duneC_[0].end(); colC != endC; ++colC) {
+        const auto row_index = cells_[colC.index()];
+        for (auto colB = duneB_[0].begin(), endB = duneB_[0].end(); colB != endB; ++colB) {
+            const auto col_index = cells_[colB.index()];
+            // tmp = D^-1 B
+            OffDiagMatrixBlockWellType tmp;
+            detail::multMatrixImpl(invDuneD_[0][0], *colB, tmp, std::true_type());
+            // block = -C^T tmp
+            typename SparseMatrixAdapter::MatrixBlock tmpMat;
+            detail::negativeMultMatrixTransposed(*colC, tmp, tmpMat);
+            jacobian.addToBlock(row_index, col_index, tmpMat);
+        }
+    }
 }
 
 template <typename Scalar, int numWellEq, int numEq>
