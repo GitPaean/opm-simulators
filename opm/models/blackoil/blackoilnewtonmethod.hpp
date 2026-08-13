@@ -185,14 +185,17 @@ public:
                  const GlobalEqVector& currentResidual,
                  const DofIndices& dofIndices)
     {
+        // See NewtonMethod::update_() on why the current dof is copied rather
+        // than passed as an alias into nextSolution.
         const auto zero = 0.0 * solutionUpdate[0];
         for (auto dofIdx : dofIndices) {
             if (solutionUpdate[dofIdx] == zero) {
                 continue;
             }
+            const PrimaryVariables priVarsOld = currentSolution[dofIdx];
             updatePrimaryVariables_(dofIdx,
                                     nextSolution[dofIdx],
-                                    currentSolution[dofIdx],
+                                    priVarsOld,
                                     solutionUpdate[dofIdx],
                                     currentResidual[dofIdx]);
         }

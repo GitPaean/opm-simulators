@@ -665,6 +665,13 @@ protected:
                  const GlobalEqVector& solutionUpdate,
                  const GlobalEqVector& currentResidual)
     {
+        // Callers may update the solution in place, so nextSolution and
+        // currentSolution can be the same vector. updatePrimaryVariables_
+        // implementations chop and clamp the update relative to the pre-update
+        // value, and that value is gone once they have written their dof of
+        // nextSolution -- so each is handed a copy of its dof below rather than an
+        // alias into the vector being written. The aliasing is per dof, so this
+        // costs one PrimaryVariables on the stack and no allocation.
         const auto& constraintsMap = model().linearizer().constraintsMap();
 
         // first, write out the current solution to make convergence
@@ -686,17 +693,19 @@ protected:
                                                   constraints);
                 }
                 else {
+                    const PrimaryVariables priVarsOld = currentSolution[dofIdx];
                     asImp_().updatePrimaryVariables_(dofIdx,
                                                      nextSolution[dofIdx],
-                                                     currentSolution[dofIdx],
+                                                     priVarsOld,
                                                      solutionUpdate[dofIdx],
                                                      currentResidual[dofIdx]);
                 }
             }
             else {
+                const PrimaryVariables priVarsOld = currentSolution[dofIdx];
                 asImp_().updatePrimaryVariables_(dofIdx,
                                                  nextSolution[dofIdx],
-                                                 currentSolution[dofIdx],
+                                                 priVarsOld,
                                                  solutionUpdate[dofIdx],
                                                  currentResidual[dofIdx]);
             }
