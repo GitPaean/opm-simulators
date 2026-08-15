@@ -241,10 +241,10 @@ updatePressures(const int reportStepIdx,
         if (well->isProducer() && well->wellEcl().predictionMode()) {
             const auto it = node_pressures_.find(well->wellEcl().groupName());
             if (it != node_pressures_.end()) {
-                // The well belongs to a group with has a network pressure constraint,
-                // set the dynamic THP constraint of the well accordingly.
+                // Set the dynamic THP constraint from the group's network pressure.
                 const Scalar new_limit = it->second;
                 well->setDynamicThpLimit(new_limit);
+                this->well_thp_limits_[well->name()] = new_limit;
                 SingleWellState<Scalar, IndexTraits>& ws = well_model_.wellState()[well->indexOfWell()];
                 const bool thp_is_limit = ws.production_cmode == Well::ProducerCMode::THP;
                 // TODO: not sure why the thp is NOT updated properly elsewhere
@@ -318,8 +318,17 @@ template<typename Scalar, typename IndexTraits>
 void BlackoilWellModelNetworkGeneric<Scalar, IndexTraits>::
 initialize(const int report_step)
 {
+    // A production-control update clears a retained network THP limit.
+    // Limits for attached wells are updated during network balancing.
+    if (!this->well_thp_limits_.empty()) {
+        const auto& events = well_model_.schedule()[report_step].wellgroup_events();
+        std::erase_if(this->well_thp_limits_,
+                      [&events](const auto& entry)
+                      { return events.hasEvent(entry.first, ScheduleEvents::PRODUCTION_UPDATE); });
+    }
+
     const auto& network = well_model_.schedule()[report_step].network();
-    if (network.active() && !node_pressures_.empty()) {
+    if ((network.active() && !node_pressures_.empty()) || !this->well_thp_limits_.empty()) {
         for (auto& well : well_model_.genericWells()) {
             initializeWell(*well);
         }
@@ -333,13 +342,17 @@ initializeWell(WellInterfaceGeneric<Scalar,IndexTraits>& well)
     // Producers only, since we so far only support the
     // "extended" network model (properties defined by
     // BRANPROP and NODEPROP) which only applies to producers.
-    if (well.isProducer() && !node_pressures_.empty()) {
-        const auto it = this->node_pressures_.find(well.wellEcl().groupName());
-        if (it != this->node_pressures_.end()) {
-            // The well belongs to a group which has a network nodal pressure,
-            // set the dynamic THP constraint based on the network nodal pressure
-            well.setDynamicThpLimit(it->second);
-        }
+    if (!well.isProducer()) {
+        return;
+    }
+    const auto it = this->node_pressures_.find(well.wellEcl().groupName());
+    if (it != this->node_pressures_.end()) {
+        // Set the dynamic THP constraint from the group's network pressure.
+        well.setDynamicThpLimit(it->second);
+    } else if (const auto it2 = this->well_thp_limits_.find(well.name());
+               it2 != this->well_thp_limits_.end()) {
+        // Retain the network THP limit until the well controls are updated.
+        well.setDynamicThpLimit(it2->second);
     }
 }
 
@@ -374,7 +387,9 @@ operator==(const BlackoilWellModelNetworkGeneric<Scalar,IndexTraits>& rhs) const
         && this->node_pressures_ == rhs.node_pressures_
         && this->last_valid_node_pressures_ == rhs.last_valid_node_pressures_
         && this->branch_data_ == rhs.branch_data_
-        && this->last_valid_branch_data_ == rhs.last_valid_branch_data_;
+        && this->last_valid_branch_data_ == rhs.last_valid_branch_data_
+        && this->well_thp_limits_ == rhs.well_thp_limits_
+        && this->last_valid_well_thp_limits_ == rhs.last_valid_well_thp_limits_;
 }
 
 template class BlackoilWellModelNetworkGeneric<double, BlackOilDefaultFluidSystemIndices>;
