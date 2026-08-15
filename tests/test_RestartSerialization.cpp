@@ -330,6 +330,9 @@ public:
         closed_this_step_ = {"test1", "test2"};
         guideRate_.setSerializationTestData();
         genNetwork_.setNodePressures({{"test3", 4.0}});
+        genNetwork_.setWellThpLimits({{"test7", 5.0}});
+        // populates the last_valid_* members, including the THP limit map
+        genNetwork_.commitState();
         active_wgstate_ = WGState<double, IndexTraits>::serializationTestObject(dummy);
         last_valid_wgstate_ = WGState<double, IndexTraits>::serializationTestObject(dummy);
         nupcol_wgstate_ = WGState<double, IndexTraits>::serializationTestObject(dummy);
