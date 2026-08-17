@@ -1348,6 +1348,7 @@ updateNONEProductionGroups()
     }
 
     const auto& glo = this->schedule_.glo(this->report_step_);
+    const auto& network = this->schedule_[this->report_step_].network();
 
 #ifdef RESERVOIR_COUPLING_ENABLED
     // Collect RC master hierarchy groups (master groups + ancestors up to FIELD).
@@ -1369,6 +1370,14 @@ updateNONEProductionGroups()
         }
         // Gas lift optimization requires non-NONE/FLD control mode
         if (glo.active() && glo.has_group(gname)) {
+            continue;
+        }
+        // The wells of an autochoke group are on THP control rather than GRUP,
+        // so the group is never seen as targeted above. Its control is still in
+        // use: the choke THP is solved to meet the group's rate target.
+        if (network.active() && network.has_node(gname) &&
+            network.node(gname).as_choke())
+        {
             continue;
         }
 #ifdef RESERVOIR_COUPLING_ENABLED
