@@ -1403,8 +1403,18 @@ updateAndCommunicateGroupData(const int reportStepIdx,
                 );
                 // A stale flag would suppress constraint checks even after the
                 // well's allocated group target becomes nonzero.
-                ws.trivial_group_target = group_target.has_value() &&
-                                          group_target->target_value == 0.0;
+                const bool trivial_target = group_target.has_value() &&
+                                            group_target->target_value == 0.0;
+                if (trivial_target != ws.trivial_group_target) {
+                    group_state_helper.deferredLogger().debug(
+                        fmt::format("Well {}: trivial group target flag {} "
+                                    "(individual constraint checks incl. THP are {} "
+                                    "while the well is under GRUP control)",
+                                    well->name(),
+                                    trivial_target ? "set" : "cleared",
+                                    trivial_target ? "suppressed" : "enabled"));
+                }
+                ws.trivial_group_target = trivial_target;
                 if (!group_target.has_value() && ws.production_cmode == Well::ProducerCMode::GRUP) {
                     const std::string msg = fmt::format("Well {} is under GRUP control but no valid group target "
                         "could be determined. Switching the well to under BHP control.", well->name());

@@ -23,7 +23,10 @@
 #include <config.h>
 #include <opm/simulators/wells/BlackoilWellModelNetworkGeneric.hpp>
 
+#include <opm/common/OpmLog/OpmLog.hpp>
 #include <opm/common/TimingMacros.hpp>
+
+#include <opm/input/eclipse/Units/Units.hpp>
 
 #include <opm/material/fluidsystems/BlackOilDefaultFluidSystemIndices.hpp>
 
@@ -36,6 +39,8 @@
 #include <opm/simulators/wells/VFPProperties.hpp>
 
 #include <cassert>
+
+#include <fmt/format.h>
 
 namespace Opm {
 
@@ -243,6 +248,11 @@ updatePressures(const int reportStepIdx,
             if (it != node_pressures_.end()) {
                 // Set the dynamic THP constraint from the group's network pressure.
                 const Scalar new_limit = it->second;
+                OpmLog::debug(fmt::format("Network balancing: THP limit of well {} set to "
+                                          "{:.5f} bar (node {})",
+                                          well->name(),
+                                          unit::convert::to(new_limit, unit::barsa),
+                                          well->wellEcl().groupName()));
                 well->setDynamicThpLimit(new_limit);
                 this->well_thp_limits_[well->name()] = new_limit;
                 SingleWellState<Scalar, IndexTraits>& ws = well_model_.wellState()[well->indexOfWell()];
@@ -324,7 +334,15 @@ initialize(const int report_step)
         const auto& events = well_model_.schedule()[report_step].wellgroup_events();
         std::erase_if(this->well_thp_limits_,
                       [&events](const auto& entry)
-                      { return events.hasEvent(entry.first, ScheduleEvents::PRODUCTION_UPDATE); });
+                      {
+                          const bool erase = events.hasEvent(entry.first, ScheduleEvents::PRODUCTION_UPDATE);
+                          if (erase) {
+                              OpmLog::debug(fmt::format("Network: dropping the retained THP limit "
+                                                        "of well {} (production controls re-specified)",
+                                                        entry.first));
+                          }
+                          return erase;
+                      });
     }
 
     const auto& network = well_model_.schedule()[report_step].network();
@@ -348,10 +366,19 @@ initializeWell(WellInterfaceGeneric<Scalar,IndexTraits>& well)
     const auto it = this->node_pressures_.find(well.wellEcl().groupName());
     if (it != this->node_pressures_.end()) {
         // Set the dynamic THP constraint from the group's network pressure.
+        OpmLog::debug(fmt::format("Network: initializing the THP limit of well {} to "
+                                  "{:.5f} bar from the pressure of node {}",
+                                  well.name(),
+                                  unit::convert::to(it->second, unit::barsa),
+                                  well.wellEcl().groupName()));
         well.setDynamicThpLimit(it->second);
     } else if (const auto it2 = this->well_thp_limits_.find(well.name());
                it2 != this->well_thp_limits_.end()) {
         // Retain the network THP limit until the well controls are updated.
+        OpmLog::debug(fmt::format("Network: well {} is detached from the network, keeping "
+                                  "its last network THP limit of {:.5f} bar",
+                                  well.name(),
+                                  unit::convert::to(it2->second, unit::barsa)));
         well.setDynamicThpLimit(it2->second);
     }
 }
