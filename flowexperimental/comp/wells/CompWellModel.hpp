@@ -131,14 +131,7 @@ public:
     void recoverWellSolutionAndUpdateWellState(const BVector& x);
 
     // some functions to compile
-    // Whether to subtract the well Schur complement C^T D^-1 B from the
-    // reservoir matrix (CompWellEquations::extract()). The machinery works,
-    // but enabling it destabilizes rate-controlled wells: every substep then
-    // converges in a fixed number of iterations independent of dt -- a
-    // dt-independent oscillation in the coupling -- and the PID step control
-    // reacts by collapsing the step size instead of growing it. Keep it off
-    // until that inconsistency is found.
-    bool addMatrixContributions() const { return false; }
+    bool addMatrixContributions() const { return true; }
     const Schedule& schedule() const { return schedule_; }
     auto begin() const { return well_container_.begin(); }
     auto end() const { return well_container_.end(); }
