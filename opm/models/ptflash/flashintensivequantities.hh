@@ -233,6 +233,17 @@ public:
         Evaluation Sw = 0.0;
         if constexpr (waterEnabled) {
             Sw = priVars.makeEvaluation(water0Idx, timeIdx);
+            // Clamp only the value; preserve derivatives. A cell holding water
+            // alone makes the factor (1 - Sw) below vanish, which leaves the
+            // hydrocarbon saturations, and with them every composition
+            // derivative of the hydrocarbon conservation equations, at zero and
+            // makes the cell Jacobian block singular. The same applies once a
+            // Newton update pushes Sw past one, where max() would otherwise
+            // return a constant. Mirrors the clamping of a vanished component
+            // above.
+            if (Sw > 1.0 - 1e-8) {
+                Sw.setValue(1.0 - 1e-8);
+            }
         }
         const Evaluation L = fluidState_.L();
         Evaluation So = max((1 - Sw) * (L * Z_L / ( L * Z_L + (1 - L) * Z_V)), 0.0);
