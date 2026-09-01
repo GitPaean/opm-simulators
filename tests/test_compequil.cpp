@@ -257,11 +257,14 @@ BOOST_AUTO_TEST_CASE(GasCapAboveContact)
 BOOST_AUTO_TEST_CASE(GasCapKeepingDatumPressure)
 {
     // As GasCapAboveContact, but EQUIL item 11 is 1: the datum pressure is
-    // kept at the contact instead of being replaced by the saturation
-    // pressure of the contact liquid.
-    const EquilFixture fix(deckString("EQUIL\n 2010 150 2300 0 2050 0 3* 3 1 /\n"));
+    // kept as the contact pressure instead of being replaced by the saturation
+    // pressure of the contact liquid.  The datum is at the contact, which is
+    // what makes the datum pressure name the pressure there.
+    const EquilFixture fix(deckString("EQUIL\n 2050 150 2300 0 2050 0 3* 3 1 /\n"));
     const auto states = fix.compute(std::vector<int>(20, 0)).fluidStates();
 
+    // The contact at 2050 m lies between the cells centred at 2047.5 m and
+    // 2052.5 m, so the kept datum pressure is crossed between the two.
     const Scalar pContact = 150.0 * barsa;
     BOOST_CHECK_LT(Opm::getValue(states[9].pressure(FluidSystem::gasPhaseIdx)), pContact);
     BOOST_CHECK_GT(Opm::getValue(states[10].pressure(FluidSystem::oilPhaseIdx)), pContact);
@@ -269,6 +272,33 @@ BOOST_AUTO_TEST_CASE(GasCapKeepingDatumPressure)
     // Still a gas cap over a liquid leg.
     BOOST_CHECK_CLOSE(states[0].saturation(FluidSystem::gasPhaseIdx), 1.0, 1e-10);
     BOOST_CHECK_CLOSE(states[19].saturation(FluidSystem::oilPhaseIdx), 1.0, 1e-10);
+}
+
+BOOST_AUTO_TEST_CASE(KeptDatumPressureNeedsTheDatumAtTheContact)
+{
+    // EQUIL item 11 is 1 keeps the datum pressure as the pressure at the
+    // gas-oil contact, so a datum 40 m above the contact would put the given
+    // pressure at the wrong depth and shift the whole column by that
+    // hydrostatic head.  The input is refused instead.
+    const EquilFixture fix(deckString("EQUIL\n 2010 150 2300 0 2050 0 3* 3 1 /\n"));
+    BOOST_CHECK_THROW(fix.compute(std::vector<int>(20, 0)), std::runtime_error);
+}
+
+BOOST_AUTO_TEST_CASE(SaturationPressureIgnoresTheDatumDepth)
+{
+    // With item 11 defaulted the contact pressure is the saturation pressure of
+    // the contact liquid, so the datum depth names nothing and an off-contact
+    // datum is accepted.  Moving it must not change the equilibrated column.
+    const EquilFixture atContact(deckString("EQUIL\n 2050 150 2300 0 2050 0 3* 3 /\n"));
+    const EquilFixture offContact(deckString("EQUIL\n 2010 150 2300 0 2050 0 3* 3 /\n"));
+    const auto a = atContact.compute(std::vector<int>(20, 0)).fluidStates();
+    const auto b = offContact.compute(std::vector<int>(20, 0)).fluidStates();
+
+    for (std::size_t c = 0; c < a.size(); ++c) {
+        BOOST_CHECK_SMALL(Opm::getValue(a[c].pressure(FluidSystem::oilPhaseIdx))
+                          - Opm::getValue(b[c].pressure(FluidSystem::oilPhaseIdx)),
+                          1e-6 * barsa);
+    }
 }
 
 BOOST_AUTO_TEST_CASE(TwoIndependentRegions)

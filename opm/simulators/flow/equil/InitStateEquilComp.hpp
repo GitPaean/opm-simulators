@@ -694,10 +694,30 @@ private:
                              const int numSamplePoints,
                              const std::size_t regionIdx) const
     {
-        if (std::abs(record.datumDepth() - reg.zgoc) > 0.0) {
-            OpmLog::warning(fmt::format("Equilibration region {}: the datum depth {} m "
-                                        "must be at the gas-oil contact when EQUIL "
-                                        "item 10 is 3; using the contact depth {} m.",
+        // Type 3 anchors the column at the gas-oil contact.  With item 11
+        // defaulted the pressure there is the saturation pressure of the contact
+        // liquid, so the datum depth names nothing and any depth is accepted.
+        // Item 11 = 1 instead keeps the given datum pressure, which only names
+        // the contact pressure when the datum is at the contact: honouring it
+        // from any other depth would shift the whole column by the hydrostatic
+        // head between the two, so refuse it rather than equilibrate to a
+        // silently wrong pressure.
+        constexpr Scalar depthTolerance = 1.0e-6;
+        if (std::abs(record.datumDepth() - reg.zgoc) > depthTolerance) {
+            if (!record.setToSaturationPressure()) {
+                OPM_THROW(std::runtime_error,
+                          fmt::format("Equilibration region {}: EQUIL item 11 is 1, which keeps "
+                                      "the datum pressure {:.6g} bar as the pressure at the "
+                                      "gas-oil contact, but the datum depth {} m is not the "
+                                      "contact depth {} m. Put the datum at the contact or "
+                                      "default item 11.",
+                                      regionIdx + 1, record.datumDepthPressure() / 1e5,
+                                      record.datumDepth(), reg.zgoc));
+            }
+            OpmLog::warning(fmt::format("Equilibration region {}: the datum depth {} m is not "
+                                        "the gas-oil contact depth {} m. EQUIL item 10 is 3, so "
+                                        "the pressure is set at the contact and the datum depth "
+                                        "is not used.",
                                         regionIdx + 1, record.datumDepth(), reg.zgoc));
         }
 
