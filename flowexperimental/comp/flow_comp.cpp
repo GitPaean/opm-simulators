@@ -27,6 +27,8 @@
 
 #include <opm/simulators/flow/FlowGenericProblem_impl.hpp>
 
+#include <opm/simulators/utils/UnsupportedFlowKeywords.hpp>
+
 #include <fmt/format.h>
 
 #include <array>
@@ -81,6 +83,16 @@ runComponent(int runtimecomponent, bool water, int argc, char** argv)
 int
 main(int argc, char** argv)
 {
+    // The keyword-validation tables describe the black-oil flow simulator;
+    // correct them for the compositional variant. The compositional
+    // keywords are supported here, and the two E300 directives are
+    // harmless rather than critical.
+    Opm::FlowKeywordValidation::declareSupportedKeywords(
+        {"COMPS", "NCOMPS", "WELLSTRE", "WINJGAS"});
+    Opm::FlowKeywordValidation::declareIgnoredKeywords(
+        {{"IMPES", "The simulator is fully implicit; the IMPES method request is ignored"},
+         {"LICENSES", "License requests are ignored"}});
+
     using TypeTag = Opm::Properties::TTag::FlowCompProblem<0, true>;
     Opm::registerEclTimeSteppingParameters<double>();
 

@@ -26,6 +26,7 @@
 #include <opm/input/eclipse/Deck/Deck.hpp>
 #include <opm/input/eclipse/Parser/Parser.hpp>
 #include <opm/simulators/flow/KeywordValidation.hpp>
+#include <opm/simulators/utils/UnsupportedFlowKeywords.hpp>
 
 #define BOOST_TEST_MODULE KeywordValidatorTest
 
@@ -633,4 +634,29 @@ EQUIL
     BOOST_CHECK_EQUAL(errors.size(), 1);
     BOOST_CHECK(errors[0].item_number == 10);
     BOOST_CHECK(errors[0].item_value == "1");
+}
+
+
+BOOST_AUTO_TEST_CASE(variant_corrections_to_the_flow_tables)
+{
+    // The flow tables describe the black-oil simulator; a variant declares
+    // its corrections and effectiveUnsupportedKeywords() reflects them.
+    const auto& base = Opm::FlowKeywordValidation::unsupportedKeywords();
+    BOOST_REQUIRE(base.count("COMPS") == 1);
+    BOOST_REQUIRE(base.count("IMPES") == 1);
+    BOOST_CHECK(base.at("IMPES").critical);
+
+    Opm::FlowKeywordValidation::declareSupportedKeywords({"COMPS"});
+    Opm::FlowKeywordValidation::declareIgnoredKeywords({{"IMPES", "ignored"}});
+
+    const auto effective = Opm::FlowKeywordValidation::effectiveUnsupportedKeywords();
+    BOOST_CHECK(effective.count("COMPS") == 0);
+    BOOST_REQUIRE(effective.count("IMPES") == 1);
+    BOOST_CHECK(!effective.at("IMPES").critical);
+    BOOST_CHECK(effective.at("IMPES").message == "ignored");
+    // an untouched entry keeps its properties
+    BOOST_REQUIRE(effective.count("ACTION") == 1);
+    BOOST_CHECK(effective.at("ACTION").critical);
+    // the base table itself is not modified
+    BOOST_CHECK(base.count("COMPS") == 1);
 }

@@ -234,7 +234,7 @@ namespace {
         };
 
         auto keyword_validator = Opm::KeywordValidation::KeywordValidator {
-            Opm::FlowKeywordValidation::unsupportedKeywords(),
+            Opm::FlowKeywordValidation::effectiveUnsupportedKeywords(),
             partiallySupported,
             fullySupported,
             Opm::KeywordValidation::specialValidation()

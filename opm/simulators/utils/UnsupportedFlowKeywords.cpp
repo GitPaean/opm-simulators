@@ -734,4 +734,47 @@ const KeywordValidation::UnsupportedKeywords& unsupportedKeywords()
     return unsupported_keywords;
 }
 
+namespace {
+
+std::vector<std::string>& supportedByVariant()
+{
+    static std::vector<std::string> keywords;
+    return keywords;
+}
+
+std::map<std::string, std::string>& ignoredByVariant()
+{
+    static std::map<std::string, std::string> keywords;
+    return keywords;
+}
+
+} // anonymous namespace
+
+void declareSupportedKeywords(const std::vector<std::string>& keywords)
+{
+    auto& supported = supportedByVariant();
+    supported.insert(supported.end(), keywords.begin(), keywords.end());
+}
+
+void declareIgnoredKeywords(const std::map<std::string, std::string>& keywordsWithMessage)
+{
+    auto& ignored = ignoredByVariant();
+    for (const auto& [keyword, message] : keywordsWithMessage) {
+        ignored.insert_or_assign(keyword, message);
+    }
+}
+
+KeywordValidation::UnsupportedKeywords effectiveUnsupportedKeywords()
+{
+    auto table = unsupportedKeywords();
+    for (const auto& keyword : supportedByVariant()) {
+        table.erase(keyword);
+    }
+    for (const auto& [keyword, message] : ignoredByVariant()) {
+        table.insert_or_assign(keyword,
+                               KeywordValidation::UnsupportedKeywordProperties{false, message});
+    }
+    return table;
+}
+
 }

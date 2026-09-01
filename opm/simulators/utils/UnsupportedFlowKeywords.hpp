@@ -46,10 +46,26 @@
 */
 
 
+#include <map>
+#include <string>
+#include <vector>
+
 namespace Opm::FlowKeywordValidation
 {
 
 const KeywordValidation::UnsupportedKeywords& unsupportedKeywords();
+
+// The table above describes the black-oil flow simulator. A variant built
+// on the same deck-reading infrastructure can correct it for its own
+// capabilities before the deck is read: keywords declared supported are
+// dropped from the table, keywords declared ignored stay reported but no
+// longer terminate the run, each with the given explanation.
+void declareSupportedKeywords(const std::vector<std::string>& keywords);
+void declareIgnoredKeywords(const std::map<std::string, std::string>& keywordsWithMessage);
+
+// The table with any declared corrections applied; this is what deck
+// validation uses.
+KeywordValidation::UnsupportedKeywords effectiveUnsupportedKeywords();
 
 } // namespace Opm::FlowKeywordValidation
 
