@@ -93,7 +93,13 @@ END
         // non-throwing remove_all overload.
         Opm::OpmLog::removeAllBackends();
         std::error_code ec;
-        std::filesystem::current_path(std::filesystem::temp_directory_path(), ec);
+        // temp_directory_path() has a throwing overload too, and this is the
+        // destructor that must not throw: ask for the error code here as well.
+        const auto tmp = std::filesystem::temp_directory_path(ec);
+        if (!ec) {
+            std::filesystem::current_path(tmp, ec);
+        }
+        ec.clear();
         std::filesystem::remove_all(input_path, ec);
     }
 

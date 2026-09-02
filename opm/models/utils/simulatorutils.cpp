@@ -132,9 +132,14 @@ std::string simulatorOutputDir()
 
     std::error_code ec;
     const auto status = std::filesystem::status(outputDir, ec);
-    if (ec) {
-        throw std::runtime_error("Could not access output directory '" + outputDir + "':" +
-                                 ec.message());
+    // status() reports a missing path as not_found with ec CLEAR, where the
+    // stat() this replaced failed outright. Without the exists() test a
+    // missing directory falls through to the is_directory() check below and
+    // is reported as one that "exists but is not a directory".
+    if (ec || !std::filesystem::exists(status)) {
+        throw std::runtime_error("Could not access output directory '" + outputDir + "': " +
+                                 (ec ? ec.message()
+                                     : std::string{"no such file or directory"}));
     }
     if (!std::filesystem::is_directory(status)) {
         throw std::runtime_error("Path to output directory '" +outputDir +
