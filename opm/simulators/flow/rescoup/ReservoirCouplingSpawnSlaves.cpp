@@ -489,24 +489,6 @@ spawnSlaveProcesses_()
         }
     }
 
-    // Pin the slaves' working directory to the master's own: with
-    // MPI_INFO_NULL the working directory of the spawned processes is
-    // implementation-defined (often that of the process-manager daemon,
-    // which for a service launch is unrelated to the job), and relative
-    // paths in the slave setup would then resolve incorrectly. "wdir" is a
-    // standard-reserved info key for MPI_Comm_spawn. Only the root rank's
-    // info argument is significant, but constructing it everywhere is fine.
-    MPI_Info spawn_info;
-    MPI_Info_create(&spawn_info);
-    {
-        std::error_code ec;
-        const auto master_cwd = std::filesystem::current_path(ec);
-        if (!ec) {
-            const std::string master_cwd_str = master_cwd.string();
-            MPI_Info_set(spawn_info, "wdir", master_cwd_str.c_str());
-        }
-    }
-
     for (const auto& [slave_name, slave] : this->rescoup_.slaves()) {
         MPI_Comm master_slave_comm = MPI_COMM_NULL;
         const auto& data_file_name = slave.dataFilename();
@@ -531,7 +513,7 @@ spawnSlaveProcesses_()
             program_name.data(),
             slave_argv.data(),
             /*maxprocs=*/num_procs,
-            /*info=*/spawn_info,
+            /*info=*/MPI_INFO_NULL,
             /*root=*/0,  // Rank 0 spawns the slave processes
             /*comm=*/this->comm_,
             /*intercomm=*/&master_slave_comm,
@@ -546,7 +528,6 @@ spawnSlaveProcesses_()
                     this->logger_.info(fmt::format("Error spawning process {}: {}", i, error_string));
                 }
             }
-            MPI_Info_free(&spawn_info);
             RCOUP_LOG_THROW(std::runtime_error,
                             "Failed to spawn slave process. Note: spawning requires MPI "
                             "dynamic process management, which e.g. MS-MPI on Windows "
@@ -565,7 +546,6 @@ spawnSlaveProcesses_()
         this->master_.addSlaveCommunicator(master_slave_comm);
         this->master_.addSlaveName(slave_name);
     }
-    MPI_Info_free(&spawn_info);
 }
 
 // Explicit template instantiations

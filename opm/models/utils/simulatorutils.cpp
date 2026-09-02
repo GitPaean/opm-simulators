@@ -33,6 +33,7 @@
 #include <fstream>
 #include <iomanip>
 #include <sstream>
+#include <stdexcept>
 #include <system_error>
 #include <vector>
 

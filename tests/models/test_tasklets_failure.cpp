@@ -29,14 +29,14 @@
 
 // Note: we do not use boost.test as it does not cleanly combine with fork() usage
 
+#include <cassert>
 #include <chrono>
+#include <cstdlib>
 #include <iostream>
 #include <mutex>
 #include <thread>
-#include <cassert>
 
 #if defined(_WIN32)
-#include <cstdlib>
 #include <cstring>
 #include <process.h>
 #include <string>
@@ -171,18 +171,28 @@ int main()
 {
     pid_t pid = fork(); // Create a new process, such that this child process can call exit(EXIT_FAILURE)
     if (pid == -1) {
-        assert(0 && "Fork failed");
+        std::cerr << "Fork failed" << std::endl;
+        return EXIT_FAILURE;
     } else if (pid == 0) {
         // Child process
         execute();
         _exit(0);  // Should never reach here
-    } else {
-        // Parent process
-        std::cout << "Checking failure of child process with parent process, process id " << pid << std::endl;
-        int status;
-        waitpid(pid, &status, 0);
-        assert(WIFEXITED(status));  // Check if the child process exited
-        assert(WEXITSTATUS(status) == EXIT_FAILURE);  // Check if the exit status is EXIT_FAILURE
     }
+    // Parent process
+    std::cout << "Checking failure of child process with parent process, process id " << pid << std::endl;
+    int status;
+    waitpid(pid, &status, 0);
+    // Check explicitly rather than with assert() so the test still fails
+    // in NDEBUG (Release) builds when the tasklet failure mechanism breaks.
+    if (!WIFEXITED(status)) {
+        std::cerr << "Child process did not exit normally" << std::endl;
+        return EXIT_FAILURE;
+    }
+    if (WEXITSTATUS(status) != EXIT_FAILURE) {
+        std::cerr << "Child process did not exit with EXIT_FAILURE (status: "
+                  << WEXITSTATUS(status) << ")" << std::endl;
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
 }
 #endif

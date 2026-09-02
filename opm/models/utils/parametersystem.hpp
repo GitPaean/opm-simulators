@@ -34,7 +34,6 @@
 
 #include <dune/common/classname.hh>
 
-#include <cstring>
 #include <functional>
 #include <limits>
 #include <set>

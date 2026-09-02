@@ -71,8 +71,10 @@ END
 
         input_path = std::filesystem::temp_directory_path() / "outputdir_test/";
 
-        std::error_code ec;
-        std::filesystem::remove_all(input_path, ec);
+        // Throwing overload on purpose: this is the constructor, not the
+        // (noexcept) destructor, and a cleanup that silently fails here
+        // would run the test against the previous run's leftovers.
+        std::filesystem::remove_all(input_path);
         std::filesystem::create_directories(input_path / "subdir" / "subdir");
 
         for (const auto& file_path : {input_path / "INPUT.DATA",

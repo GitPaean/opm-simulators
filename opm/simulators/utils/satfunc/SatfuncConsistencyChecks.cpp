@@ -698,5 +698,8 @@ void Opm::SatfuncConsistencyChecks<Scalar>::checkLoop(Body&& body) const
 // No other code below this separator
 // ===========================================================================
 
+template struct Opm::Detail::SatfuncConsistencyViolationSample<float>;
+template struct Opm::Detail::SatfuncConsistencyViolationSample<double>;
+
 template class Opm::SatfuncConsistencyChecks<float>;
 template class Opm::SatfuncConsistencyChecks<double>;

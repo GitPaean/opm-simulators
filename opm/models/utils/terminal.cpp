@@ -44,15 +44,6 @@
 
 namespace {
 
-bool isTty(std::FILE* stream)
-{
-#if defined(_WIN32)
-    return _isatty(_fileno(stream)) != 0;
-#else
-    return isatty(fileno(stream)) != 0;
-#endif
-}
-
 const char* getSignalAbbrev(int sig)
 {
     const auto sig_map = std::unordered_map<int, const char*>{
@@ -74,6 +65,15 @@ const char* getSignalAbbrev(int sig)
 }
 
 namespace Opm {
+
+bool isTty(std::FILE* stream)
+{
+#if defined(_WIN32)
+    return _isatty(_fileno(stream)) != 0;
+#else
+    return isatty(fileno(stream)) != 0;
+#endif
+}
 
 std::string breakLines(const std::string& msg,
                        int indentWidth,

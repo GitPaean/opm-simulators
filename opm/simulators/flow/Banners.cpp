@@ -29,6 +29,7 @@
 
 #include <fmt/format.h>
 
+#include <algorithm>
 #include <array>
 #include <ctime>
 #include <iomanip>
@@ -74,22 +75,31 @@ unsigned long long getTotalSystemMemory()
 struct SystemDescription
 {
     std::string nodename;
-    std::string os; // empty when no operating-system description is available
+    std::string os;
 };
 
 std::optional<SystemDescription> getSystemDescription()
 {
 #if defined(_WIN32)
-    // Windows has no uname()/utsname; query the machine name via the Win32
-    // API and the processor architecture (AMD64, ARM64, ...) from the
-    // environment, so the PRT header keeps its "Operating system" line.
+    // Windows has no uname()/utsname; query the machine name and the
+    // processor architecture through the Win32 API so that the PRT header
+    // keeps its "Operating system" line. The architecture is spelled the
+    // way uname() spells it, so the line reads the same on both platforms.
     char computer_name[MAX_COMPUTERNAME_LENGTH + 1] = {};
     DWORD computer_name_len = sizeof(computer_name);
-    std::string os = "Windows";
-    if (const char* processor_arch = std::getenv("PROCESSOR_ARCHITECTURE")) {
-        os += ' ';
-        os += processor_arch;
+    SYSTEM_INFO sys_info{};
+    GetNativeSystemInfo(&sys_info);   // the machine, not this process:
+                                      // GetSystemInfo() would report x86
+                                      // for a 32-bit build under WOW64
+    const char* arch = "unknown architecture";
+    switch (sys_info.wProcessorArchitecture) {
+    case PROCESSOR_ARCHITECTURE_AMD64: arch = "x86_64"; break;
+    case PROCESSOR_ARCHITECTURE_ARM64: arch = "aarch64"; break;
+    case PROCESSOR_ARCHITECTURE_ARM:   arch = "arm";     break;
+    case PROCESSOR_ARCHITECTURE_INTEL: arch = "x86";     break;
+    default: break;
     }
+    const std::string os = std::string{"Windows "} + arch;
     return SystemDescription {
         GetComputerNameA(computer_name, &computer_name_len) ? computer_name : "unknown",
         os
