@@ -37,10 +37,8 @@
 #include <system_error>
 #include <vector>
 
-#if defined(_WIN32)
-#include <io.h>  // _access
-#else
-#include <unistd.h>
+#if !defined(_WIN32)
+#include <unistd.h>  // access()
 #endif
 
 #if HAVE_QUAD
@@ -147,17 +145,17 @@ std::string simulatorOutputDir()
                                  "' exists but is not a directory");
     }
 
-#if defined(_WIN32)
-    // _access mode 2 is the closest analogue of access(..., W_OK). Note that on
-    // Windows it only reports the read-only attribute for a directory, so this
-    // check is weaker there than on POSIX.
-    if (_access(outputDir.c_str(), 2) != 0) {
-#else
+#if !defined(_WIN32)
+    // No Windows counterpart. The nearest thing, _access(dir, 2), only tests
+    // that a directory exists - Windows ignores the mode for directories, so
+    // it returns 0 for one carrying the read-only attribute and never looks
+    // at the ACL - and would pass a directory this process cannot write to.
+    // The first file opened there reports the real error instead.
     if (access(outputDir.c_str(), W_OK) != 0) {
-#endif
         throw std::runtime_error("Output directory '" + outputDir +
                                  "' exists but is not writeable");
     }
+#endif
 
     return outputDir;
 }
