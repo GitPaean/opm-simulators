@@ -62,11 +62,43 @@
 
 #include <iostream>
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+
+namespace {
+// Exempt this process from Windows power throttling ("EcoQoS"), which runs
+// background processes at reduced clock: a serial Norne launched from a
+// background shell measured 1.6x slower. Foreground processes are exempt
+// already; MPI ranks (spawned by the smpd service) and console runs are not.
+void exemptFromPowerThrottling()
+{
+#if defined(PROCESS_POWER_THROTTLING_CURRENT_VERSION)
+    PROCESS_POWER_THROTTLING_STATE state{};
+    state.Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
+    state.ControlMask = PROCESS_POWER_THROTTLING_EXECUTION_SPEED;
+    state.StateMask = 0;   // 0 = always run at normal speed
+    // Best effort: a performance hint, so a failure is not worth reporting.
+    (void) SetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling,
+                                 &state, sizeof(state));
+#endif  // the API and this struct arrived in the Windows 10 1709 SDK
+}
+} // anonymous namespace
+#else   // !_WIN32
+namespace { void exemptFromPowerThrottling() {} }
+#endif // _WIN32
+
 namespace Opm {
 
 Main::Main(int argc, char** argv, bool ownMPI)
     : argc_(argc), argv_(argv), ownMPI_(ownMPI)
 {
+    exemptFromPowerThrottling();
 #if HAVE_MPI
     maybeSaveReservoirCouplingSlaveLogFilename_();
 #endif
@@ -79,6 +111,7 @@ Main::Main(const std::string& filename, bool mpi_init, bool mpi_finalize)
     : mpi_init_{mpi_init}
     , mpi_finalize_{mpi_finalize}
 {
+    exemptFromPowerThrottling();
     setArgvArgc_(filename);
     initMPI();
 }
@@ -95,6 +128,7 @@ Main::Main(const std::string& filename,
     , mpi_init_{mpi_init}
     , mpi_finalize_{mpi_finalize}
 {
+    exemptFromPowerThrottling();
     setArgvArgc_(filename);
     initMPI();
 }
