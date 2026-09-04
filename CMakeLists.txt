@@ -342,6 +342,15 @@ macro(opm-simulators_sources_hook)
     target_compile_definitions(opmsimulators PUBLIC HAVE_AVX2_EXTENSION=1)
   endif()
 
+  # clang-cl crashes (access violation in the optimizer) on this translation
+  # unit whenever OpenMP is enabled, at every optimization level, with LLVM
+  # 22.1.8 and 23.1.0 alike; the file itself contains no OpenMP directive, so
+  # turning OpenMP off for it costs nothing and lets the build through.
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND MSVC)
+    set_property(SOURCE opm/simulators/flow/FlowGenericProblem.cpp
+                 APPEND PROPERTY COMPILE_OPTIONS "/openmp-")
+  endif()
+
   # Boost 1.66 used on RHEL8 cannot be built as c++-20
   if(Boost_VERSION VERSION_LESS 1.67)
     set_source_files_properties(
