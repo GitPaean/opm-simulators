@@ -57,7 +57,7 @@ public:
     }
     void addSlaveName(const std::string &name) { this->slave_names_.push_back(name); }
     void addSlaveActivationDate(double date) { this->slave_activation_dates_.push_back(date); }
-    void addSlaveStartDate(std::time_t date) { this->slave_start_dates_.push_back(date); }
+    void addSlaveStartDate(double date) { this->slave_start_dates_.push_back(date); }
     void clearDeferredLogger() { logger_.clearDeferredLogger(); }
 
     /// @brief Effective group-controlled-wells (GCW) count for a master group,
@@ -219,7 +219,7 @@ public:
     // These are currently only used for unit testing
     void setSlaveActivationDate(int index, double date) { this->slave_activation_dates_[index] = date; }
     void setSlaveNextReportTimeOffset(int index, double offset);
-    void setSlaveStartDate(int index, std::time_t date) { this->slave_start_dates_[index] = date; }
+    void setSlaveStartDate(int index, double date) { this->slave_start_dates_[index] = date; }
     /// @brief Whether the slave has completed its activation handshake with the master.
     /// @details Monotonic: once true it never becomes false again, not even when the slave
     ///   later reaches the end of its own schedule.  Callers that ask "does this slave take

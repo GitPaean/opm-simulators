@@ -87,7 +87,7 @@ struct Setup
         , pu   ()
         , grid (es.getInputGrid())
         , sched(deck, es, std::make_shared<Opm::Python>())
-        , st   { Opm::TimeService::from_time_t(sched.getStartTime()),
+        , st   { sched.startTime(),
                  es.runspec().udqParams().undefinedValue() }
     {
         pu.initFromState(es);
