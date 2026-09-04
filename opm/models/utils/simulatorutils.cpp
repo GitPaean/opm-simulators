@@ -29,12 +29,17 @@
 #include <opm/models/utils/parametersystem.hpp>
 
 #include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
-#include <sys/stat.h>
-#include <unistd.h>
+#include <stdexcept>
+#include <system_error>
 #include <vector>
+
+#if !defined(_WIN32)
+#include <unistd.h>  // access()
+#endif
 
 #if HAVE_QUAD
 #include <opm/material/common/quad.hpp>
@@ -124,20 +129,30 @@ std::string simulatorOutputDir()
         outputDir = ".";
     }
 
-    // TODO: replace this by std::filesystem once we require c++-2017
-    struct stat st;
-    if (::stat(outputDir.c_str(), &st) != 0)
-        throw std::runtime_error("Could not access output directory '" + outputDir + "':" +
-                                 strerror(errno));
-    if (!S_ISDIR(st.st_mode)) {
+    std::error_code ec;
+    const auto status = std::filesystem::status(outputDir, ec);
+    // status() reports a missing path as not_found with ec clear, where the
+    // stat() this replaced failed outright; without the exists() test it
+    // would be reported as something that is not a directory.
+    if (ec || !std::filesystem::exists(status)) {
+        throw std::runtime_error("Could not access output directory '" + outputDir + "': " +
+                                 (ec ? ec.message()
+                                     : std::string{"no such file or directory"}));
+    }
+    if (!std::filesystem::is_directory(status)) {
         throw std::runtime_error("Path to output directory '" +outputDir +
                                  "' exists but is not a directory");
     }
 
+#if !defined(_WIN32)
+    // No Windows counterpart worth having: _access(dir, 2) only tests that a
+    // directory exists, so it would pass one this process cannot write to.
+    // The first file opened there reports the real error instead.
     if (access(outputDir.c_str(), W_OK) != 0) {
         throw std::runtime_error("Output directory '" + outputDir +
                                  "' exists but is not writeable");
     }
+#endif
 
     return outputDir;
 }

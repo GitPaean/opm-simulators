@@ -29,13 +29,23 @@
 
 // Note: we do not use boost.test as it does not cleanly combine with fork() usage
 
+#include <cassert>
+#include <cerrno>
 #include <chrono>
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <mutex>
 #include <thread>
+
+#if defined(_WIN32)
+#include <cstring>
+#include <process.h>
+#include <string>
+#else
 #include <sys/wait.h>
 #include <unistd.h>
-#include <cassert>
+#endif
 
 #include "config.h"
 #include <opm/models/parallel/tasklets.hpp>
@@ -127,21 +137,69 @@ void execute () {
     runner->barrier();
 }
 
+#if defined(_WIN32)
+int main(int argc, char** argv)
+{
+    // No fork() here: re-run this executable as a child and check that it
+    // exits with EXIT_FAILURE when a tasklet fails.
+    if (argc > 1 && std::strcmp(argv[1], "--child") == 0) {
+        execute();
+        // execute() should have exited already; returning success makes the
+        // parent's check fail if it did not.
+        return EXIT_SUCCESS;
+    }
+    std::cout << "Checking failure of child process with parent process" << std::endl;
+    // _spawnl builds one command line that the child re-parses, so an argv[0]
+    // with spaces has to be quoted; the path parameter before it must not be.
+    const std::string quoted_self = '"' + std::string(argv[0]) + '"';
+    const intptr_t status = _spawnl(_P_WAIT, argv[0], quoted_self.c_str(), "--child",
+                                    static_cast<const char*>(nullptr));
+    // status is the child's exit code, or -1 if it could not be spawned.
+    // Check explicitly rather than with assert() so the test still fails
+    // in NDEBUG (Release) builds when the tasklet failure mechanism breaks.
+    if (status != EXIT_FAILURE) {
+        std::cerr << "Child process did not exit with EXIT_FAILURE (status: "
+                  << status << ")" << std::endl;
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+#else
 int main()
 {
     pid_t pid = fork(); // Create a new process, such that this child process can call exit(EXIT_FAILURE)
     if (pid == -1) {
-        assert(0 && "Fork failed");
+        std::cerr << "Fork failed" << std::endl;
+        return EXIT_FAILURE;
     } else if (pid == 0) {
         // Child process
         execute();
         _exit(0);  // Should never reach here
-    } else {
-        // Parent process
-        std::cout << "Checking failure of child process with parent process, process id " << pid << std::endl;
-        int status;
-        waitpid(pid, &status, 0);
-        assert(WIFEXITED(status));  // Check if the child process exited
-        assert(WEXITSTATUS(status) == EXIT_FAILURE);  // Check if the exit status is EXIT_FAILURE
     }
+    // Parent process
+    std::cout << "Checking failure of child process with parent process, process id " << pid << std::endl;
+    int status;
+    // status is indeterminate unless waitpid() reports the child, so check
+    // that it did, retrying if a signal interrupted the wait.
+    pid_t waited;
+    do {
+        waited = waitpid(pid, &status, 0);
+    } while (waited == -1 && errno == EINTR);
+    if (waited != pid) {
+        std::perror("waitpid");
+        return EXIT_FAILURE;
+    }
+    // Check explicitly rather than with assert() so the test still fails
+    // in NDEBUG (Release) builds when the tasklet failure mechanism breaks.
+    if (!WIFEXITED(status)) {
+        std::cerr << "Child process did not exit normally" << std::endl;
+        return EXIT_FAILURE;
+    }
+    if (WEXITSTATUS(status) != EXIT_FAILURE) {
+        std::cerr << "Child process did not exit with EXIT_FAILURE (status: "
+                  << WEXITSTATUS(status) << ")" << std::endl;
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
 }
+#endif
