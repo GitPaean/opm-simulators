@@ -48,10 +48,17 @@
 #include <omp.h>
 #endif
 
+#include <cerrno>
+#include <cstdio>
 #include <iostream>
 // NOTE: There is no C++ header replacement for these C posix headers (as of C++17)
-#include <fcntl.h>  // for open()
+#include <fcntl.h>  // for open()/_open()
+#if defined(_WIN32)
+#include <io.h>        // for _open(), _dup2(), _close(), _fileno()
+#include <sys/stat.h>  // for _S_IREAD, _S_IWRITE
+#else
 #include <unistd.h> // for dup2(), close()
+#endif
 
 #include <iostream>
 
@@ -171,24 +178,75 @@ void Main::maybeSaveReservoirCouplingSlaveLogFilename_()
 }
 #endif
 #if HAVE_MPI
+namespace {
+
+// MSVC spells these with a leading underscore, takes _S_IREAD/_S_IWRITE
+// instead of a mode_t, and declares them in <io.h>. Kept out of the callers.
+int openTruncatedForWrite(const char* path)
+{
+#if defined(_WIN32)
+    return _open(path, _O_WRONLY | _O_CREAT | _O_TRUNC, _S_IREAD | _S_IWRITE);
+#else
+    return open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+#endif
+}
+
+int fdOf(std::FILE* stream)
+{
+#if defined(_WIN32)
+    return _fileno(stream);
+#else
+    return fileno(stream);
+#endif
+}
+
+int redirectStreamTo(int fd, std::FILE* stream)
+{
+#if defined(_WIN32)
+    // _fileno() gives -2 for a standard stream attached to nothing (a
+    // service, or a process manager without a console), and _dup2() on that
+    // trips the invalid-parameter handler. Fail as dup2() would instead.
+    const int target = _fileno(stream);
+    if (fd < 0 || target < 0) {
+        errno = EBADF;
+        return -1;
+    }
+    return _dup2(fd, target);
+#else
+    return dup2(fd, fileno(stream));
+#endif
+}
+
+void closeDescriptor(int fd)
+{
+#if defined(_WIN32)
+    _close(fd);
+#else
+    close(fd);
+#endif
+}
+
+}
+
 void Main::maybeRedirectReservoirCouplingSlaveOutput_() {
     if (!this->reservoirCouplingSlaveOutputFilename_.empty()) {
         std::string filename = this->reservoirCouplingSlaveOutputFilename_
                      + "." + std::to_string(FlowGenericVanguard::comm().rank()) + ".log";
-        int fd = open(filename.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        int fd = openTruncatedForWrite(filename.c_str());
         if (fd == -1) {
             std::string error_msg = "Slave: Failed to open stdout+stderr file" + filename;
             perror(error_msg.c_str());
             MPI_Abort(MPI_COMM_WORLD, /*status=*/1);
         }
         // Redirect stdout and stderr to the file.
-        if (dup2(fd, fileno(stdout)) == -1 || dup2(fileno(stdout), fileno(stderr)) == -1) {
+        if (redirectStreamTo(fd, stdout) == -1 ||
+            redirectStreamTo(fdOf(stdout), stderr) == -1) {
             std::string error_msg = "Slave: Failed to redirect stdout+stderr to " + filename;
             perror(error_msg.c_str());
-            close(fd);
+            closeDescriptor(fd);
             MPI_Abort(MPI_COMM_WORLD, /*status=*/1);
         }
-        close(fd);
+        closeDescriptor(fd);
     }
 }
 #endif

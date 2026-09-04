@@ -25,9 +25,12 @@
 
 #include <opm/simulators/flow/Main.hpp>
 
+#include <opm/common/OpmLog/OpmLog.hpp>
+
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <system_error>
 
 namespace {
 
@@ -68,6 +71,9 @@ END
 
         input_path = std::filesystem::temp_directory_path() / "outputdir_test/";
 
+        // Throwing overload on purpose: this is the constructor, not the
+        // (noexcept) destructor, and a cleanup that silently fails here
+        // would run the test against the previous run's leftovers.
         std::filesystem::remove_all(input_path);
         std::filesystem::create_directories(input_path / "subdir" / "subdir");
 
@@ -81,7 +87,20 @@ END
 
     ~Fixture()
     {
-        std::filesystem::remove_all(input_path);
+        // The cases chdir into input_path and OpmLog still holds the last
+        // PRT/DBG open. Deleting the current directory or an open file fails
+        // on Windows, and a filesystem_error escaping this (noexcept)
+        // destructor ends the process. Move out, drop the backends, and use
+        // the non-throwing overload.
+        std::error_code ec;
+        // temp_directory_path() has a throwing overload too, and this is the
+        // destructor that must not throw: ask for the error code here as well.
+        const auto tmp = std::filesystem::temp_directory_path(ec);
+        if (!ec) {
+            std::filesystem::current_path(tmp, ec);
+        }
+        ec.clear();
+        std::filesystem::remove_all(input_path, ec);
     }
 
     std::filesystem::path input_path;
@@ -100,9 +119,9 @@ BOOST_FIXTURE_TEST_CASE(WithOutputDir, Fixture)
                                  PathPair{input_path / "subdir", input_path / "output2"},
                                  PathPair{input_path / "subdir" / "subdir", input_path / "output3"}}) {
             const std::string output_path = "--output-dir=" + Case.second.string();
-            const std::string input_file_path = (Case.first / "INPUT.DATA");
+            const std::string input_file_path = (Case.first / "INPUT.DATA").string();
 
-            const std::string output_dbg_path = (Case.second / "INPUT.DBG");
+            const std::string output_dbg_path = (Case.second / "INPUT.DBG").string();
             if (createFaultyFileWithDirectory) {
                 std::filesystem::create_directories(Case.second);
                 // Create file with faulty content
@@ -143,9 +162,9 @@ BOOST_FIXTURE_TEST_CASE(NoOutputDir, Fixture)
 
     for (const auto& Case : {input_path / "subdir" / "subdir",
                              input_path / "subdir"}) {
-        const std::string input_file_path = (Case / "INPUT.DATA");
+        const std::string input_file_path = (Case / "INPUT.DATA").string();
 
-        const std::string output_dbg_path = (Case / "INPUT.DBG");
+        const std::string output_dbg_path = (Case / "INPUT.DBG").string();
         // Create file with faulty content
         std::string dummy = R"(dummy)";
         std::ofstream of(output_dbg_path);
