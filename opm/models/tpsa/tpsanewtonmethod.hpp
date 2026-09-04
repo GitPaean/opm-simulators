@@ -42,7 +42,6 @@
 #include <iomanip>
 #include <sstream>
 #include <string>
-#include <unistd.h>
 
 
 namespace Opm {
