@@ -47,6 +47,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <unistd.h>
 #include <vector>
 
 #if HAVE_MPI
@@ -296,7 +297,7 @@ static inline int start(int argc, char **argv,  bool registerParams)
             const std::string endParametersSeparator("# [end of parameters]\n");
             if (printParams) {
                 bool printSeparator = false;
-                if (printParams == 1 || !isTty(stdout)) {
+                if (printParams == 1 || !isatty(fileno(stdout))) {
                     Parameters::printValues(std::cout);
                     printSeparator = true;
                 }
