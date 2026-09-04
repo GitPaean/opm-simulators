@@ -42,7 +42,6 @@
 #include <opm/models/nonlinear/newtonmethodproperties.hh>
 #include <opm/models/nonlinear/nullconvergencewriter.hh>
 
-#include <opm/models/utils/terminal.hpp>
 #include <opm/models/utils/timer.hpp>
 #include <opm/models/utils/timerguard.hh>
 
@@ -55,6 +54,8 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+
+#include <unistd.h>
 
 namespace Opm {
 
@@ -214,7 +215,7 @@ public:
      */
     bool apply()
     {
-        const bool istty = isTty(stdout);
+        const bool istty = isatty(fileno(stdout));
 
         // Clear the current line using an ansi escape
         // sequence.  For an explanation see
