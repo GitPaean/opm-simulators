@@ -269,6 +269,7 @@ list (APPEND MAIN_SOURCE_FILES
   opm/simulators/wells/WellInterfaceFluidSystem.cpp
   opm/simulators/wells/WellInterfaceGeneric.cpp
   opm/simulators/wells/WellInterfaceIndices.cpp
+  opm/simulators/wells/WellPerformanceEvents.cpp
   opm/simulators/wells/WellProdIndexCalculator.cpp
   opm/simulators/wells/WellState.cpp
   opm/simulators/wells/WellTest.cpp
@@ -1319,6 +1320,7 @@ list (APPEND PUBLIC_HEADER_FILES
   opm/simulators/wells/WellInterfaceGeneric.hpp
   opm/simulators/wells/WellInterface.hpp
   opm/simulators/wells/WellInterface_impl.hpp
+  opm/simulators/wells/WellPerformanceEvents.hpp
   opm/simulators/wells/WellInterfaceIndices.hpp
   opm/simulators/wells/WellProdIndexCalculator.hpp
   opm/simulators/wells/WellState.hpp
