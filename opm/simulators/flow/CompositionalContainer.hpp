@@ -26,9 +26,12 @@
 #ifndef OPM_COMPOSITIONAL_CONTAINER_HPP
 #define OPM_COMPOSITIONAL_CONTAINER_HPP
 
+#include <opm/input/eclipse/EclipseState/Compositional/CompositionalConfig.hpp>
+
 #include <array>
 #include <functional>
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -51,7 +54,8 @@ class CompositionalContainer
 
 public:
     void allocate(const unsigned bufferSize,
-                  std::map<std::string, int>& rstKeywords);
+                  std::map<std::string, int>& rstKeywords,
+                  const bool isRestartOutput);
 
     using AssignFunction = std::function<Scalar(const unsigned)>;
 
@@ -67,6 +71,24 @@ public:
     void assignPhasePressures(const unsigned globalDofIdx,
                               const Scalar oilPressure,
                               const Scalar gasPressure);
+
+    void assignSaturationPressure(const unsigned globalDofIdx,
+                                  const Scalar psat);
+
+    /// Return the cell pressure for two hydrocarbon phases, or the bubble/dew
+    /// pressure of the total composition for a single phase. Return std::nullopt
+    /// if the solver cannot determine a saturation pressure.
+    ///
+    /// \p liquidFraction is the flash liquid fraction L: exactly one denotes
+    /// liquid only, exactly zero vapour only, and other values denote two phases.
+    /// Use L because computed phase saturations can contain round-off residuals.
+    /// Plain-value arguments allow testing phase selection without a simulator.
+    [[nodiscard]] static std::optional<Scalar>
+    cellSaturationPressure(const Scalar liquidFraction,
+                           const Scalar oilPressure,
+                           const std::array<Scalar, numComponents>& moleFractions,
+                           const Scalar temperature,
+                           const CompositionalConfig::EOSType eosType);
 
     void assignVaporFraction(const unsigned globalDofIdx,
                              const Scalar vmf);
@@ -89,6 +111,9 @@ public:
     bool vaporFractionAllocated() const
     { return !vaporFraction_.empty(); }
 
+    bool saturationPressureAllocated() const
+    { return !saturationPressure_.empty(); }
+
     bool allocated() const
     { return allocated_; }
 
@@ -101,6 +126,8 @@ private:
     // phase pressures (POIL, PGAS)
     ScalarBuffer oilPressure_;
     ScalarBuffer gasPressure_;
+    // saturation pressure (PSAT)
+    ScalarBuffer saturationPressure_;
     // vapour mole fraction of the total mixture (VMF)
     ScalarBuffer vaporFraction_;
 };

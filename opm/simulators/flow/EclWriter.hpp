@@ -863,8 +863,6 @@ private:
                 this->outputModule_->processElementBlockData(elemCtx);
             }
             this->outputModule_->clearExtractors();
-
-            this->outputModule_->accumulateDensityParallel();
         }
 
         {
@@ -881,10 +879,12 @@ private:
             }
         }
 
-        this->outputModule_->validateLocalData();
-
         OPM_END_PARALLEL_TRY_CATCH("EclWriter::prepareLocalCellData() failed: ",
                                    this->simulator_.vanguard().grid().comm());
+
+        // Complete rank-wide exception handling before entering output collectives.
+        this->outputModule_->accumulateDensityParallel();
+        this->outputModule_->validateLocalData();
     }
 
     void captureLocalFluxData()

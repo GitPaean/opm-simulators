@@ -36,6 +36,7 @@
 #include <opm/common/TimingMacros.hpp>
 #include <opm/common/OpmLog/OpmLog.hpp>
 
+#include <opm/input/eclipse/EclipseState/Compositional/CompositionalConfig.hpp>
 #include <opm/input/eclipse/EclipseState/SummaryConfig/SummaryConfig.hpp>
 
 #include <opm/material/common/Valgrind.hpp>
@@ -52,6 +53,7 @@
 #include <opm/simulators/flow/OutputExtractor.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <fstream>
 #include <memory>
@@ -62,6 +64,7 @@
 #include <utility>
 #include <vector>
 
+#include <fmt/format.h>
 
 namespace Opm {
 
@@ -127,6 +130,7 @@ public:
                    getPropValue<TypeTag, Properties::EnableBioeffects>(),
                    getPropValue<TypeTag, Properties::EnableGeochemistry>())
         , simulator_(simulator)
+        , eosType_(simulator.vanguard().eclState().compositionalConfig().eosType(0))
     {
         for (auto& region_pair : this->regions_) {
             this->createLocalRegion_(region_pair.second);
@@ -184,7 +188,10 @@ public:
         }
 
         auto rstKeywords = this->schedule_.rst_keywords(reportStepNum);
-        this->compC_.allocate(bufferSize, rstKeywords);
+        const bool isRestartOutput =
+            isRestart || (!substep && this->schedule_.write_rst_file(reportStepNum));
+        this->compC_.allocate(bufferSize, rstKeywords, isRestartOutput);
+        this->numFailedSaturationPressures_ = 0;
 
         this->doAllocBuffers(bufferSize, reportStepNum, substep, log, isRestart,
                              /* hysteresisConfig = */ nullptr,
@@ -714,6 +721,26 @@ public:
                                               intQuants,
                                               totVolume,
                                               referencePorosity);
+
+        // Run the nonlinear PSAT solve in the caller's OpenMP loop.
+        // The assignment skips cells when no restart buffer is allocated.
+        this->assignSaturationPressure_(globalDofIdx, intQuants.fluidState());
+    }
+
+    /// Reduce PSAT failures across all ranks before marking the output data valid.
+    void validateLocalData() override
+    {
+        const auto& comm = this->simulator_.gridView().comm();
+        const auto totalFailures = comm.sum(this->numFailedSaturationPressures_);
+        this->numFailedSaturationPressures_ = 0;
+        if (totalFailures > 0 && comm.rank() == 0) {
+            const auto* const cell = totalFailures == 1 ? "cell" : "cells";
+            OpmLog::info(fmt::format("Could not determine saturation pressure in {} {}; "
+                                     "PSAT is written as zero for every affected cell.",
+                                     totalFailures,
+                                     cell));
+        }
+        BaseType::validateLocalData();
     }
 
 protected:
@@ -779,8 +806,41 @@ private:
         }
     }
 
+    /// Store the cell's saturation pressure, using zero for an unsuccessful solve.
+    /// Concurrent calls must use distinct cell indices; the failure count is atomic.
+    template<class FluidState>
+    void assignSaturationPressure_(const unsigned globalDofIdx, const FluidState& fluidState)
+    {
+        if (!this->compC_.saturationPressureAllocated()) {
+            return;
+        }
+
+        std::array<Scalar, numComponents> moleFractions;
+        for (int c = 0; c < numComponents; ++c) {
+            moleFractions[c] = getValue(fluidState.moleFraction(c));
+        }
+        const auto psat = CompositionalContainer<FluidSystem>::cellSaturationPressure(
+            getValue(fluidState.L()),
+            getValue(fluidState.pressure(oilPhaseIdx)),
+            moleFractions,
+            getValue(fluidState.temperature(oilPhaseIdx)),
+            this->eosType_);
+        if (!psat) {
+            // Failure includes supercritical mixtures; it does not establish
+            // whether a saturation pressure exists.
+#ifdef _OPENMP
+#pragma omp atomic
+#endif
+            ++this->numFailedSaturationPressures_;
+        }
+
+        this->compC_.assignSaturationPressure(globalDofIdx, psat.value_or(Scalar{0}));
+    }
+
     const Simulator& simulator_;
     CompositionalContainer<FluidSystem> compC_;
+    CompositionalConfig::EOSType eosType_;
+    std::size_t numFailedSaturationPressures_{};
     std::vector<typename Extractor::Entry> extractors_;
     typename BlockExtractor::ExecMap blockExtractors_;
 };
