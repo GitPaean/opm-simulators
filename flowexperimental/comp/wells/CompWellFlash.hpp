@@ -58,11 +58,11 @@ void flashWellboreFluidState(CompositionalFluidState<T, FluidSystem>& fluid_stat
     using Scalar = typename FluidSystem::Scalar;
     using EOSType = CompositionalConfig::EOSType;
 
-    bool single_phase = false;
+    // The flash labels a single-phase result itself.
     if constexpr (std::is_same_v<T, Scalar>) {
-        single_phase = PTFlash<Scalar, FluidSystem>::flash_solve_scalar_(fluid_state, "ssi", flash_tolerance, EOSType::PR);
+        PTFlash<Scalar, FluidSystem>::flash_solve_scalar_(fluid_state, "ssi", flash_tolerance, EOSType::PR);
     } else { // Evaluation
-        single_phase = PTFlash<Scalar, FluidSystem>::solve(fluid_state, "ssi", flash_tolerance, EOSType::PR);
+        PTFlash<Scalar, FluidSystem>::solve(fluid_state, "ssi", flash_tolerance, EOSType::PR);
     }
 
     constexpr Scalar R = Constants<Scalar>::R;
@@ -74,19 +74,8 @@ void flashWellboreFluidState(CompositionalFluidState<T, FluidSystem>& fluid_stat
     const auto Z_V = (param_cache.molarVolume(FluidSystem::gasPhaseIdx) * fluid_state.pressure(FluidSystem::gasPhaseIdx)) /
                      (R * fluid_state.temperature(FluidSystem::gasPhaseIdx));
 
-    auto L = fluid_state.L();
-    if (single_phase) {
-        // we check whether the phase label is correct
-        if (L > 0.9 && Z_L > 0.8) { // marked as liquid phase while compress factor shows it is gas
-            L = 0.;
-            fluid_state.setLvalue(L);
-        } else if (L < 0.1 && Z_V < 0.5) { // marked as gas phase while compress factor shows it is liquid
-            L = 1.;
-            fluid_state.setLvalue(L);
-        }
-    }
+    const auto L = fluid_state.L();
     // Use the same translated molar volumes for saturations and densities.
-    // The phase-label check above uses the unshifted EOS compressibility factors.
     const auto Vm_L = param_cache.correctedMolarVolume(FluidSystem::oilPhaseIdx);
     const auto Vm_V = param_cache.correctedMolarVolume(FluidSystem::gasPhaseIdx);
     T So = max((L * Vm_L / (L * Vm_L + (1 - L) * Vm_V)), 0.0);
