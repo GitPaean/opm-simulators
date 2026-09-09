@@ -388,8 +388,7 @@ namespace Opm {
 
             // A WTEST re-open is the simulator's own decision, so record it
             // before the deck is applied below.
-            this->well_perf_events_.accumulate(this->schedule(), reportStepIdx,
-                                               this->wellStatusSnapshot());
+            this->well_perf_events_.accumulate(this->wellStatusSnapshot());
 
             // create the well container
             createWellContainer(reportStepIdx);
@@ -734,8 +733,7 @@ namespace Opm {
         this->checkGconsaleLimits(fieldGroup, this->wellState(),
                                   simulator_.episodeIndex(), local_deferredLogger);
 
-        this->well_perf_events_.accumulate(this->schedule(), reportStepIdx,
-                                           this->wellStatusSnapshot());
+        this->well_perf_events_.accumulate(this->wellStatusSnapshot());
 
         this->calculateProductivityIndexValues(local_deferredLogger);
 
