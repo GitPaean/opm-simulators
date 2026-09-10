@@ -709,3 +709,35 @@ WINJGAS
     validator.validateDeckKeyword(deck["WINJGAS"].back(), errors);
     BOOST_CHECK_EQUAL(errors.size(), 2);
 }
+
+
+BOOST_AUTO_TEST_CASE(factli_and_parachor_are_flagged_as_unsupported)
+{
+    // Both keywords parse into CompositionalConfig but nothing reads them, so
+    // the production tables must report them - as warnings, since a deck that
+    // only carries the neutral values still runs correctly.
+    // PARACHOR is sized by TABDIMS, so the deck has to carry it.
+    const auto keywords_string = std::string {R"(
+RUNSPEC
+TABDIMS
+/
+PROPS
+FACTLI
+  0.8 /
+PARACHOR
+  74.92 192.74 390.4 /
+)"};
+    const auto deck = Parser {}.parseString(keywords_string);
+    const auto validator = flowKeywordValidator();
+
+    for (const auto* name : {"FACTLI", "PARACHOR"}) {
+        BOOST_TEST_CONTEXT(name)
+        {
+            std::vector<ValidationError> errors;
+            validator.validateDeckKeyword(deck[name].back(), errors);
+            BOOST_REQUIRE_EQUAL(errors.size(), 1);
+            BOOST_CHECK(!errors[0].critical);
+            BOOST_CHECK(errors[0].user_message.has_value());
+        }
+    }
+}
