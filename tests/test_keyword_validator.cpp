@@ -722,19 +722,41 @@ PROPS
 )"} + props);
 }
 
-BOOST_AUTO_TEST_CASE(parachor_is_flagged_as_unsupported)
+BOOST_AUTO_TEST_CASE(parachor_severity_follows_miscible)
 {
-    // PARACHOR parses into CompositionalConfig but nothing reads it, and it has
-    // no default to fall back on, so any deck carrying it is reported - as a
-    // warning, since without MISCIBLE the values cannot change the results.
-    const auto deck = compositionalPropsDeck("PARACHOR\n  74.92 192.74 390.4 /\n");
-    const auto validator = flowKeywordValidator();
+    const auto validateParachor = [](const Deck& deck) {
+        std::vector<ValidationError> errors;
+        specialValidation().at("PARACHOR")(deck, deck["PARACHOR"].back(), errors);
+        return errors;
+    };
 
-    std::vector<ValidationError> errors;
-    validator.validateDeckKeyword(deck["PARACHOR"].back(), errors);
-    BOOST_REQUIRE_EQUAL(errors.size(), 1);
-    BOOST_CHECK(!errors[0].critical);
-    BOOST_CHECK(errors[0].user_message.has_value());
+    const auto body = std::string {"PARACHOR\n  74.92 192.74 390.4 /\n"};
+
+    // Without MISCIBLE the parachors could not have been used anyway, so the
+    // keyword is reported as a warning and the message says so.
+    {
+        const auto errors = validateParachor(compositionalPropsDeck(body));
+        BOOST_REQUIRE_EQUAL(errors.size(), 1);
+        BOOST_CHECK(!errors[0].critical);
+        BOOST_REQUIRE(errors[0].user_message.has_value());
+        BOOST_CHECK(errors[0].user_message->find("without MISCIBLE") != std::string::npos);
+    }
+
+    // With MISCIBLE the deck is asking for surface tensions that flow does not
+    // compute, which would change the results, so it is a critical error.
+    {
+        const auto deck = Parser {}.parseString(std::string {R"(
+RUNSPEC
+MISCIBLE
+/
+TABDIMS
+/
+PROPS
+)"} + body);
+        const auto errors = validateParachor(deck);
+        BOOST_REQUIRE_EQUAL(errors.size(), 1);
+        BOOST_CHECK(errors[0].critical);
+    }
 }
 
 BOOST_AUTO_TEST_CASE(only_the_neutral_factli_multiplier_is_accepted)
@@ -743,7 +765,7 @@ BOOST_AUTO_TEST_CASE(only_the_neutral_factli_multiplier_is_accepted)
 
     const auto validateFactli = [](const Deck& deck) {
         std::vector<ValidationError> errors;
-        specialValidation().at("FACTLI")(deck["FACTLI"].back(), errors);
+        specialValidation().at("FACTLI")(deck, deck["FACTLI"].back(), errors);
         return errors;
     };
 

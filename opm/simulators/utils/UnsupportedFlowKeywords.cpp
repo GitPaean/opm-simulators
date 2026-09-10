@@ -425,7 +425,6 @@ const KeywordValidation::UnsupportedKeywords& unsupportedKeywords()
         {"OPTIONS", {true, std::nullopt}},
         {"OUTRAD", {true, std::string{"Use the DRV keyword instead"}}},
         {"OUTSOL", {false, std::nullopt}},
-        {"PARACHOR", {false, std::string{"Surface tensions are not calculated"}}},
         {"PARAOPTS", {false, std::nullopt}},
         {"PCG32D", {true, std::nullopt}},
         {"PCW32D", {true, std::nullopt}},
