@@ -741,3 +741,25 @@ PARACHOR
         }
     }
 }
+
+
+BOOST_AUTO_TEST_CASE(compvd_is_flagged_as_unsupported)
+{
+    // COMPVD initialises the composition against depth, which flow does not
+    // do.  Its sibling ZMFVD is already reported; COMPVD has to be too.
+    const auto keywords_string = std::string {R"(
+RUNSPEC
+EQLDIMS
+/
+PROPS
+COMPVD
+  2573.5 0.7 0.2 0.1 0 277.5 /
+)"};
+    const auto deck = Parser {}.parseString(keywords_string);
+    const auto validator = flowKeywordValidator();
+
+    std::vector<ValidationError> errors;
+    validator.validateDeckKeyword(deck["COMPVD"].back(), errors);
+    BOOST_REQUIRE_EQUAL(errors.size(), 1);
+    BOOST_CHECK(!errors[0].critical);
+}
