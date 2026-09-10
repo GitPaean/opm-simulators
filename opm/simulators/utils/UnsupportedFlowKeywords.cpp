@@ -173,7 +173,6 @@ const KeywordValidation::UnsupportedKeywords& unsupportedKeywords()
         {"EXTHOST", {true, std::nullopt}},
         {"EXTRAPMS", {false, std::nullopt}},
         {"EXTREPGL", {true, std::nullopt}},
-        {"FACTLI", {false, std::string{"Single phase cells are labelled as if FACTLI were 1.0"}}},
         {"FHERCHBL", {true, std::nullopt}},
         {"FRICTION", {true, std::nullopt}},
         {"FIELDSEP", {false, std::nullopt}},

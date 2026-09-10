@@ -711,34 +711,80 @@ WINJGAS
 }
 
 
-BOOST_AUTO_TEST_CASE(factli_and_parachor_are_flagged_as_unsupported)
+// PARACHOR is sized by TABDIMS, so a deck carrying it needs TABDIMS too.
+Deck compositionalPropsDeck(const std::string& props)
 {
-    // Both keywords parse into CompositionalConfig but nothing reads them, so
-    // the production tables must report them - as warnings, since a deck that
-    // only carries the neutral values still runs correctly.
-    // PARACHOR is sized by TABDIMS, so the deck has to carry it.
-    const auto keywords_string = std::string {R"(
+    return Parser {}.parseString(std::string {R"(
 RUNSPEC
 TABDIMS
 /
 PROPS
-FACTLI
-  0.8 /
-PARACHOR
-  74.92 192.74 390.4 /
-)"};
-    const auto deck = Parser {}.parseString(keywords_string);
+)"} + props);
+}
+
+BOOST_AUTO_TEST_CASE(parachor_is_flagged_as_unsupported)
+{
+    // PARACHOR parses into CompositionalConfig but nothing reads it, and it has
+    // no default to fall back on, so any deck carrying it is reported - as a
+    // warning, since without MISCIBLE the values cannot change the results.
+    const auto deck = compositionalPropsDeck("PARACHOR\n  74.92 192.74 390.4 /\n");
     const auto validator = flowKeywordValidator();
 
-    for (const auto* name : {"FACTLI", "PARACHOR"}) {
-        BOOST_TEST_CONTEXT(name)
+    std::vector<ValidationError> errors;
+    validator.validateDeckKeyword(deck["PARACHOR"].back(), errors);
+    BOOST_REQUIRE_EQUAL(errors.size(), 1);
+    BOOST_CHECK(!errors[0].critical);
+    BOOST_CHECK(errors[0].user_message.has_value());
+}
+
+BOOST_AUTO_TEST_CASE(only_the_neutral_factli_multiplier_is_accepted)
+{
+    const auto validator = flowKeywordValidator();
+
+    const auto validateFactli = [](const Deck& deck) {
+        std::vector<ValidationError> errors;
+        specialValidation().at("FACTLI")(deck["FACTLI"].back(), errors);
+        return errors;
+    };
+
+    // The neutral multiplier is what flow already does, however it is spelled,
+    // and over however many equilibration regions.
+    for (const auto* body : {"FACTLI\n  1.0 /\n",
+                             "FACTLI\n  1*1.0 /\n",
+                             "FACTLI\n  1* /\n",
+                             "FACTLI\n  15*1.0 /\n",
+                             "FACTLI\n  15* /\n",
+                             "FACTLI\n  3*1.0 2* 4*1.0 /\n"}) {
+        BOOST_TEST_CONTEXT(body)
         {
-            std::vector<ValidationError> errors;
-            validator.validateDeckKeyword(deck[name].back(), errors);
-            BOOST_REQUIRE_EQUAL(errors.size(), 1);
-            BOOST_CHECK(!errors[0].critical);
-            BOOST_CHECK(errors[0].user_message.has_value());
+            BOOST_CHECK(validateFactli(compositionalPropsDeck(body)).empty());
         }
+    }
+
+    // Any other multiplier moves the oil/gas label of single phase cells, so it
+    // is a critical error rather than a warning - in whichever region it sits.
+    for (const auto* body : {"FACTLI\n  0.8 /\n",
+                             "FACTLI\n  0.8 14*1.0 /\n",
+                             "FACTLI\n  14*1.0 0.8 /\n",
+                             "FACTLI\n  7*1.0 1.3 7*1.0 /\n"}) {
+        BOOST_TEST_CONTEXT(body)
+        {
+            const auto errors = validateFactli(compositionalPropsDeck(body));
+            BOOST_REQUIRE_EQUAL(errors.size(), 1);
+            BOOST_CHECK(errors[0].critical);
+        }
+    }
+
+    // Each offending region is reported with its own value and region number,
+    // so a multiplier buried in a long list can still be found.
+    {
+        const auto errors = validateFactli(compositionalPropsDeck("FACTLI\n  7*1.0 1.3 6*1.0 0.8 /\n"));
+        BOOST_REQUIRE_EQUAL(errors.size(), 2);
+        BOOST_REQUIRE(errors[0].user_message.has_value());
+        BOOST_CHECK(errors[0].user_message->find("region 8") != std::string::npos);
+        BOOST_REQUIRE(errors[1].user_message.has_value());
+        BOOST_CHECK(errors[1].user_message->find("region 15") != std::string::npos);
+        BOOST_CHECK(errors[0].item_value.has_value());
     }
 }
 
