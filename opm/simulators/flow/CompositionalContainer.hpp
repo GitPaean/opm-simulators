@@ -56,8 +56,9 @@ public:
     enum class RestartOutput { Disabled, Enabled };
 
     /// Allocate compositional restart fields requested by \p rstKeywords.
-    /// PSAT is allocated only for restart output because computing it requires
-    /// a nonlinear saturation-pressure solve in each cell.
+    /// PSAT is currently consumed only by restart output. Allocate it only
+    /// for passes that will write restart data because filling the buffer
+    /// requires a nonlinear solve for each single-phase cell.
     void allocate(const unsigned bufferSize,
                   std::map<std::string, int>& rstKeywords,
                   RestartOutput restartOutput);

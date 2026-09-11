@@ -195,7 +195,7 @@ public:
             ? RestartOutput::Enabled
             : RestartOutput::Disabled;
         this->compC_.allocate(bufferSize, rstKeywords, restartOutput);
-        this->numFailedSaturationPressures_ = 0;
+        this->numUnresolvedSaturationPressures_ = 0;
 
         this->doAllocBuffers(bufferSize, reportStepNum, substep, log,
                              forceRestartFieldAllocation,
@@ -732,22 +732,26 @@ public:
         this->assignSaturationPressure_(globalDofIdx, intQuants.fluidState());
     }
 
-    /// When PSAT is requested, reduce failures across all ranks before marking
-    /// the output data valid.
+    /// When PSAT is requested, reduce the count of unresolved cells across all
+    /// ranks before marking the output data valid.
     void validateLocalData() override
     {
         if (this->compC_.saturationPressureRequested()) {
             const auto& comm = this->simulator_.gridView().comm();
-            const auto totalFailures = comm.sum(this->numFailedSaturationPressures_);
-            if (totalFailures > 0 && comm.rank() == 0) {
-                const auto* const cell = totalFailures == 1 ? "cell" : "cells";
-                OpmLog::info(fmt::format("Could not determine saturation pressure in {} {}; "
-                                         "PSAT is written as zero for every affected cell.",
-                                         totalFailures,
+            const auto totalUnresolved = comm.sum(this->numUnresolvedSaturationPressures_);
+            if (totalUnresolved > 0 && comm.rank() == 0) {
+                const std::string_view cell = totalUnresolved == 1 ? "cell" : "cells";
+                // Some unresolved searches correspond to states with no saturation
+                // boundary at this composition and temperature, so report the aggregate
+                // informationally rather than treating every result as a solver failure.
+                OpmLog::info(fmt::format("No saturation pressure was resolved in {} {}; "
+                                         "PSAT is written as zero there. This includes "
+                                         "mixtures that have none.",
+                                         totalUnresolved,
                                          cell));
             }
         }
-        this->numFailedSaturationPressures_ = 0;
+        this->numUnresolvedSaturationPressures_ = 0;
         BaseType::validateLocalData();
     }
 
@@ -815,7 +819,7 @@ private:
     }
 
     /// Store the cell's saturation pressure, using zero for an unsuccessful solve.
-    /// Concurrent calls must use distinct cell indices; the failure count is atomic.
+    /// Concurrent calls must use distinct cell indices; the unresolved count is atomic.
     template<class FluidState>
     void assignSaturationPressure_(const unsigned globalDofIdx, const FluidState& fluidState)
     {
@@ -834,12 +838,13 @@ private:
             getValue(fluidState.temperature(oilPhaseIdx)),
             this->eosType_);
         if (!psat) {
-            // Failure includes supercritical mixtures; it does not establish
-            // whether a saturation pressure exists.
+            // A false result means only that no saturation pressure was resolved;
+            // it does not distinguish a physically absent boundary from numerical
+            // nonconvergence.
 #ifdef _OPENMP
 #pragma omp atomic
 #endif
-            ++this->numFailedSaturationPressures_;
+            ++this->numUnresolvedSaturationPressures_;
         }
 
         this->compC_.assignSaturationPressure(globalDofIdx, psat.value_or(Scalar{0}));
@@ -848,7 +853,7 @@ private:
     const Simulator& simulator_;
     CompositionalContainer<FluidSystem> compC_;
     CompositionalConfig::EOSType eosType_;
-    std::size_t numFailedSaturationPressures_{};
+    std::size_t numUnresolvedSaturationPressures_{};
     std::vector<typename Extractor::Entry> extractors_;
     typename BlockExtractor::ExecMap blockExtractors_;
 };

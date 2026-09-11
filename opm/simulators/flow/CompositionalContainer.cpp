@@ -251,8 +251,8 @@ cellSaturationPressure(const Scalar liquidFraction,
 {
     // Compare against the flash's exact single-phase labels. Round-off can put
     // a two-phase Rachford-Rice result slightly outside the interval [0, 1].
-    const bool liquidOnly = (liquidFraction == 1.0);
-    const bool vapourOnly = (liquidFraction == 0.0);
+    const bool liquidOnly = liquidFraction == Scalar{1};
+    const bool vapourOnly = liquidFraction == Scalar{0};
     if (!liquidOnly && !vapourOnly) {
         return oilPressure;
     }
