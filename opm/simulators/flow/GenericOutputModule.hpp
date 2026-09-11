@@ -467,7 +467,7 @@ protected:
                         unsigned reportStepNum,
                         const bool substep,
                         const bool log,
-                        const bool isRestart,
+                        const bool forceRestartFieldAllocation,
                         const EclHysteresisConfig* hysteresisConfig,
                         unsigned numOutputNnc = 0,
                         std::map<std::string, int> rstKeywords = {});

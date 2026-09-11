@@ -181,7 +181,7 @@ public:
                  const unsigned reportStepNum,
                  const bool     substep,
                  const bool     log,
-                 const bool     isRestart)
+                 const bool     forceRestartFieldAllocation)
     {
         if (! std::is_same<Discretization, EcfvDiscretization<TypeTag>>::value) {
             return;
@@ -189,11 +189,13 @@ public:
 
         auto rstKeywords = this->schedule_.rst_keywords(reportStepNum);
         const bool isRestartOutput =
-            isRestart || (!substep && this->schedule_.write_rst_file(reportStepNum));
+            forceRestartFieldAllocation ||
+            (!substep && this->schedule_.write_rst_file(reportStepNum));
         this->compC_.allocate(bufferSize, rstKeywords, isRestartOutput);
         this->numFailedSaturationPressures_ = 0;
 
-        this->doAllocBuffers(bufferSize, reportStepNum, substep, log, isRestart,
+        this->doAllocBuffers(bufferSize, reportStepNum, substep, log,
+                             forceRestartFieldAllocation,
                              /* hysteresisConfig = */ nullptr,
                              /* numOutputNnc =*/ 0,
                              std::move(rstKeywords));

@@ -841,10 +841,16 @@ private:
 
         const int num_interior = detail::
             countLocalInteriorCellsGridView(gridView);
+        const bool writeAllSolutions =
+            Parameters::Get<Parameters::EnableWriteAllSolutions>();
+
+        // EclipseIO forces restart output for positive time-step indices in write-all mode.
+        const bool forceRestartFieldAllocation =
+            writeAllSolutions && (simulator_.timeStepIndex() > 0);
         this->outputModule_->
             allocBuffers(num_interior, reportStepNum,
-                         isSubStep && !Parameters::Get<Parameters::EnableWriteAllSolutions>(),
-                         log, /*isRestart*/ false);
+                         isSubStep && !writeAllSolutions,
+                         log, forceRestartFieldAllocation);
 
         ElementContext elemCtx(simulator_);
 
