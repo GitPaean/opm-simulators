@@ -48,18 +48,60 @@
 #include <omp.h>
 #endif
 
+#include <cerrno>
+#include <cstdio>
 #include <iostream>
 // NOTE: There is no C++ header replacement for these C posix headers (as of C++17)
-#include <fcntl.h>  // for open()
+#include <fcntl.h>  // for open()/_open()
+#if defined(_WIN32)
+#include <io.h>        // for _open(), _dup2(), _close(), _fileno()
+#include <sys/stat.h>  // for _S_IREAD, _S_IWRITE
+#else
 #include <unistd.h> // for dup2(), close()
+#endif
 
 #include <iostream>
+
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+
+namespace {
+// Exempt this process from Windows power throttling ("EcoQoS"). Windows runs
+// background processes at reduced clock speed on modern laptops: a serial
+// Norne run launched from a background shell measured 1.6x slower than the
+// same binary launched from a foreground GUI. Foreground processes get the
+// exemption implicitly; MPI ranks (spawned by the smpd service) and console
+// runs do not, so request it explicitly. Priority is left untouched.
+void exemptFromPowerThrottling()
+{
+#if defined(PROCESS_POWER_THROTTLING_CURRENT_VERSION)
+    PROCESS_POWER_THROTTLING_STATE state{};
+    state.Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
+    state.ControlMask = PROCESS_POWER_THROTTLING_EXECUTION_SPEED;
+    state.StateMask = 0;   // 0 = always run at normal speed
+    // Best effort: this is a performance hint, so a failure (an older kernel,
+    // or a policy that forbids the change) is not worth reporting or acting on.
+    (void) SetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling,
+                                 &state, sizeof(state));
+#endif  // the API and this struct arrived in the Windows 10 1709 SDK
+}
+} // anonymous namespace
+#else   // !_WIN32
+namespace { void exemptFromPowerThrottling() {} }
+#endif // _WIN32
 
 namespace Opm {
 
 Main::Main(int argc, char** argv, bool ownMPI)
     : argc_(argc), argv_(argv), ownMPI_(ownMPI)
 {
+    exemptFromPowerThrottling();
 #if HAVE_MPI
     maybeSaveReservoirCouplingSlaveLogFilename_();
 #endif
@@ -72,6 +114,7 @@ Main::Main(const std::string& filename, bool mpi_init, bool mpi_finalize)
     : mpi_init_{mpi_init}
     , mpi_finalize_{mpi_finalize}
 {
+    exemptFromPowerThrottling();
     setArgvArgc_(filename);
     initMPI();
 }
@@ -88,6 +131,7 @@ Main::Main(const std::string& filename,
     , mpi_init_{mpi_init}
     , mpi_finalize_{mpi_finalize}
 {
+    exemptFromPowerThrottling();
     setArgvArgc_(filename);
     initMPI();
 }
@@ -171,24 +215,78 @@ void Main::maybeSaveReservoirCouplingSlaveLogFilename_()
 }
 #endif
 #if HAVE_MPI
+namespace {
+
+// MSVC spells the POSIX descriptor calls with a leading underscore, takes the
+// permission bits as _S_IREAD/_S_IWRITE rather than a mode_t, and declares
+// them in <io.h>. Keep that difference here rather than at the call sites.
+int openTruncatedForWrite(const char* path)
+{
+#if defined(_WIN32)
+    return _open(path, _O_WRONLY | _O_CREAT | _O_TRUNC, _S_IREAD | _S_IWRITE);
+#else
+    return open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+#endif
+}
+
+int fdOf(std::FILE* stream)
+{
+#if defined(_WIN32)
+    return _fileno(stream);
+#else
+    return fileno(stream);
+#endif
+}
+
+int redirectStreamTo(int fd, std::FILE* stream)
+{
+#if defined(_WIN32)
+    // _fileno() returns -2 for a standard stream attached to nothing - a
+    // process started by a service or a process manager without a console -
+    // and _dup2() on that is an invalid parameter the CRT may treat as fatal
+    // rather than an error the caller can report. Fail the way dup2() fails
+    // for a bad descriptor instead, so the caller's error path runs.
+    const int target = _fileno(stream);
+    if (fd < 0 || target < 0) {
+        errno = EBADF;
+        return -1;
+    }
+    return _dup2(fd, target);
+#else
+    return dup2(fd, fileno(stream));
+#endif
+}
+
+void closeDescriptor(int fd)
+{
+#if defined(_WIN32)
+    _close(fd);
+#else
+    close(fd);
+#endif
+}
+
+}
+
 void Main::maybeRedirectReservoirCouplingSlaveOutput_() {
     if (!this->reservoirCouplingSlaveOutputFilename_.empty()) {
         std::string filename = this->reservoirCouplingSlaveOutputFilename_
                      + "." + std::to_string(FlowGenericVanguard::comm().rank()) + ".log";
-        int fd = open(filename.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        int fd = openTruncatedForWrite(filename.c_str());
         if (fd == -1) {
             std::string error_msg = "Slave: Failed to open stdout+stderr file" + filename;
             perror(error_msg.c_str());
             MPI_Abort(MPI_COMM_WORLD, /*status=*/1);
         }
         // Redirect stdout and stderr to the file.
-        if (dup2(fd, fileno(stdout)) == -1 || dup2(fileno(stdout), fileno(stderr)) == -1) {
+        if (redirectStreamTo(fd, stdout) == -1 ||
+            redirectStreamTo(fdOf(stdout), stderr) == -1) {
             std::string error_msg = "Slave: Failed to redirect stdout+stderr to " + filename;
             perror(error_msg.c_str());
-            close(fd);
+            closeDescriptor(fd);
             MPI_Abort(MPI_COMM_WORLD, /*status=*/1);
         }
-        close(fd);
+        closeDescriptor(fd);
     }
 }
 #endif
