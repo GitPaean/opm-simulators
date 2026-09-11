@@ -724,24 +724,27 @@ public:
                                               totVolume,
                                               referencePorosity);
 
-        // Run the nonlinear PSAT solve in the caller's OpenMP loop.
-        // The assignment skips cells when no restart buffer is allocated.
+        // Run the nonlinear PSAT solve in the caller's OpenMP loop. The
+        // assignment is a no-op unless a PSAT restart buffer is allocated.
         this->assignSaturationPressure_(globalDofIdx, intQuants.fluidState());
     }
 
-    /// Reduce PSAT failures across all ranks before marking the output data valid.
+    /// When PSAT is requested, reduce failures across all ranks before marking
+    /// the output data valid.
     void validateLocalData() override
     {
-        const auto& comm = this->simulator_.gridView().comm();
-        const auto totalFailures = comm.sum(this->numFailedSaturationPressures_);
-        this->numFailedSaturationPressures_ = 0;
-        if (totalFailures > 0 && comm.rank() == 0) {
-            const auto* const cell = totalFailures == 1 ? "cell" : "cells";
-            OpmLog::info(fmt::format("Could not determine saturation pressure in {} {}; "
-                                     "PSAT is written as zero for every affected cell.",
-                                     totalFailures,
-                                     cell));
+        if (this->compC_.saturationPressureRequested()) {
+            const auto& comm = this->simulator_.gridView().comm();
+            const auto totalFailures = comm.sum(this->numFailedSaturationPressures_);
+            if (totalFailures > 0 && comm.rank() == 0) {
+                const auto* const cell = totalFailures == 1 ? "cell" : "cells";
+                OpmLog::info(fmt::format("Could not determine saturation pressure in {} {}; "
+                                         "PSAT is written as zero for every affected cell.",
+                                         totalFailures,
+                                         cell));
+            }
         }
+        this->numFailedSaturationPressures_ = 0;
         BaseType::validateLocalData();
     }
 

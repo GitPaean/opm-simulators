@@ -406,7 +406,8 @@ public:
             countLocalInteriorCellsGridView(gridView);
 
         this->outputModule_->
-            allocBuffers(num_interior, 0, false, false, /*isRestart*/ false);
+            allocBuffers(num_interior, 0, false, false,
+                         /*forceRestartFieldAllocation=*/false);
 
 #ifdef _OPENMP
 #pragma omp parallel for
@@ -639,7 +640,7 @@ public:
                                               0,
                                               /*isSubStep = */false,
                                               /*log = */      false,
-                                              /*isRestart = */true);
+                                              /*forceRestartFieldAllocation = */true);
 
             const auto restartSolution =
                 loadParallelRestartSolution(this->eclIO_.get(),
@@ -676,7 +677,7 @@ public:
                                               restartStepIdx,
                                               /*isSubStep = */false,
                                               /*log = */      false,
-                                              /*isRestart = */true);
+                                              /*forceRestartFieldAllocation = */true);
         }
 
         {
@@ -844,7 +845,8 @@ private:
         const bool writeAllSolutions =
             Parameters::Get<Parameters::EnableWriteAllSolutions>();
 
-        // EclipseIO forces restart output for positive time-step indices in write-all mode.
+        // EclipseIO writes restart output for every positive time-step index in
+        // write-all mode, independently of the schedule's BASIC/FREQ settings.
         const bool forceRestartFieldAllocation =
             writeAllSolutions && (simulator_.timeStepIndex() > 0);
         this->outputModule_->
@@ -888,7 +890,7 @@ private:
         OPM_END_PARALLEL_TRY_CATCH("EclWriter::prepareLocalCellData() failed: ",
                                    this->simulator_.vanguard().grid().comm());
 
-        // Complete rank-wide exception handling before entering output collectives.
+        // Propagate rank-local exceptions before entering output collectives.
         this->outputModule_->accumulateDensityParallel();
         this->outputModule_->validateLocalData();
     }

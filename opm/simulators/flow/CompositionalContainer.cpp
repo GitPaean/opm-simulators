@@ -80,15 +80,15 @@ allocate(const unsigned bufferSize,
         gasPressure_.resize(bufferSize, 0.0);
     }
 
-    // Summary-only substeps must not retain a PSAT buffer from a previous
-    // preparation pass: its presence enables a nonlinear solve in every cell.
+    // A pass without restart output must not retain a PSAT buffer from the
+    // previous pass: its presence enables a nonlinear solve in every cell.
     saturationPressure_.clear();
-    if (auto& psat = rstKeywords["PSAT"]; psat > 0) {
+    saturationPressureRequested_ = false;
+    if (auto& psat = rstKeywords["PSAT"]; psat > 0 && isRestartOutput) {
+        saturationPressureRequested_ = true;
         psat = 0;
-        if (isRestartOutput) {
-            this->allocated_ = true;
-            saturationPressure_.resize(bufferSize, 0.0);
-        }
+        this->allocated_ = true;
+        saturationPressure_.resize(bufferSize, 0.0);
     }
 
     if (auto& vmf = rstKeywords["VMF"]; vmf > 0) {
@@ -249,16 +249,16 @@ cellSaturationPressure(const Scalar liquidFraction,
                        const Scalar temperature,
                        const CompositionalConfig::EOSType eosType) -> std::optional<Scalar>
 {
-    // Compare the flash's exact single-phase labels: a two-phase Rachford-Rice
-    // result can round slightly outside (0, 1).
+    // Compare against the flash's exact single-phase labels. Round-off can put
+    // a two-phase Rachford-Rice result slightly outside the interval [0, 1].
     const bool liquidOnly = (liquidFraction == 1.0);
     const bool vapourOnly = (liquidFraction == 0.0);
     if (!liquidOnly && !vapourOnly) {
         return oilPressure;
     }
 
-    // The zero-component instantiation exists only to register a parameter
-    // and has no equation of state to solve.
+    // The zero-component instantiation exists only to register
+    // ForceDisableFluidInPlaceOutput and has no equation of state to solve.
     if constexpr (numComponents > 0) {
         using Solver = SaturationPressure<Scalar, FluidSystem>;
         typename Solver::CompVec incipient;

@@ -53,6 +53,9 @@ class CompositionalContainer
     static constexpr int waterPhaseIdx = FluidSystem::waterPhaseIdx;
 
 public:
+    /// Allocate compositional restart fields requested by \p rstKeywords.
+    /// PSAT is allocated only for restart output because computing it requires
+    /// a nonlinear saturation-pressure solve in each cell.
     void allocate(const unsigned bufferSize,
                   std::map<std::string, int>& rstKeywords,
                   const bool isRestartOutput);
@@ -75,9 +78,9 @@ public:
     void assignSaturationPressure(const unsigned globalDofIdx,
                                   const Scalar psat);
 
-    /// Return the cell pressure for two hydrocarbon phases, or the bubble/dew
-    /// pressure of the total composition for a single phase. Return std::nullopt
-    /// if the solver cannot determine a saturation pressure.
+    /// Return the oil-phase pressure for two hydrocarbon phases, or the
+    /// bubble/dew pressure of the total composition for a single phase. Return
+    /// std::nullopt if the solver cannot determine a saturation pressure.
     ///
     /// \p liquidFraction is the flash liquid fraction L: exactly one denotes
     /// liquid only, exactly zero vapour only, and other values denote two phases.
@@ -114,6 +117,11 @@ public:
     bool saturationPressureAllocated() const
     { return !saturationPressure_.empty(); }
 
+    /// Whether PSAT was requested in this allocation pass. Unlike the buffer
+    /// state above, this remains true on MPI ranks with no local cells.
+    bool saturationPressureRequested() const
+    { return saturationPressureRequested_; }
+
     bool allocated() const
     { return allocated_; }
 
@@ -128,6 +136,7 @@ private:
     ScalarBuffer gasPressure_;
     // saturation pressure (PSAT)
     ScalarBuffer saturationPressure_;
+    bool saturationPressureRequested_ = false;
     // vapour mole fraction of the total mixture (VMF)
     ScalarBuffer vaporFraction_;
 };

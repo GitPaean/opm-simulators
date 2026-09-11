@@ -286,8 +286,8 @@ public:
         local_data_valid_ = false;
     }
 
-    /// Mark per-cell output data valid. All ranks must call this method,
-    /// since overrides may reduce per-rank data.
+    /// Finalize per-cell output and mark it valid. Call this method on every
+    /// rank because overrides may perform collectives.
     virtual void validateLocalData()
     {
         local_data_valid_ = true;

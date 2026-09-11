@@ -62,17 +62,21 @@ BOOST_AUTO_TEST_CASE(SaturationPressureRequiresRestartOutput)
     std::map<std::string, int> keywords{{"PSAT", 1}};
     container.allocate(2, keywords, /*isRestartOutput=*/false);
     BOOST_CHECK(!container.saturationPressureAllocated());
-    BOOST_CHECK_EQUAL(keywords.at("PSAT"), 0);
+    BOOST_CHECK(!container.saturationPressureRequested());
+    BOOST_CHECK_EQUAL(keywords.at("PSAT"), 1);
 
-    keywords["PSAT"] = 1;
     container.allocate(2, keywords, /*isRestartOutput=*/true);
     BOOST_REQUIRE(container.saturationPressureAllocated());
+    BOOST_CHECK(container.saturationPressureRequested());
+    BOOST_CHECK_EQUAL(keywords.at("PSAT"), 0);
     container.assignSaturationPressure(0, 100.0e5);
 
     // A summary-only pass must discard the old buffer, even before export.
     keywords["PSAT"] = 1;
     container.allocate(2, keywords, /*isRestartOutput=*/false);
     BOOST_CHECK(!container.saturationPressureAllocated());
+    BOOST_CHECK(!container.saturationPressureRequested());
+    BOOST_CHECK_EQUAL(keywords.at("PSAT"), 1);
     Opm::data::Solution substep;
     std::vector<double> oilSaturation;
     container.outputRestart(substep, oilSaturation);
@@ -82,6 +86,7 @@ BOOST_AUTO_TEST_CASE(SaturationPressureRequiresRestartOutput)
     keywords["PSAT"] = 1;
     container.allocate(2, keywords, /*isRestartOutput=*/true);
     BOOST_REQUIRE(container.saturationPressureAllocated());
+    BOOST_CHECK(container.saturationPressureRequested());
     container.assignSaturationPressure(0, 150.0e5);
     container.assignSaturationPressure(1, 200.0e5);
     Opm::data::Solution restart;
@@ -104,6 +109,18 @@ BOOST_AUTO_TEST_CASE(DisabledSaturationPressureClearsPreviousRequest)
     keywords["PSAT"] = 0;
     container.allocate(2, keywords, /*isRestartOutput=*/true);
     BOOST_CHECK(!container.saturationPressureAllocated());
+    BOOST_CHECK(!container.saturationPressureRequested());
+}
+
+BOOST_AUTO_TEST_CASE(SaturationPressureRequestIsIndependentOfLocalBufferSize)
+{
+    Container container;
+    std::map<std::string, int> keywords{{"PSAT", 1}};
+    container.allocate(0, keywords, /*isRestartOutput=*/true);
+
+    BOOST_CHECK(container.saturationPressureRequested());
+    BOOST_CHECK(!container.saturationPressureAllocated());
+    BOOST_CHECK_EQUAL(keywords.at("PSAT"), 0);
 }
 
 BOOST_AUTO_TEST_CASE(CellSaturationPressureSelectsThePhaseAndTheBranch)
@@ -123,8 +140,8 @@ BOOST_AUTO_TEST_CASE(CellSaturationPressureSelectsThePhaseAndTheBranch)
         BOOST_CHECK_CLOSE(*psat, 75.0e5, 1.0e-12);
     }
 
-    // Liquid only (L == 1): the bubble point of the total composition.  The
-    // reference simulator puts this liquid at 160.5601 bar.
+    // Liquid only (L == 1): the bubble point of the total composition. The
+    // reference bubble pressure is 160.5601 bar.
     {
         const auto psat = Container::cellSaturationPressure(
             1.0, 150.0e5, CompVec{0.0, 0.5, 0.5}, temperature, eos);
