@@ -42,7 +42,7 @@ template<class FluidSystem>
 void CompositionalContainer<FluidSystem>::
 allocate(const unsigned bufferSize,
          std::map<std::string, int>& rstKeywords,
-         const bool isRestartOutput)
+         const RestartOutput restartOutput)
 {
     if (auto& zmf = rstKeywords["ZMF"]; zmf > 0) {
         this->allocated_ = true;
@@ -84,7 +84,7 @@ allocate(const unsigned bufferSize,
     // previous pass: its presence enables a nonlinear solve in every cell.
     saturationPressure_.clear();
     saturationPressureRequested_ = false;
-    if (auto& psat = rstKeywords["PSAT"]; psat > 0 && isRestartOutput) {
+    if (auto& psat = rstKeywords["PSAT"]; psat > 0 && restartOutput == RestartOutput::Enabled) {
         saturationPressureRequested_ = true;
         psat = 0;
         this->allocated_ = true;
@@ -261,8 +261,8 @@ cellSaturationPressure(const Scalar liquidFraction,
     // ForceDisableFluidInPlaceOutput and has no equation of state to solve.
     if constexpr (numComponents > 0) {
         using Solver = SaturationPressure<Scalar, FluidSystem>;
-        typename Solver::CompVec incipient;
-        Scalar psat = 0.0;
+        typename Solver::CompVec incipient{};
+        Scalar psat{};
         const bool found = liquidOnly
             ? Solver::bubblePressure(moleFractions, temperature, eosType, psat, incipient)
             : Solver::dewPressure(moleFractions, temperature, eosType, psat, incipient);

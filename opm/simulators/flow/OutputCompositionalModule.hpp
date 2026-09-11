@@ -88,6 +88,7 @@ class OutputCompositionalModule : public GenericOutputModule<GetPropType<TypeTag
     using IntensiveQuantities = GetPropType<TypeTag, Properties::IntensiveQuantities>;
     using FluidSystem = GetPropType<TypeTag, Properties::FluidSystem>;
     using BaseType = GenericOutputModule<FluidSystem>;
+    using RestartOutput = typename CompositionalContainer<FluidSystem>::RestartOutput;
     using Extractor = detail::Extractor<TypeTag>;
     using BlockExtractor = detail::BlockExtractor<TypeTag>;
 
@@ -188,10 +189,12 @@ public:
         }
 
         auto rstKeywords = this->schedule_.rst_keywords(reportStepNum);
-        const bool isRestartOutput =
-            forceRestartFieldAllocation ||
+        const bool isRestartOutput = forceRestartFieldAllocation ||
             (!substep && this->schedule_.write_rst_file(reportStepNum));
-        this->compC_.allocate(bufferSize, rstKeywords, isRestartOutput);
+        const auto restartOutput = isRestartOutput
+            ? RestartOutput::Enabled
+            : RestartOutput::Disabled;
+        this->compC_.allocate(bufferSize, rstKeywords, restartOutput);
         this->numFailedSaturationPressures_ = 0;
 
         this->doAllocBuffers(bufferSize, reportStepNum, substep, log,
@@ -820,7 +823,7 @@ private:
             return;
         }
 
-        std::array<Scalar, numComponents> moleFractions;
+        std::array<Scalar, numComponents> moleFractions{};
         for (int c = 0; c < numComponents; ++c) {
             moleFractions[c] = getValue(fluidState.moleFraction(c));
         }

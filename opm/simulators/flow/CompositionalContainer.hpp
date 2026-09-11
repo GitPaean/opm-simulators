@@ -53,12 +53,14 @@ class CompositionalContainer
     static constexpr int waterPhaseIdx = FluidSystem::waterPhaseIdx;
 
 public:
+    enum class RestartOutput { Disabled, Enabled };
+
     /// Allocate compositional restart fields requested by \p rstKeywords.
     /// PSAT is allocated only for restart output because computing it requires
     /// a nonlinear saturation-pressure solve in each cell.
     void allocate(const unsigned bufferSize,
                   std::map<std::string, int>& rstKeywords,
-                  const bool isRestartOutput);
+                  RestartOutput restartOutput);
 
     using AssignFunction = std::function<Scalar(const unsigned)>;
 

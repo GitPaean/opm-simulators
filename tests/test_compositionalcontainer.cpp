@@ -38,6 +38,7 @@
 namespace {
 using FluidSystem = Opm::GenericOilGasWaterFluidSystem<double, 3, false>;
 using Container = Opm::CompositionalContainer<FluidSystem>;
+using RestartOutput = Container::RestartOutput;
 
 // The three-component CO2/methane/decane fluid of the saturation-pressure
 // solver's own tests, so their reference values can be reused here.
@@ -60,12 +61,12 @@ BOOST_AUTO_TEST_CASE(SaturationPressureRequiresRestartOutput)
 {
     Container container;
     std::map<std::string, int> keywords{{"PSAT", 1}};
-    container.allocate(2, keywords, /*isRestartOutput=*/false);
+    container.allocate(2, keywords, RestartOutput::Disabled);
     BOOST_CHECK(!container.saturationPressureAllocated());
     BOOST_CHECK(!container.saturationPressureRequested());
     BOOST_CHECK_EQUAL(keywords.at("PSAT"), 1);
 
-    container.allocate(2, keywords, /*isRestartOutput=*/true);
+    container.allocate(2, keywords, RestartOutput::Enabled);
     BOOST_REQUIRE(container.saturationPressureAllocated());
     BOOST_CHECK(container.saturationPressureRequested());
     BOOST_CHECK_EQUAL(keywords.at("PSAT"), 0);
@@ -73,7 +74,7 @@ BOOST_AUTO_TEST_CASE(SaturationPressureRequiresRestartOutput)
 
     // A summary-only pass must discard the old buffer, even before export.
     keywords["PSAT"] = 1;
-    container.allocate(2, keywords, /*isRestartOutput=*/false);
+    container.allocate(2, keywords, RestartOutput::Disabled);
     BOOST_CHECK(!container.saturationPressureAllocated());
     BOOST_CHECK(!container.saturationPressureRequested());
     BOOST_CHECK_EQUAL(keywords.at("PSAT"), 1);
@@ -84,7 +85,7 @@ BOOST_AUTO_TEST_CASE(SaturationPressureRequiresRestartOutput)
 
     // Re-enable the request on a later restart snapshot.
     keywords["PSAT"] = 1;
-    container.allocate(2, keywords, /*isRestartOutput=*/true);
+    container.allocate(2, keywords, RestartOutput::Enabled);
     BOOST_REQUIRE(container.saturationPressureAllocated());
     BOOST_CHECK(container.saturationPressureRequested());
     container.assignSaturationPressure(0, 150.0e5);
@@ -104,10 +105,10 @@ BOOST_AUTO_TEST_CASE(DisabledSaturationPressureClearsPreviousRequest)
 {
     Container container;
     std::map<std::string, int> keywords{{"PSAT", 1}};
-    container.allocate(2, keywords, /*isRestartOutput=*/true);
+    container.allocate(2, keywords, RestartOutput::Enabled);
     BOOST_REQUIRE(container.saturationPressureAllocated());
     keywords["PSAT"] = 0;
-    container.allocate(2, keywords, /*isRestartOutput=*/true);
+    container.allocate(2, keywords, RestartOutput::Enabled);
     BOOST_CHECK(!container.saturationPressureAllocated());
     BOOST_CHECK(!container.saturationPressureRequested());
 }
@@ -116,7 +117,7 @@ BOOST_AUTO_TEST_CASE(SaturationPressureRequestIsIndependentOfLocalBufferSize)
 {
     Container container;
     std::map<std::string, int> keywords{{"PSAT", 1}};
-    container.allocate(0, keywords, /*isRestartOutput=*/true);
+    container.allocate(0, keywords, RestartOutput::Enabled);
 
     BOOST_CHECK(container.saturationPressureRequested());
     BOOST_CHECK(!container.saturationPressureAllocated());
