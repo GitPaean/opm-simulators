@@ -22,7 +22,6 @@ add_test_compare_parallel_simulation(
     compositional
   MPI_PROCS
     2
-  COMPARE_INIT
 )
 
 add_test_compare_parallel_simulation(

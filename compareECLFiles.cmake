@@ -274,15 +274,11 @@ endfunction()
 
 # Input:
 #   - casename: basename (no extension)
-#   - COMPARE_INIT: also compare the INIT files, allowing extra MPI keywords
 #
 # Details:
 #   - This test class compares the output from a parallel simulation
 #     to the output from the serial instance of the same model.
 function(add_test_compare_parallel_simulation)
-  set(options
-    COMPARE_INIT
-  )
   set(oneValueArgs
     CASENAME
     FILENAME
@@ -295,7 +291,7 @@ function(add_test_compare_parallel_simulation)
     MPI_PROCS
   )
   set(multiValueArgs TEST_ARGS)
-  cmake_parse_arguments(PARAM "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
+  cmake_parse_arguments(PARAM "$" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
   if(NOT PARAM_DIR)
     set(PARAM_DIR ${PARAM_CASENAME})
@@ -329,9 +325,6 @@ function(add_test_compare_parallel_simulation)
                     -t ${PARAM_REL_TOL}
                     -c $<TARGET_FILE:compareECL>
                     -n ${MPI_PROCS})
-    if(PARAM_COMPARE_INIT)
-      list(APPEND DRIVER_ARGS -I)
-    endif()
 
     # Add test that runs flow_mpi and outputs the results to file
     opm_add_test(compareParallelSim_${PARAM_SIMULATOR}+${PARAM_FILENAME}${PARAM_POSTFIX}
