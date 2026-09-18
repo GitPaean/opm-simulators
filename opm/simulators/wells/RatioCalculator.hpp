@@ -44,6 +44,23 @@ public:
                     int waterCompIdx,
                     std::string_view name);
 
+    // Convert producing connection phase fluxes to component fluxes and
+    // record their split, including backflow through injector connections.
+    void perfRateProd(std::vector<Value>& cq_s,
+                      PerforationRates<Scalar>& perf_rates,
+                      const Value& rv, const Value& rs,
+                      const Value& rvw, const Value& rsw) const;
+
+    // Decompose injecting connection component fluxes. Ordinary injectors
+    // retain the existing unmixed injection model; producer crossflow uses
+    // the applicable oil/gas or gas/water mixture.
+    void perfRateInj(const std::vector<Value>& cq_s,
+                     PerforationRates<Scalar>& perf_rates,
+                     const Value& rv, const Value& rs,
+                     const Value& rvw, const Value& rsw,
+                     const Value& pressure, bool splitMixture,
+                     DeferredLogger& deferred_logger) const;
+
     void disOilVapWatVolumeRatio(Value& volumeRatio,
                                  const Value& rvw,
                                  const Value& rsw,
@@ -66,8 +83,7 @@ public:
                             const Value& rv,
                             const Value& rs,
                             const Value& rvw,
-                            const bool waterActive,
-                            const bool isProducer) const;
+                            const bool waterActive) const;
 
     void gasOilVolumeRatio(Value& volumeRatio,
                            const Value& rv,
@@ -87,10 +103,12 @@ public:
     void gasWaterPerfRateProd(std::vector<Value>& cq_s,
                               PerforationRates<Scalar>& perf_rates,
                               const Value& rvw,
-                              const Value& rsw,
-                              const bool isProducer) const;
+                              const Value& rsw) const;
 
 private:
+    void initPerfRates(const std::vector<Value>& cq_s,
+                       PerforationRates<Scalar>& perf_rates) const;
+
     int gasComp_;
     int oilComp_;
     int waterComp_;

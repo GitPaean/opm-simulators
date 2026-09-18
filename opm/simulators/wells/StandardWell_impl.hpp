@@ -243,29 +243,7 @@ namespace Opm
                 cq_s[componentIdx] = b_perfcells_dense[componentIdx] * cq_p;
             }
 
-            if (FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx) &&
-                FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx))
-            {
-                ratioCalc.gasOilPerfRateProd(cq_s, perf_rates, rv, rs, rvw,
-                                             FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx),
-                                             this->isProducer());
-            } else if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx) &&
-                       FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx))
-            {
-                ratioCalc.gasWaterPerfRateProd(cq_s, perf_rates, rvw, rsw, this->isProducer());
-            } else if (this->isProducer()) {
-                // No dissolution/vaporization is possible without both a
-                // hydrocarbon phase and a phase to mix with, so whichever
-                // hydrocarbon phase is active here is entirely free.
-                if (FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx)) {
-                    const auto oilCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::oilCompIdx);
-                    perf_rates.free_oil = getValue(cq_s[oilCompIdx]);
-                }
-                if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
-                    const auto gasCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::gasCompIdx);
-                    perf_rates.free_gas = getValue(cq_s[gasCompIdx]);
-                }
-            }
+            ratioCalc.perfRateProd(cq_s, perf_rates, rv, rs, rvw, rsw);
         } else {
             // Do nothing if crossflow is not allowed
             if (!allow_cf && this->isProducer()) {
@@ -326,24 +304,8 @@ namespace Opm
                 cq_s[componentIdx] = cmix_s[componentIdx] * cqt_is;
             }
 
-            // calculating the perforation solution gas rate and solution oil rates
-            if (this->isProducer()) {
-                if (FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx) &&
-                    FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx))
-                {
-                    ratioCalc.gasOilPerfRateInj(cq_s, perf_rates,
-                                                rv, rs, pressure, rvw,
-                                                FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx),
-                                                deferred_logger);
-                }
-                if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx) &&
-                    FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx))
-                {
-                    //no oil
-                    ratioCalc.gasWaterPerfRateInj(cq_s, perf_rates, rvw, rsw,
-                                                  pressure, deferred_logger);
-                }
-            }
+            ratioCalc.perfRateInj(cq_s, perf_rates, rv, rs, rvw, rsw,
+                                  pressure, this->isProducer(), deferred_logger);
         }
     }
 
@@ -558,14 +520,12 @@ namespace Opm
         // Record the free/dissolved split for this perforation -- the same
         // dis_gas/vap_oil/etc. just folded into cq_s above, so needed
         // regardless of reporting.
-        if (this->isProducer()) {
-            perf_data.phase_mixing_rates[perf][ws.dissolved_gas] = perf_rates.dis_gas;
-            perf_data.phase_mixing_rates[perf][ws.dissolved_gas_in_water] = perf_rates.dis_gas_in_water;
-            perf_data.phase_mixing_rates[perf][ws.vaporized_oil] = perf_rates.vap_oil;
-            perf_data.phase_mixing_rates[perf][ws.vaporized_water] = perf_rates.vap_wat;
-            perf_data.phase_mixing_rates[perf][ws.free_gas] = perf_rates.free_gas;
-            perf_data.phase_mixing_rates[perf][ws.free_oil] = perf_rates.free_oil;
-        }
+        perf_data.phase_mixing_rates[perf][ws.dissolved_gas] = perf_rates.dis_gas;
+        perf_data.phase_mixing_rates[perf][ws.dissolved_gas_in_water] = perf_rates.dis_gas_in_water;
+        perf_data.phase_mixing_rates[perf][ws.vaporized_oil] = perf_rates.vap_oil;
+        perf_data.phase_mixing_rates[perf][ws.vaporized_water] = perf_rates.vap_wat;
+        perf_data.phase_mixing_rates[perf][ws.free_gas] = perf_rates.free_gas;
+        perf_data.phase_mixing_rates[perf][ws.free_oil] = perf_rates.free_oil;
 
         if constexpr (has_energy) {
             connectionRates[perf][Indices::contiEnergyEqIdx] =

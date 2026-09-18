@@ -63,6 +63,58 @@ RatioCalculator(int gasCompIdx,
 }
 
 template<class Value>
+void RatioCalculator<Value>::
+initPerfRates(const std::vector<Value>& cq_s,
+              PerforationRates<Scalar>& perf_rates) const
+{
+    perf_rates = {};
+    if (oilComp_ >= 0) {
+        perf_rates.free_oil = getValue(cq_s[oilComp_]);
+    }
+    if (gasComp_ >= 0) {
+        perf_rates.free_gas = getValue(cq_s[gasComp_]);
+    }
+}
+
+template<class Value>
+void RatioCalculator<Value>::
+perfRateProd(std::vector<Value>& cq_s,
+             PerforationRates<Scalar>& perf_rates,
+             const Value& rv, const Value& rs,
+             const Value& rvw, const Value& rsw) const
+{
+    initPerfRates(cq_s, perf_rates);
+    if (oilComp_ >= 0 && gasComp_ >= 0) {
+        gasOilPerfRateProd(cq_s, perf_rates, rv, rs, rvw, waterComp_ >= 0);
+    } else if (gasComp_ >= 0 && waterComp_ >= 0) {
+        gasWaterPerfRateProd(cq_s, perf_rates, rvw, rsw);
+    }
+}
+
+template<class Value>
+void RatioCalculator<Value>::
+perfRateInj(const std::vector<Value>& cq_s,
+            PerforationRates<Scalar>& perf_rates,
+            const Value& rv, const Value& rs,
+            const Value& rvw, const Value& rsw,
+            const Value& pressure, const bool splitMixture,
+            DeferredLogger& deferred_logger) const
+{
+    initPerfRates(cq_s, perf_rates);
+    if (!splitMixture) {
+        return;
+    }
+
+    if (oilComp_ >= 0 && gasComp_ >= 0) {
+        gasOilPerfRateInj(cq_s, perf_rates, rv, rs, pressure, rvw,
+                          waterComp_ >= 0, deferred_logger);
+    } else if (gasComp_ >= 0 && waterComp_ >= 0) {
+        gasWaterPerfRateInj(cq_s, perf_rates, rvw, rsw, pressure,
+                            deferred_logger);
+    }
+}
+
+template<class Value>
 void
 RatioCalculator<Value>::
 disOilVapWatVolumeRatio(Value& volumeRatio,
@@ -116,6 +168,10 @@ gasOilPerfRateInj(const std::vector<Value>& cq_s,
         deferred_logger.debug(dValueError(d, name_,
                                           "gasOilPerfRateInj",
                                           rs, rv, pressure));
+        perf_rates.free_oil = getValue(cq_s[oilComp_]);
+        perf_rates.free_gas = getValue(cq_s[gasComp_]);
+        perf_rates.dis_gas = perf_rates.vap_oil = perf_rates.vap_wat = 0.0;
+        return;
     } else {
         // vaporized oil into gas
         // rv * q_gr * b_g = rv * (q_gs - rs * q_os) / d
@@ -139,8 +195,7 @@ gasOilPerfRateInj(const std::vector<Value>& cq_s,
         // q_wr = 1 / b_w * (q_ws - rvw * q_gr * b_g) = 1 / b_w * (q_ws - rvw * 1 / d  (q_gs - rs * q_os))
         // vaporized water in gas
         // rvw * q_gr * b_g = q_ws -q_wr *b_w = rvw * (q_gs -rs *q_os) / d
-        perf_rates.vap_wat = getValue(rvw) * (getValue(cq_s[gasComp_]) -
-                                              getValue(rs) * getValue(cq_s[oilComp_])) / d;
+        perf_rates.vap_wat = getValue(rvw) * perf_rates.free_gas;
     }
 }
 
@@ -152,8 +207,7 @@ gasOilPerfRateProd(std::vector<Value>& cq_s,
                    const Value& rv,
                    const Value& rs,
                    const Value& rvw,
-                   const bool waterActive,
-                   const bool isProducer) const
+                   const bool waterActive) const
 {
     const Value cq_sOil = cq_s[oilComp_];
     const Value cq_sGas = cq_s[gasComp_];
@@ -164,21 +218,15 @@ gasOilPerfRateProd(std::vector<Value>& cq_s,
     cq_s[oilComp_] += vap_oil;
 
     // recording the perforation solution gas rate and solution oil rates
-    if (isProducer) {
-        perf_rates.dis_gas = getValue(dis_gas);
-        perf_rates.vap_oil = getValue(vap_oil);
-        // Free gas/oil, captured directly rather than derived later as
-        // (total - dissolved): see PerforationRates::free_gas.
-        perf_rates.free_gas = getValue(cq_sGas);
-        perf_rates.free_oil = getValue(cq_sOil);
-    }
+    perf_rates.dis_gas = getValue(dis_gas);
+    perf_rates.vap_oil = getValue(vap_oil);
+    perf_rates.free_gas = getValue(cq_sGas);
+    perf_rates.free_oil = getValue(cq_sOil);
 
     if (waterActive) {
         const Value vap_wat = rvw * cq_sGas;
         cq_s[waterComp_] += vap_wat;
-        if (isProducer) {
-            perf_rates.vap_wat = getValue(vap_wat);
-        }
+        perf_rates.vap_wat = getValue(vap_wat);
     }
 }
 
@@ -226,6 +274,8 @@ gasWaterPerfRateInj(const std::vector<Value>& cq_s,
         deferred_logger.debug(dValueError(dw, name_,
                                           "gasWaterPerfRateInj",
                                           rsw, rvw, pressure));
+        perf_rates.free_gas = getValue(cq_s[gasComp_]);
+        perf_rates.dis_gas_in_water = perf_rates.vap_wat = 0.0;
     } else {
         // vaporized water into gas
         // rvw * q_gr * b_g = rvw * (q_gs - rsw * q_ws) / dw
@@ -248,8 +298,7 @@ RatioCalculator<Value>::
 gasWaterPerfRateProd(std::vector<Value>& cq_s,
                      PerforationRates<Scalar>& perf_rates,
                      const Value& rvw,
-                     const Value& rsw,
-                     const bool isProducer) const
+                     const Value& rsw) const
 {
     const Value cq_sWat = cq_s[waterComp_];
     const Value cq_sGas = cq_s[gasComp_];
@@ -257,17 +306,22 @@ gasWaterPerfRateProd(std::vector<Value>& cq_s,
     const Value dis_gas_wat = rsw * cq_sWat;
     cq_s[waterComp_] += vap_wat;
     cq_s[gasComp_]   += dis_gas_wat;
-    if (isProducer) {
-        perf_rates.vap_wat = getValue(vap_wat);
-        perf_rates.dis_gas_in_water = getValue(dis_gas_wat);
-        // Free gas, captured directly rather than derived later as
-        // (total - dissolved): see PerforationRates::free_gas.
-        perf_rates.free_gas = getValue(cq_sGas);
-    }
+    perf_rates.vap_wat = getValue(vap_wat);
+    perf_rates.dis_gas_in_water = getValue(dis_gas_wat);
+    perf_rates.free_gas = getValue(cq_sGas);
 }
 
 #define INSTANTIATE_TYPE(T)                                          \
     template class RatioCalculator<T>;                               \
+    template class RatioCalculator<DenseAd::Evaluation<T, 3>>;        \
+    template class RatioCalculator<DenseAd::Evaluation<T, 4>>;        \
+    template class RatioCalculator<DenseAd::Evaluation<T, 5>>;        \
+    template class RatioCalculator<DenseAd::Evaluation<T, 6>>;        \
+    template class RatioCalculator<DenseAd::Evaluation<T, 7>>;        \
+    template class RatioCalculator<DenseAd::Evaluation<T, 8>>;        \
+    template class RatioCalculator<DenseAd::Evaluation<T, 9>>;        \
+    template class RatioCalculator<DenseAd::Evaluation<T, 10>>;       \
+    template class RatioCalculator<DenseAd::Evaluation<T, 11>>;       \
     template class RatioCalculator<DenseAd::Evaluation<T, -1, 4u>>;  \
     template class RatioCalculator<DenseAd::Evaluation<T, -1, 5u>>;  \
     template class RatioCalculator<DenseAd::Evaluation<T, -1, 6u>>;  \

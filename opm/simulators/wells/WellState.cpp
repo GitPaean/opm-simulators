@@ -37,6 +37,7 @@
 #include <opm/simulators/wells/ParallelWellInfo.hpp>
 #include <opm/simulators/wells/PerforationData.hpp>
 #include <opm/simulators/wells/RunningStatistics.hpp>
+#include <opm/simulators/wells/WellRateAllocation.hpp>
 
 #include <opm/simulators/utils/ParallelCommunication.hpp>
 
@@ -45,6 +46,7 @@
 #include <algorithm>
 #include <cassert>
 #include <initializer_list>
+#include <limits>
 #include <numeric>
 #include <optional>
 #include <set>
@@ -688,6 +690,39 @@ report(const int*                            globalCellIdxMap,
             gatherVectorsOnRoot(connections, well.connections, pwinfo.communication());
         }
 
+        if (ws.producer && ws.parallel_info.get().isOwner()) {
+            // Connection output has now been gathered, so detect crossflow
+            // over the complete well without an additional MPI reduction.
+            const bool hasCrossflow = std::any_of(well.connections.begin(), well.connections.end(),
+                [](const auto& connection) {
+                    return connection.rates.get(rt::wat, 0.0) > 0.0
+                        || connection.rates.get(rt::oil, 0.0) > 0.0
+                        || connection.rates.get(rt::gas, 0.0) > 0.0;
+                });
+
+            const auto allocate = [&well, hasCrossflow](const rt total, const rt free, const rt solution) {
+                const Scalar q = well.rates.get(total);
+                const Scalar f = well.rates.get(free);
+                const Scalar s = well.rates.get(solution);
+                const Scalar rateTolerance = 64 * std::numeric_limits<Scalar>::epsilon()
+                    * std::max({std::abs(q), std::abs(f), std::abs(s)});
+                if (const auto split = allocateProductionRate(q, f, s, rateTolerance, hasCrossflow)) {
+                    well.rates.set(free, split->free);
+                    well.rates.set(solution, split->solution);
+                }
+                // Crossflow, an undefined fraction, or invalid data retains
+                // the raw split. Never alter solver state or connection fluxes
+                // to force a wellhead reporting identity.
+            };
+
+            if (pu.phaseIsActive(oilPhaseIdx)) {
+                allocate(rt::oil, rt::free_oil, rt::vaporized_oil);
+            }
+            if (pu.phaseIsActive(gasPhaseIdx) && !rsConst.enabled) {
+                allocate(rt::gas, rt::free_gas, rt::dissolved_gas);
+            }
+        }
+
         const auto nseg = ws.segments.size();
         for (auto seg_ix = 0*nseg; seg_ix < nseg; ++seg_ix) {
             const auto seg_no = ws.segments.segment_number()[seg_ix];
@@ -1323,7 +1358,9 @@ reportConnectionPressuresAndRates(const std::size_t well_index,
         connection.pressure = perf_data.pressure[i];
         connection.reservoir_rate = perf_data.rates[i];
 
-        connection.rates.set(rt::dissolved_gas, perf_data.phase_mixing_rates[i][ws.dissolved_gas]);
+        connection.rates.set(rt::dissolved_gas,
+                             perf_data.phase_mixing_rates[i][ws.dissolved_gas] +
+                             perf_data.phase_mixing_rates[i][ws.dissolved_gas_in_water]);
         connection.rates.set(rt::vaporized_oil, perf_data.phase_mixing_rates[i][ws.vaporized_oil]);
         connection.rates.set(rt::free_gas, perf_data.phase_mixing_rates[i][ws.free_gas]);
         connection.rates.set(rt::free_oil, perf_data.phase_mixing_rates[i][ws.free_oil]);

@@ -44,6 +44,7 @@
 #include <opm/simulators/wells/WellBhpThpCalculator.hpp>
 #include <opm/simulators/utils/DeferredLoggingErrorHelpers.hpp>
 #include <opm/simulators/wells/ParallelWellInfo.hpp>
+#include <opm/simulators/wells/RatioCalculator.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -970,6 +971,18 @@ namespace Opm
         // Pressure drawdown (also used to determine direction of flow)
         const Value drawdown = cell_press_at_perf - perf_press;
 
+        RatioCalculator<Value> ratioCalc{
+            FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)
+                ? FluidSystem::canonicalToActiveCompIdx(FluidSystem::gasCompIdx) : -1,
+            FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx)
+                ? FluidSystem::canonicalToActiveCompIdx(FluidSystem::oilCompIdx) : -1,
+            FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)
+                ? FluidSystem::canonicalToActiveCompIdx(FluidSystem::waterCompIdx) : -1,
+            this->name()
+        };
+        // This MSW flux model currently includes Rs/Rv, but not Rsw/Rvw.
+        const Value zero = pressure_cell * 0.0;
+
         // producing perforations
         if (drawdown > 0.0) {
             // Do nothing if crossflow is not allowed
@@ -983,14 +996,7 @@ namespace Opm
                 cq_s[comp_idx] = b_perfcells[comp_idx] * cq_p;
             }
 
-            if (FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx) && FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
-                const unsigned oilCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::oilCompIdx);
-                const unsigned gasCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::gasCompIdx);
-                const Value cq_s_oil = cq_s[oilCompIdx];
-                const Value cq_s_gas = cq_s[gasCompIdx];
-                cq_s[gasCompIdx] += rs * cq_s_oil;
-                cq_s[oilCompIdx] += rv * cq_s_gas;
-            }
+            ratioCalc.perfRateProd(cq_s, perf_rates, rv, rs, zero, zero);
         } else { // injecting perforations
             // Do nothing if crossflow is not allowed
             if (!allow_cf && this->isProducer()) {
@@ -1048,47 +1054,9 @@ namespace Opm
                 Value cqt_is = cqt_i / volume_ratio;
                 cq_s[componentIdx] = cmix_s[componentIdx] * cqt_is;
             }
+            ratioCalc.perfRateInj(cq_s, perf_rates, rv, rs, zero, zero,
+                                  pressure_cell, this->isProducer(), deferred_logger);
         } // end for injection perforations
-
-        // calculating the perforation solution gas rate and solution oil rates
-        if (this->isProducer()) {
-            if (FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx) && FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
-                const unsigned oilCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::oilCompIdx);
-                const unsigned gasCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::gasCompIdx);
-                // TODO: the formulations here remain to be tested with cases with strong crossflow through production wells
-                // s means standard condition, r means reservoir condition
-                // q_os = q_or * b_o + rv * q_gr * b_g
-                // q_gs = q_gr * g_g + rs * q_or * b_o
-                // d = 1.0 - rs * rv
-                // q_or = 1 / (b_o * d) * (q_os - rv * q_gs)
-                // q_gr = 1 / (b_g * d) * (q_gs - rs * q_os)
-
-                const Scalar d = 1.0 - getValue(rv) * getValue(rs);
-                // vaporized oil into gas
-                // rv * q_gr * b_g = rv * (q_gs - rs * q_os) / d
-                perf_rates.vap_oil = getValue(rv) * (getValue(cq_s[gasCompIdx]) - getValue(rs) * getValue(cq_s[oilCompIdx])) / d;
-                // dissolved of gas in oil
-                // rs * q_or * b_o = rs * (q_os - rv * q_gs) / d
-                perf_rates.dis_gas = getValue(rs) * (getValue(cq_s[oilCompIdx]) - getValue(rv) * getValue(cq_s[gasCompIdx])) / d;
-                // free_oil = q_or * b_o, free_gas = q_gr * b_g; by
-                // construction free_gas + dis_gas == cq_s[gasCompIdx] and
-                // free_oil + vap_oil == cq_s[oilCompIdx].
-                perf_rates.free_oil = (getValue(cq_s[oilCompIdx]) - getValue(rv) * getValue(cq_s[gasCompIdx])) / d;
-                perf_rates.free_gas = (getValue(cq_s[gasCompIdx]) - getValue(rs) * getValue(cq_s[oilCompIdx])) / d;
-            } else {
-                // No dissolution/vaporization is possible without both
-                // phases active, so whichever hydrocarbon phase is present
-                // is entirely free.
-                if (FluidSystem::phaseIsActive(FluidSystem::oilPhaseIdx)) {
-                    const unsigned oilCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::oilCompIdx);
-                    perf_rates.free_oil = getValue(cq_s[oilCompIdx]);
-                }
-                if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
-                    const unsigned gasCompIdx = FluidSystem::canonicalToActiveCompIdx(FluidSystem::gasCompIdx);
-                    perf_rates.free_gas = getValue(cq_s[gasCompIdx]);
-                }
-            }
-        }
     }
 
     template <typename TypeTag>
@@ -1961,12 +1929,12 @@ namespace Opm
                 // Record the free/dissolved split for this perforation --
                 // the same dis_gas/vap_oil just folded into cq_s above, so
                 // needed regardless of reporting.
-                if (this->isProducer()) {
-                    perf_data.phase_mixing_rates[local_perf_index][ws.dissolved_gas] = perfRates.dis_gas;
-                    perf_data.phase_mixing_rates[local_perf_index][ws.vaporized_oil] = perfRates.vap_oil;
-                    perf_data.phase_mixing_rates[local_perf_index][ws.free_gas] = perfRates.free_gas;
-                    perf_data.phase_mixing_rates[local_perf_index][ws.free_oil] = perfRates.free_oil;
-                }
+                perf_data.phase_mixing_rates[local_perf_index][ws.dissolved_gas] = perfRates.dis_gas;
+                perf_data.phase_mixing_rates[local_perf_index][ws.vaporized_oil] = perfRates.vap_oil;
+                perf_data.phase_mixing_rates[local_perf_index][ws.dissolved_gas_in_water] = perfRates.dis_gas_in_water;
+                perf_data.phase_mixing_rates[local_perf_index][ws.vaporized_water] = perfRates.vap_wat;
+                perf_data.phase_mixing_rates[local_perf_index][ws.free_gas] = perfRates.free_gas;
+                perf_data.phase_mixing_rates[local_perf_index][ws.free_oil] = perfRates.free_oil;
 
                 // store the perf pressure and rates
                 for (int comp_idx = 0; comp_idx < this->num_conservation_quantities_; ++comp_idx) {

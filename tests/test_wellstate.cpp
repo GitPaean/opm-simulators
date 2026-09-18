@@ -516,6 +516,66 @@ BOOST_AUTO_TEST_CASE(Rates)
 
 // ---------------------------------------------------------------------
 
+BOOST_AUTO_TEST_CASE(ReportedPhaseSplitPreservesConnectionFluxes)
+{
+    const Setup setup{"msw.data"};
+    std::vector<Opm::ParallelWellInfo<double>> pinfos;
+    auto state = buildWellState(setup, 0, pinfos);
+    auto& ws = state.well("PROD01");
+    const int gas = setup.pu.canonicalToActivePhaseIdx(IndexTraits::gasPhaseIdx);
+    const int oil = setup.pu.canonicalToActivePhaseIdx(IndexTraits::oilPhaseIdx);
+    auto& perf = ws.perf_data;
+    BOOST_REQUIRE_GE(perf.size(), 2U);
+    std::fill(perf.phase_rates.begin(), perf.phase_rates.end(), 0.0);
+    ws.surface_rates[gas] = -22.0;
+    ws.surface_rates[oil] = -10.0;
+    ws.phase_mixing_rates[ws.free_gas] = -3.0;
+    ws.phase_mixing_rates[ws.dissolved_gas] = -20.0;
+    ws.phase_mixing_rates[ws.free_oil] = -10.0;
+    perf.phase_rates[gas] = -23.0;
+    perf.phase_rates[oil] = -10.0;
+    perf.phase_mixing_rates[0] = ws.phase_mixing_rates;
+
+    using rt = Opm::data::Rates::opt;
+    const auto report = [&]() {
+        return state.report(setup.grid.c_grid()->global_cell, [](const int) { return false; });
+    };
+    const auto production = report().at("PROD01");
+    BOOST_CHECK_CLOSE(production.rates.get(rt::free_gas), -22.0 * 3.0 / 23.0, 1e-10);
+    BOOST_CHECK_CLOSE(production.rates.get(rt::free_gas) + production.rates.get(rt::dissolved_gas), -22.0, 1e-10);
+    BOOST_CHECK_EQUAL(production.connections[0].rates.get(rt::free_gas), -3.0);
+    BOOST_CHECK_EQUAL(production.connections[0].rates.get(rt::gas), -23.0);
+    BOOST_CHECK_EQUAL(ws.phase_mixing_rates[ws.free_gas], -3.0);
+    BOOST_CHECK_EQUAL(perf.phase_mixing_rates[0][ws.free_gas], -3.0);
+
+    // The net free/solution sums have the production sign even with
+    // crossflow. Detect it from individual connections, not the net sums.
+    perf.phase_rates[gas] = -30.0;
+    perf.phase_rates[setup.pu.numActivePhases() + gas] = 7.0;
+    perf.phase_mixing_rates[0][ws.free_gas] = -10.0;
+    perf.phase_mixing_rates[1][ws.free_gas] = 7.0;
+    const auto crossflow = report().at("PROD01");
+    BOOST_CHECK_EQUAL(crossflow.rates.get(rt::free_gas), -3.0);
+    BOOST_CHECK_EQUAL(crossflow.rates.get(rt::dissolved_gas), -20.0);
+
+    ws.stop();
+    std::fill(ws.surface_rates.begin(), ws.surface_rates.end(), 0.0);
+    const auto stopped = report().at("PROD01");
+    BOOST_CHECK_EQUAL(stopped.rates.get(rt::free_gas), 0.0);
+    BOOST_CHECK_EQUAL(stopped.rates.get(rt::dissolved_gas), 0.0);
+    BOOST_CHECK_EQUAL(stopped.connections[1].rates.get(rt::free_gas), 7.0);
+    BOOST_CHECK_EQUAL(perf.phase_mixing_rates[1][ws.free_gas], 7.0);
+
+    ws.open();
+    ws.surface_rates[gas] = -22.0;
+    perf.phase_rates[gas] = -23.0;
+    perf.phase_rates[setup.pu.numActivePhases() + gas] = 0.0;
+    perf.phase_mixing_rates[0][ws.free_gas] = -3.0;
+    perf.phase_mixing_rates[1][ws.free_gas] = 0.0;
+    const auto reopened = report().at("PROD01");
+    BOOST_CHECK_CLOSE(reopened.rates.get(rt::free_gas), -22.0 * 3.0 / 23.0, 1e-10);
+}
+
 BOOST_AUTO_TEST_CASE(STOP_well)
 {
     /*

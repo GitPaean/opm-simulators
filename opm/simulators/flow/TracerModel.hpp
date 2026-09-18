@@ -484,25 +484,18 @@ protected:
             const auto I = ws.perf_data.cell_index[i];
             Scalar rate_f, rate_s;
 
-            // Injectors don't (yet) model dissolution/vaporization of their
-            // own injected fluid, so perf_data.phase_mixing_rates is never
-            // populated for them (only producer perforation rates, both
-            // normal production and producer-crossflow-as-injection, set
-            // it) -- fall back to the full connection rate as free for
-            // injectors, rather than reading an always-zero field.
-            if (well.isProducer() &&
-                tr.phaseIdx_ == FluidSystem::oilPhaseIdx && FluidSystem::enableVaporizedOil()) {
+            // Both flow directions provide a connection split, including
+            // production through a crossflowing injector connection.
+            if (tr.phaseIdx_ == FluidSystem::oilPhaseIdx && FluidSystem::enableVaporizedOil()) {
                 rate_f = ws.perf_data.phase_mixing_rates[i][ws.free_oil] * well_eff;
                 rate_s = ws.perf_data.phase_mixing_rates[i][ws.vaporized_oil] * well_eff;
             }
-            else if (well.isProducer() &&
-                     tr.phaseIdx_ == FluidSystem::gasPhaseIdx && FluidSystem::enableDissolvedGas()) {
+            else if (tr.phaseIdx_ == FluidSystem::gasPhaseIdx && FluidSystem::enableDissolvedGas()) {
                 rate_f = ws.perf_data.phase_mixing_rates[i][ws.free_gas] * well_eff;
                 rate_s = ws.perf_data.phase_mixing_rates[i][ws.dissolved_gas] * well_eff;
             }
             else {
-                // Either no dissolution physics for this phase, or an
-                // injector: the whole connection rate is free.
+                // No dissolution physics for this tracer phase.
                 rate_f = well.volumetricSurfaceRateForConnection(I, tr.phaseIdx_);
                 rate_s = 0.0;
             }
@@ -1025,23 +1018,18 @@ protected:
                     const Scalar rate = wellPtr->volumetricSurfaceRateForConnection(I, tr.phaseIdx_); // Includes (accumulated) well efficiency factor
                     Scalar rate_f, rate_s;
 
-                    // Injectors don't (yet) model dissolution/vaporization
-                    // of their own injected fluid, so phase_mixing_rates is
-                    // never populated for them -- fall back to the full
-                    // connection rate as free for injectors.
-                    if (wellPtr->isProducer() &&
-                        tr.phaseIdx_ == FluidSystem::oilPhaseIdx && FluidSystem::enableVaporizedOil()) {
+                    // Both flow directions provide a connection split, including
+                    // production through a crossflowing injector connection.
+                    if (tr.phaseIdx_ == FluidSystem::oilPhaseIdx && FluidSystem::enableVaporizedOil()) {
                         rate_f = ws.perf_data.phase_mixing_rates[i][ws.free_oil]*well_eff;
                         rate_s = ws.perf_data.phase_mixing_rates[i][ws.vaporized_oil]*well_eff;
                     }
-                    else if (wellPtr->isProducer() &&
-                             tr.phaseIdx_ == FluidSystem::gasPhaseIdx && FluidSystem::enableDissolvedGas()) {
+                    else if (tr.phaseIdx_ == FluidSystem::gasPhaseIdx && FluidSystem::enableDissolvedGas()) {
                         rate_f = ws.perf_data.phase_mixing_rates[i][ws.free_gas]*well_eff;
                         rate_s = ws.perf_data.phase_mixing_rates[i][ws.dissolved_gas]*well_eff;
                     }
                     else {
-                        // Either no dissolution physics for this phase, or
-                        // an injector: the whole connection rate is free.
+                        // No dissolution physics for this tracer phase.
                         rate_f = rate;
                         rate_s = 0.0;
                     }

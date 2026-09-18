@@ -513,6 +513,7 @@ list (APPEND TEST_SOURCE_FILES
   tests/test_propertytree.cpp
   tests/test_setuppropertytree.cpp
   tests/test_region_phase_pvaverage.cpp
+  tests/test_RatioCalculator.cpp
   tests/test_relpermdiagnostics.cpp
   tests/test_RestartSerialization.cpp
   tests/test_rftcontainer.cpp
@@ -537,6 +538,7 @@ list (APPEND TEST_SOURCE_FILES
   tests/test_wellmodel.cpp
   tests/test_wellprodindexcalculator.cpp
   tests/test_wellstate.cpp
+  tests/test_WellRateAllocation.cpp
 )
 
 if(MPI_FOUND)
@@ -1298,6 +1300,7 @@ list (APPEND PUBLIC_HEADER_FILES
   opm/simulators/wells/PerforationData.hpp
   opm/simulators/wells/RateConverter.hpp
   opm/simulators/wells/RatioCalculator.hpp
+  opm/simulators/wells/WellRateAllocation.hpp
   opm/simulators/wells/RegionAttributeHelpers.hpp
   opm/simulators/wells/RegionAverageCalculator.hpp
   opm/simulators/wells/RunningStatistics.hpp

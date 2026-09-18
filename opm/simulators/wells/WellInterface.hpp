@@ -337,10 +337,10 @@ public:
     // cross-rank-reduced ws.phase_mixing_rates, feeding the WGPRS/WGPRF-family
     // summary keywords (per-perforation phase_mixing_rates itself, which the
     // tracer model reads directly, is unaffected -- it's set by assembly, not
-    // by this consolidation). free_gas/free_oil are accumulated directly
-    // alongside dis_gas/vap_oil at each perforation (free_gas + dis_gas ==
-    // cq_s[gasComp] by construction), so WGPRF is non-negative regardless of
-    // whether surface_rates is stale.
+    // by this consolidation). Free and solution contributions come from the
+    // same connection flux evaluation. WellState::report() allocates this
+    // split to the accepted wellhead total for production without crossflow;
+    // that reporting allocation does not change these raw connection sums.
     //
     // Called once per timestep from BlackoilWellModel::timeStepSucceeded().
     void consolidatePhaseMixingRates(WellStateType& well_state) const;
