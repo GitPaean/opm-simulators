@@ -168,6 +168,17 @@ updateNewton(const BVectorWell& dwells)
 }
 
 template <typename FluidSystem, typename Indices>
+void
+CompWellPrimaryVariables<FluidSystem, Indices>::
+moveHalfwayTo(const CompWellPrimaryVariables& other)
+{
+    for (std::size_t idx = 0; idx < numWellEq; ++idx) {
+        value_[idx] = 0.5 * (value_[idx] + other.value_[idx]);
+    }
+    updateEvaluation();
+}
+
+template <typename FluidSystem, typename Indices>
 template <typename T>
 T
 CompWellPrimaryVariables<FluidSystem, Indices>::
