@@ -143,11 +143,12 @@ apply(BVector& r) const
     // invDrw_ = invDuneD_ * resWell_
     invDuneD_.mv(resWell_, invDrw_);
     // r = r - scale * duneC_^T * invDrw_, with the per-cell scale converting
-    // the well-equation units to the reservoir residual's units
+    // the well-equation units to the reservoir residual's units. r holds the
+    // well's own cells, one entry per connection.
     for (auto colC = duneC_[0].begin(), endC = duneC_[0].end(); colC != endC; ++colC) {
         VectorBlockType tmp(0.0);
         (*colC).usmtv(res_scales_[colC.index()], invDrw_[0], tmp);
-        r[cells_[colC.index()]] -= tmp;
+        r[colC.index()] -= tmp;
     }
 }
 
