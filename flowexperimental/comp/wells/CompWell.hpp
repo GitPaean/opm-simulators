@@ -131,6 +131,9 @@ public:
 
     bool getConvergence() const override;
 
+    void updateSurfaceRates(const Simulator& simulator,
+                            SingleWellState& well_state) override;
+
     void addWellContributions(SparseMatrixAdapter&) const override;
 
 private:

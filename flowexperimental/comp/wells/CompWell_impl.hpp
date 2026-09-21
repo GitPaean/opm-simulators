@@ -587,6 +587,16 @@ updateWellStateFromPrimaryVariables(SingleWellState& well_state) const
 }
 
 template <typename TypeTag>
+void
+CompWell<TypeTag>::
+updateSurfaceRates(const Simulator& simulator,
+                   SingleWellState& well_state)
+{
+    this->updateSecondaryQuantities(simulator);
+    this->updateWellStateFromPrimaryVariables(well_state);
+}
+
+template <typename TypeTag>
 bool
 CompWell<TypeTag>::
 getConvergence() const
