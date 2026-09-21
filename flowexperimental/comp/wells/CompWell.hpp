@@ -146,6 +146,8 @@ private:
     // some are testing variables, and some are secondary variables might be kept
     // anyway, they are very rough prototype code for testing and will be changed
     const Scalar wellbore_volume_ {21.6*0.001};
+    // hydrocarbon volume fraction below which the wellbore counts as holding water alone
+    static constexpr Scalar min_hydrocarbon_fraction_ {1.e-8};
 
     std::array<EvalWell, num_comp> mass_fractions_{0.};
     EvalWell fluid_density_{0.};

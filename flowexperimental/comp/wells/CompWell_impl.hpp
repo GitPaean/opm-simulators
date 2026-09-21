@@ -335,6 +335,20 @@ assembleWellEq(const Simulator& simulator,
     const auto& summary_state = simulator.vanguard().summaryState();
     assembleControlEq(well_state, summary_state);
 
+    if constexpr (FluidSystem::waterEnabled) {
+        // Every component row scales with the hydrocarbon share of the
+        // wellbore. Once the wellbore holds water alone, as a water injector's
+        // always does, the rows no longer determine the mole fractions and the
+        // well matrix is singular. Keep the mole fractions and balance the
+        // hydrocarbons as a whole instead.
+        const Scalar water_fraction = getValue(this->primary_variables_.getWaterVolumeFraction());
+        if (1. - water_fraction < min_hydrocarbon_fraction_) {
+            constexpr int first_mole_fraction = PrimaryVariables::QTotal + 1;
+            this->well_equations_.sumAndPinRows(FluidSystem::numComponents - 1,
+                                                first_mole_fraction);
+        }
+    }
+
     this->well_equations_.invert();
     // there will be num_comp mass balance equations for each component and one for the well control equations
     // for the mass balance equations, it will be the sum of the connection rates for each component,
