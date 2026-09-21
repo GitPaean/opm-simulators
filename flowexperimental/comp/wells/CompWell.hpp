@@ -209,6 +209,8 @@ private:
                             FluidState<T>& fluid_state,
                             const T& water_mass_fraction);
 
+    bool isWaterInjector_() const;
+
     // water density at the given pressure and temperature via the fluid
     // system's water PVT
     template <typename T>
