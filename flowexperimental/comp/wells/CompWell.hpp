@@ -200,6 +200,7 @@ private:
     template <typename T>
     void
     updateSurfaceCondition_(const StandardCond& surface_cond,
+                            const Scalar surface_water_density,
                             FluidState<T>& fluid_state,
                             const T& water_mass_fraction);
 
