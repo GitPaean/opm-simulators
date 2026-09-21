@@ -301,6 +301,29 @@ initWellState()
                                  this->summary_state_,
                                  this->locally_owned_wells_,
                                  /*prev_well_state=*/nullptr);
+
+    // The water a wellbore holds is an inventory, set by its water fraction
+    // and its pressure. A wellbore that starts every report step empty and at
+    // the bhp limit takes the difference from the reservoir, or hands it over,
+    // without the surface rates seeing it.
+    if constexpr (FluidSystem::waterEnabled) {
+        for (const auto& well : this->wells_ecl_) {
+            const auto& name = well.name();
+            if (!this->last_valid_comp_well_states_.has(name)) {
+                continue;
+            }
+            const auto& last = this->last_valid_comp_well_states_[name];
+            auto& ws = this->comp_well_states_[name];
+            if (last.status == WellStatus::SHUT || ws.status == WellStatus::SHUT
+                || last.producer != ws.producer) {
+                continue;
+            }
+            ws.bhp = last.bhp;
+            if (ws.producer) {
+                ws.wellbore_water_volume_fraction = last.wellbore_water_volume_fraction;
+            }
+        }
+    }
 }
 
 
