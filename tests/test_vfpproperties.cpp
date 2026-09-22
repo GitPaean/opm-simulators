@@ -666,7 +666,7 @@ BOOST_AUTO_TEST_CASE(ParseInterpolateRealisticVFPPROD)
     Opm::Parser parser;
     std::filesystem::path file("VFPPROD2");
 
-    auto deck = parser.parseFile(file.string());
+    auto deck = parser.parseFile(file);
 
     BOOST_REQUIRE(deck.hasKeyword("VFPPROD"));
     BOOST_CHECK_EQUAL(deck.count("VFPPROD"), 1);
