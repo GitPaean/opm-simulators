@@ -54,22 +54,22 @@ namespace Opm {
 /// Simulator. The behaviour is intentionally identical to the original.
 template <typename FluidSystem, typename T>
 void flashWellboreFluidState(CompositionalFluidState<T, FluidSystem>& fluid_state,
-                             const typename FluidSystem::Scalar flash_tolerance = 1.e-6)
+                             const typename FluidSystem::Scalar flash_tolerance = 1.e-6,
+                             const CompositionalConfig::EOSType eos_type =
+                                 CompositionalConfig::EOSType::PR)
 {
     using Scalar = typename FluidSystem::Scalar;
-    using EOSType = CompositionalConfig::EOSType;
-
     bool single_phase = false;
     if constexpr (std::is_same_v<T, Scalar>) {
         single_phase = PTFlash<Scalar, FluidSystem>::flash_solve_scalar_(
-            fluid_state, PTFlashMethod::Ssi, flash_tolerance, EOSType::PR);
+            fluid_state, PTFlashMethod::Ssi, flash_tolerance, eos_type);
     } else { // Evaluation
         single_phase = PTFlash<Scalar, FluidSystem>::solve(
-            fluid_state, PTFlashMethod::Ssi, flash_tolerance, EOSType::PR);
+            fluid_state, PTFlashMethod::Ssi, flash_tolerance, eos_type);
     }
 
     constexpr Scalar R = Constants<Scalar>::R;
-    typename FluidSystem::template ParameterCache<T> param_cache {EOSType::PR};
+    typename FluidSystem::template ParameterCache<T> param_cache {eos_type};
     param_cache.updatePhase(fluid_state, FluidSystem::oilPhaseIdx);
     const auto Z_L = (param_cache.molarVolume(FluidSystem::oilPhaseIdx) * fluid_state.pressure(FluidSystem::oilPhaseIdx)) /
                      (R * fluid_state.temperature(FluidSystem::oilPhaseIdx));

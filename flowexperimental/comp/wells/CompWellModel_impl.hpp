@@ -32,6 +32,7 @@
 #include <opm/input/eclipse/EclipseState/EclipseState.hpp>
 #include <opm/input/eclipse/Schedule/Schedule.hpp>
 #include <opm/input/eclipse/Schedule/Well/WellConnections.hpp>
+#include <opm/grid/LookUpData.hh>
 
 namespace Opm {
 
@@ -138,6 +139,20 @@ createWellContainer()
 {
     const auto nw = wells_ecl_.size();
     well_container_.clear();
+    const auto& field_props = ecl_state_.fieldProps();
+    const LookUpData<typename GridView::Grid, GridView>
+        look_up_data(simulator_.vanguard().gridView());
+    std::vector<int> eos_regions(local_num_cells_, 0);
+    std::vector<int> surface_regions(local_num_cells_, 0);
+    if (field_props.has_int("EOSNUM")) {
+        eos_regions = look_up_data.template assignFieldPropsIntOnLeaf<int>(
+            field_props, "EOSNUM", /*needsTranslation=*/true);
+    }
+    if (field_props.has_int("SURFNUM")) {
+        surface_regions = look_up_data.template assignFieldPropsIntOnLeaf<int>(
+            field_props, "SURFNUM", /*needsTranslation=*/true);
+    }
+    const auto& config = ecl_state_.compositionalConfig();
     for (auto w = 0 * nw; w < nw; ++w) {
         const auto& well_name = wells_ecl_[w].name();
         if (!comp_well_states_.has(well_name)
@@ -146,7 +161,17 @@ createWellContainer()
             continue;
         }
 
-        well_container_.emplace_back(std::make_shared<CompWell<TypeTag>>(wells_ecl_[w], w, well_connection_data_[w]));
+        const auto reference_cell = well_connection_data_[w].front().cell_index;
+        std::vector<int> connection_eos_regions;
+        connection_eos_regions.reserve(well_connection_data_[w].size());
+        for (const auto& connection : well_connection_data_[w]) {
+            connection_eos_regions.push_back(eos_regions[connection.cell_index]);
+        }
+        well_container_.emplace_back(std::make_shared<CompWell<TypeTag>>(
+            wells_ecl_[w], w, well_connection_data_[w],
+            config.eosType(eos_regions[reference_cell]),
+            config.eosTypeSurf(surface_regions[reference_cell]),
+            std::move(connection_eos_regions), surface_regions[reference_cell]));
     }
 }
 

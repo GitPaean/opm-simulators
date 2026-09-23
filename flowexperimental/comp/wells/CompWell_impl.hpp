@@ -35,8 +35,16 @@ template <typename TypeTag>
 CompWell<TypeTag>::
 CompWell(const Well& well,
          int index_of_well,
-         const std::vector<CompConnectionData>& well_connection_data)
+         const std::vector<CompConnectionData>& well_connection_data,
+         const CompositionalConfig::EOSType well_eos_type,
+         const CompositionalConfig::EOSType surface_eos_type,
+         std::vector<int> connection_eos_regions,
+         const int surface_eos_region)
   : CompWellInterface<TypeTag>(well, index_of_well, well_connection_data)
+  , well_eos_type_(well_eos_type)
+  , surface_eos_type_(surface_eos_type)
+  , connection_eos_regions_(std::move(connection_eos_regions))
+  , surface_eos_region_(surface_eos_region)
 {
 }
 
@@ -72,12 +80,13 @@ calculateExplicitQuantities(const Simulator& simulator,
                             const SingleWellState& well_state)
 {
     updatePrimaryVariables(simulator, well_state);
+    const typename FluidSystem::ScopedEosRegion eos_region(connection_eos_regions_.front());
     {
         // flash calculation in the wellbore to obtain the explicit
         // component masses
         auto fluid_state_scalar = this->primary_variables_.template toFluidState<Scalar>();
 
-        flashFluidState_(fluid_state_scalar);
+        flashFluidState_(fluid_state_scalar, well_eos_type_, connection_eos_regions_.front(), false);
 
         this->component_masses_ = wellboreComponentMasses(fluid_state_scalar, this->wellbore_volume_);
 
@@ -120,10 +129,11 @@ void
 CompWell<TypeTag>::
 updateTotalMass()
 {
+    const typename FluidSystem::ScopedEosRegion eos_region(connection_eos_regions_.front());
     // flash calculation in the wellbore
     auto fluid_state = this->primary_variables_.template toFluidState<EvalWell>();
 
-    flashFluidState_(fluid_state);
+    flashFluidState_(fluid_state, well_eos_type_, connection_eos_regions_.front(), false);
 
     this->new_component_masses_ = wellboreComponentMasses(fluid_state, this->wellbore_volume_);
 
@@ -169,6 +179,7 @@ void
 CompWell<TypeTag>::
 updateSurfaceQuantities(const Simulator& simulator)
 {
+    const typename FluidSystem::ScopedEosRegion eos_region(connection_eos_regions_.front());
     const auto& tables = simulator.vanguard().eclState().getTableManager();
     const auto& surface_cond = tables.stCond();
     // Surface volumes of water are defined by DENSITY. PVTW holds at reservoir
@@ -206,6 +217,7 @@ calculateConnectionRate(const Simulator& simulator,
                         std::vector<EvalWell>& con_rates,
                         std::array<EvalWell, FluidSystem::numPhases>& phase_rates) const
 {
+    const typename FluidSystem::ScopedEosRegion eos_region(connection_eos_regions_[con_idx]);
     // The components travel in the two EOS phases, so their rate loop runs over
     // the miscible phases; water is pure and gets its own rate below. The
     // mobility vector is sized for every phase getMobility() fills.
@@ -639,6 +651,7 @@ void
 CompWell<TypeTag>::
 updateWellStateFromPrimaryVariables(SingleWellState& well_state) const
 {
+    const typename FluidSystem::ScopedEosRegion eos_region(connection_eos_regions_.front());
     well_state.bhp = this->primary_variables_.getBhp().value();
 
     auto& total_molar_fractions = well_state.total_molar_fractions;
@@ -833,6 +846,7 @@ updateSurfaceCondition_(const StandardCond& surface_cond,
                         FluidState<T>& fluid_state,
                         const T& water_mass_fraction)
 {
+    const typename FluidSystem::ScopedEosRegion eos_region(surface_eos_region_, true);
     static_assert(std::is_same_v<T, Scalar> || std::is_same_v<T, EvalWell>, "Unsupported type in CompWell::updateSurfaceCondition_");
 
     fluid_state.setTemperature(surface_cond.temperature);
@@ -843,7 +857,7 @@ updateSurfaceCondition_(const StandardCond& surface_cond,
         fluid_state.setKvalue(i, fluid_state.wilsonK_(i));
     }
 
-    flashFluidState_(fluid_state);
+    flashFluidState_(fluid_state, surface_eos_type_, surface_eos_region_, true);
 
     for (unsigned compidx = 0; compidx < FluidSystem::numComponents; ++compidx) {
         this->surface_conditions_.mass_fractions_[FluidSystem::oilPhaseIdx][compidx] =
@@ -883,13 +897,17 @@ template <typename TypeTag>
 template <typename T>
 void
 CompWell<TypeTag>::
-flashFluidState_(FluidState<T>& fluid_state)
+flashFluidState_(FluidState<T>& fluid_state,
+                 const CompositionalConfig::EOSType eos_type,
+                 const int eos_region_index,
+                 const bool surface)
 {
+    const typename FluidSystem::ScopedEosRegion eos_region(eos_region_index, surface);
     static_assert(std::is_same_v<T, Scalar> || std::is_same_v<T, EvalWell>, "Unsupported type in CompWell::flashFluidState_");
 
     // The wellbore flash is a free function so it can be unit tested in
     // isolation (see tests/test_compwell_jacobian.cpp).
-    flashWellboreFluidState(fluid_state);
+    flashWellboreFluidState(fluid_state, Scalar{1.e-6}, eos_type);
 }
 
 } // end of namespace Opm

@@ -103,7 +103,11 @@ public:
 
     CompWell(const Well& well,
              int index_of_well,
-             const std::vector<CompConnectionData>& well_connection_data);
+             const std::vector<CompConnectionData>& well_connection_data,
+             CompositionalConfig::EOSType well_eos_type,
+             CompositionalConfig::EOSType surface_eos_type,
+             std::vector<int> connection_eos_regions,
+             int surface_eos_region);
 
     void init() override;
 
@@ -151,6 +155,10 @@ private:
     // the last primary variables the well equations could be assembled for
     std::optional<PrimaryVariables> assembled_primary_variables_;
     WellEquations well_equations_;
+    CompositionalConfig::EOSType well_eos_type_;
+    CompositionalConfig::EOSType surface_eos_type_;
+    std::vector<int> connection_eos_regions_;
+    int surface_eos_region_;
 
     // the following varialbes are temporary and remain to be cleaned up and re-organized
     // some are testing variables, and some are secondary variables might be kept
@@ -232,7 +240,10 @@ private:
 
     template <typename T>
     void
-    flashFluidState_(FluidState<T>& fluid_state);
+    flashFluidState_(FluidState<T>& fluid_state,
+                     CompositionalConfig::EOSType eos_type,
+                     int eos_region,
+                     bool surface);
 };
 
 } // end of namespace Opm

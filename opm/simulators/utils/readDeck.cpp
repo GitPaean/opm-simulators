@@ -221,9 +221,18 @@ namespace {
     {
         Opm::Deck deck(parser.parseFile(deckFilename, parseContext, errorGuard));
 
+        auto unsupported = Opm::FlowKeywordValidation::unsupportedKeywords();
+        auto partiallySupportedInts = Opm::FlowKeywordValidation::partiallySupported<int>();
+        if (deck.hasKeyword("COMPS")) {
+            // Compositional Flow uses SURFNUM and multiple surface EOS regions.
+            // Keep the existing restrictions for the other Flow models.
+            unsupported.erase("SURFNUM");
+            partiallySupportedInts.at("TABDIMS").erase(10); // NMEOSS
+        }
+
         Opm::KeywordValidation::SupportedKeywords partiallySupported  {
             Opm::FlowKeywordValidation::partiallySupported<std::string>(),
-            Opm::FlowKeywordValidation::partiallySupported<int>(),
+            partiallySupportedInts,
             Opm::FlowKeywordValidation::partiallySupported<double>()
         };
 
@@ -234,7 +243,7 @@ namespace {
         };
 
         auto keyword_validator = Opm::KeywordValidation::KeywordValidator {
-            Opm::FlowKeywordValidation::unsupportedKeywords(),
+            unsupported,
             partiallySupported,
             fullySupported,
             Opm::KeywordValidation::specialValidation()

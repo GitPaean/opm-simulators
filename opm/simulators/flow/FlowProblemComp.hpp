@@ -109,9 +109,18 @@ public:
 
     Opm::CompositionalConfig::EOSType getEosType() const
     {
-        auto& simulator = this->simulator();
-        const auto& eclState = simulator.vanguard().eclState();
-        return eclState.compositionalConfig().eosType(0);
+        return this->simulator().vanguard().eclState().compositionalConfig().eosType(0);
+    }
+
+    Opm::CompositionalConfig::EOSType getEosType(const unsigned globalDofIdx) const
+    {
+        return this->simulator().vanguard().eclState().compositionalConfig()
+            .eosType(eosRegionIndex(globalDofIdx));
+    }
+
+    std::size_t eosRegionIndex(const unsigned globalDofIdx) const
+    {
+        return eos_region_indices_.at(globalDofIdx);
     }
 
     /*!
@@ -141,6 +150,13 @@ public:
 
         const auto& eclState = simulator.vanguard().eclState();
         const auto& schedule = simulator.vanguard().schedule();
+        eos_region_indices_.assign(this->model().numGridDof(), 0);
+        if (eclState.fieldProps().has_int("EOSNUM")) {
+            const LookUpData<typename GridView::Grid, GridView>
+                lookUpData(simulator.vanguard().gridView());
+            eos_region_indices_ = lookUpData.template assignFieldPropsIntOnLeaf<int>(
+                eclState.fieldProps(), "EOSNUM", /*needsTranslation=*/true);
+        }
         this->initializeSimulatorTime_();
 
         this->initFluidSystem_();
@@ -273,6 +289,7 @@ public:
     void initial(PrimaryVariables& values, const Context& context, unsigned spaceIdx, unsigned timeIdx) const
     {
         const unsigned globalDofIdx = context.globalSpaceIndex(spaceIdx, timeIdx);
+        const typename FluidSystem::ScopedEosRegion eos_region(eosRegionIndex(globalDofIdx));
         const auto& initial_fs = initialFluidStates_[globalDofIdx];
         Opm::CompositionalFluidState<Scalar, FluidSystem> fs;
         for (unsigned p = 0; p < numPhases; ++p) { // TODO: assuming the phaseidx continuous
@@ -295,7 +312,7 @@ public:
             }
 
             {
-                const auto& eos_type = getEosType();
+                const auto& eos_type = getEosType(globalDofIdx);
                 typename FluidSystem::template ParameterCache<Scalar> paramCache(eos_type);
                 paramCache.updatePhase(fs, FluidSystem::oilPhaseIdx);
                 paramCache.updatePhase(fs, FluidSystem::gasPhaseIdx);
@@ -635,6 +652,7 @@ private:
     FlowThresholdPressure<TypeTag> thresholdPressures_;
 
     std::vector<InitialFluidState> initialFluidStates_;
+    std::vector<int> eos_region_indices_;
 
     bool zmf_initialization_ {false};
 
