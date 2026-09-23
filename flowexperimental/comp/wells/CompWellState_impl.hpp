@@ -184,6 +184,12 @@ report() const
         if (FluidSystem::phaseIsActive(FluidSystem::gasPhaseIdx)) {
             well.rates.set(rt::gas, surface_rates[FluidSystem::gasPhaseIdx]);
         }
+        const auto& reservoir_rates = ws.reservoir_phase_rates;
+        if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
+            well.rates.set(rt::reservoir_water, reservoir_rates[FluidSystem::waterPhaseIdx]);
+        }
+        well.rates.set(rt::reservoir_oil, reservoir_rates[FluidSystem::oilPhaseIdx]);
+        well.rates.set(rt::reservoir_gas, reservoir_rates[FluidSystem::gasPhaseIdx]);
     }
     return res;
 }

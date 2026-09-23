@@ -475,9 +475,17 @@ assembleControlEqProd(const SingleWellState& well_state,
         control_eq = liquid_rate + rate_target;
         break;
     }
+    case WellProducerCMode::RESV : {
+        EvalWell reservoir_rate = 0.;
+        for (const auto& phase_rate : reservoir_phase_rates_) {
+            reservoir_rate += phase_rate;
+        }
+        control_eq = reservoir_rate + prod_controls.resv_rate;
+        break;
+    }
     default:
         OPM_THROW(std::logic_error,
-                  "only handles BHP, ORAT, GRAT, WRAT and LRAT control for producers for now");
+                  "only handles BHP, ORAT, GRAT, WRAT, LRAT and RESV control for producers for now");
     }
 }
 
@@ -645,6 +653,10 @@ updateWellStateFromPrimaryVariables(SingleWellState& well_state) const
 
     const Scalar total_rate = this->primary_variables_.getTotalRate().value();
     auto& surface_phase_rates = well_state.surface_phase_rates;
+    for (unsigned phase_idx = 0; phase_idx < FluidSystem::numPhases; ++phase_idx) {
+        well_state.reservoir_phase_rates[phase_idx] =
+            getValue(reservoir_phase_rates_[phase_idx]);
+    }
     if (well_state.producer) { // producer
         const auto& surface_cond = this->surface_conditions_;
         for (int p = 0; p < SurfaceConditons::num_phases; ++p) {
@@ -756,6 +768,16 @@ updateWellControl(const SummaryState& summary_state,
             }
             if (current_rate > production_controls.liquid_rate) {
                 well_state.production_cmode = WellProducerCMode::LRAT;
+                changed = true;
+            }
+        }
+        if (!changed && production_controls.hasControl(Well::ProducerCMode::RESV)
+            && current_control != WellProducerCMode::RESV) {
+            const Scalar current_rate = -std::accumulate(
+                well_state.reservoir_phase_rates.begin(),
+                well_state.reservoir_phase_rates.end(), Scalar{0.});
+            if (current_rate > production_controls.resv_rate) {
+                well_state.production_cmode = WellProducerCMode::RESV;
                 changed = true;
             }
         }
