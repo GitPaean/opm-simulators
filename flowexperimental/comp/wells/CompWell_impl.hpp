@@ -201,22 +201,23 @@ updateSurfaceQuantities(const Simulator& simulator)
 template <typename TypeTag>
 void
 CompWell<TypeTag>::
-calculateSingleConnectionRate(const Simulator& simulator,
-                              std::vector<EvalWell>& con_rates) const
+calculateConnectionRate(const Simulator& simulator,
+                        const int con_idx,
+                        std::vector<EvalWell>& con_rates,
+                        std::array<EvalWell, FluidSystem::numPhases>& phase_rates) const
 {
-    constexpr int con_idx = 0; // TODO: to be a function argument for multiple connection wells
     // The components travel in the two EOS phases, so their rate loop runs over
     // the miscible phases; water is pure and gets its own rate below. The
     // mobility vector is sized for every phase getMobility() fills.
     constexpr int np = FluidSystem::numMisciblePhases;
     const EvalWell& bhp = this->primary_variables_.getBhp();
-    const unsigned cell_idx = this->well_cells_[0];
+    const unsigned cell_idx = this->well_cells_[con_idx];
     const auto& int_quantities = simulator.problem().model().cachedIntensiveQuantities(cell_idx, 0);
     assert(int_quantities);
     std::vector<EvalWell> mob(FluidSystem::numPhases, 0.);
     getMobility(simulator, con_idx, mob);
 
-    const Scalar tw = this->well_index_[0]; // only one connection
+    const Scalar tw = this->well_index_[con_idx];
 
     const auto& fluid_state = int_quantities->fluidState();
 
@@ -227,6 +228,7 @@ calculateSingleConnectionRate(const Simulator& simulator,
         std::vector<EvalWell> cq_v(np);
         for (unsigned phase_idx = 0; phase_idx < np; ++phase_idx) {
             cq_v[phase_idx] = - mob[phase_idx] * tw * drawdown;
+            phase_rates[phase_idx] = cq_v[phase_idx];
             for (unsigned comp_idx = 0; comp_idx < FluidSystem::numComponents; comp_idx++) {
                 const EvalWell density = PrimaryVariables::extendEval(fluid_state.density(phase_idx));
                 const EvalWell mass_fraction = PrimaryVariables::extendEval(fluid_state.massFraction(phase_idx, comp_idx));
@@ -236,6 +238,7 @@ calculateSingleConnectionRate(const Simulator& simulator,
         if constexpr (FluidSystem::waterEnabled) {
             // the water phase is pure water; its mass rate fills the extra slot
             const EvalWell cq_w = - mob[FluidSystem::waterPhaseIdx] * tw * drawdown;
+            phase_rates[FluidSystem::waterPhaseIdx] = cq_w;
             const EvalWell density = PrimaryVariables::extendEval(fluid_state.density(FluidSystem::waterPhaseIdx));
             con_rates[FluidSystem::numComponents] += cq_w * density;
         }
@@ -246,6 +249,12 @@ calculateSingleConnectionRate(const Simulator& simulator,
             total_mobility += mob[phase_idx];
         }
         EvalWell cq_v = - total_mobility * tw * drawdown;
+        const auto injection_type = this->well_ecl_.getInjectionProperties().injectorType;
+        const auto injection_phase = injection_type == InjectorType::WATER
+            ? FluidSystem::waterPhaseIdx
+            : (injection_type == InjectorType::OIL ? FluidSystem::oilPhaseIdx
+                                                    : FluidSystem::gasPhaseIdx);
+        phase_rates[injection_phase] = cq_v;
         for (unsigned comp_idx = 0; comp_idx < FluidSystem::numComponents; comp_idx++) {
             con_rates[comp_idx] = cq_v * fluid_density_ * mass_fractions_[comp_idx];
         }
@@ -312,27 +321,29 @@ assembleWellEq(const Simulator& simulator,
     // one equation per hydrocarbon component plus one for water when enabled;
     // the water slot in the reservoir rate vector has the same position
     // (conti0EqIdx + numComponents) as the water conservation row here
-    std::vector<EvalWell> connection_rates(PrimaryVariables::numWellConservationEq, 0.);
-    calculateSingleConnectionRate(simulator, connection_rates);
-    // only one perforation for now
-    auto& con_rates = this->connectionRates_[0];
-    for (unsigned comp_idx = 0; comp_idx < PrimaryVariables::numWellConservationEq; ++comp_idx) {
-        con_rates[comp_idx] = PrimaryVariables::restrictEval(connection_rates[comp_idx]);
-    }
-
-    // here we use perf index, need to check how the things are done in the StandardWellAssemble
-    // assemble the well equations related to the production/injection mass rates for each component
-    for (unsigned comp_idx = 0; comp_idx < PrimaryVariables::numWellConservationEq; ++comp_idx) {
-        // the signs need to be checked
-        this->well_equations_.residual()[0][comp_idx] += connection_rates[comp_idx].value();
-        for (unsigned pvIdx = 0; pvIdx < PrimaryVariables::numWellEq; ++pvIdx) {
-            // C, needs the cell_idx
-            this->well_equations_.C()[0][0][pvIdx][comp_idx] -= connection_rates[comp_idx].derivative(pvIdx + PrimaryVariables::numResEq);
-            this->well_equations_.D()[0][0][comp_idx][pvIdx] += connection_rates[comp_idx].derivative(pvIdx + PrimaryVariables::numResEq);
+    reservoir_phase_rates_.fill(EvalWell{0.});
+    for (int con_idx = 0; con_idx < this->number_of_connection_; ++con_idx) {
+        std::vector<EvalWell> connection_rates(PrimaryVariables::numWellConservationEq, 0.);
+        std::array<EvalWell, FluidSystem::numPhases> phase_rates{};
+        calculateConnectionRate(simulator, con_idx, connection_rates, phase_rates);
+        for (unsigned phase_idx = 0; phase_idx < FluidSystem::numPhases; ++phase_idx) {
+            reservoir_phase_rates_[phase_idx] += phase_rates[phase_idx];
         }
 
-        for (unsigned pvIdx = 0; pvIdx < PrimaryVariables::numResEq; ++pvIdx) {
-            this->well_equations_.B()[0][0][comp_idx][pvIdx] += connection_rates[comp_idx].derivative(pvIdx);
+        auto& con_rates = this->connectionRates_[con_idx];
+        for (unsigned comp_idx = 0; comp_idx < PrimaryVariables::numWellConservationEq; ++comp_idx) {
+            con_rates[comp_idx] = PrimaryVariables::restrictEval(connection_rates[comp_idx]);
+            this->well_equations_.residual()[0][comp_idx] += connection_rates[comp_idx].value();
+            for (unsigned pv_idx = 0; pv_idx < PrimaryVariables::numWellEq; ++pv_idx) {
+                const auto derivative = connection_rates[comp_idx].derivative(
+                    pv_idx + PrimaryVariables::numResEq);
+                this->well_equations_.C()[0][con_idx][pv_idx][comp_idx] -= derivative;
+                this->well_equations_.D()[0][0][comp_idx][pv_idx] += derivative;
+            }
+            for (unsigned pv_idx = 0; pv_idx < PrimaryVariables::numResEq; ++pv_idx) {
+                this->well_equations_.B()[0][con_idx][comp_idx][pv_idx] +=
+                    connection_rates[comp_idx].derivative(pv_idx);
+            }
         }
     }
 

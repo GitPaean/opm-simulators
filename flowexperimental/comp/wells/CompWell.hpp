@@ -170,12 +170,16 @@ private:
     Scalar water_mass_{0.};
     EvalWell new_water_mass_{0.};
     EvalWell water_mass_fraction_{0.};
+    // Signed reservoir-volume rates from the last well-equation assembly.
+    std::array<EvalWell, FluidSystem::numPhases> reservoir_phase_rates_{};
     // quantities used to calculate the quantities under the surface conditions
     SurfaceConditons surface_conditions_;
 
     // following are some secondary property or variables to be used for later
-    void calculateSingleConnectionRate(const Simulator& simulator,
-                                       std::vector<EvalWell>& con_rates) const;
+    void calculateConnectionRate(const Simulator& simulator,
+                                 int connection_idx,
+                                 std::vector<EvalWell>& con_rates,
+                                 std::array<EvalWell, FluidSystem::numPhases>& phase_rates) const;
 
     void updateTotalMass();
 
