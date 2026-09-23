@@ -31,6 +31,8 @@
 #include <dune/common/fmatrix.hh>
 #include <dune/common/fvector.hh>
 
+#include <opm/common/ErrorMacros.hpp>
+#include <opm/common/Exceptions.hpp>
 #include <opm/common/OpmLog/OpmLog.hpp>
 
 #include <opm/material/Constants.hpp>
@@ -47,6 +49,7 @@
 #include <opm/models/ptflash/flashparameters.hh>
 
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 
 #include <array>
 #include <iterator>
@@ -205,7 +208,24 @@ public:
                                       elemCtx.globalSpaceIndex(dofIdx, timeIdx)));
         }
         const auto& eos_type = problem.getEosType();
-        FlashSolver::solve(fluidState_, ptFlashMethod, flashTolerance, eos_type, flashVerbosity);
+        try {
+            FlashSolver::solve(
+                fluidState_, ptFlashMethod, flashTolerance, eos_type, flashVerbosity);
+        } catch (const NumericalProblem& error) {
+            // Name the state, so a failed flash can be traced back to its cell.
+            std::array<Scalar, numComponents> composition;
+            for (unsigned compIdx = 0; compIdx < numComponents; ++compIdx) {
+                composition[compIdx] = getValue(fluidState_.moleFraction(compIdx));
+            }
+            OPM_THROW_NOLOG(NumericalProblem,
+                            fmt::format("Flash failed in cell {} at p = {} Pa, T = {} K and "
+                                        "z = [{}]: {}",
+                                        elemCtx.globalSpaceIndex(dofIdx, timeIdx),
+                                        getValue(fluidState_.pressure(FluidSystem::oilPhaseIdx)),
+                                        getValue(fluidState_.temperature(0)),
+                                        fmt::join(composition, ", "),
+                                        error.what()));
+        }
 
         if (flashVerbosity >= 5) {
             std::string phaseCompositions;
