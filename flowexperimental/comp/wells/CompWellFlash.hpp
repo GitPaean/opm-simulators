@@ -34,6 +34,19 @@
 
 namespace Opm {
 
+/// The fluid system for flashes at stock-tank conditions: the surface-condition
+/// equation of state where the fluid system provides one.
+template <typename FluidSystem>
+struct SurfaceFluidSystemOf {
+    using type = FluidSystem;
+};
+
+template <typename FluidSystem>
+    requires requires { typename FluidSystem::SurfaceFluidSystem; }
+struct SurfaceFluidSystemOf<FluidSystem> {
+    using type = typename FluidSystem::SurfaceFluidSystem;
+};
+
 /// Flash the wellbore fluid at its current (pressure, temperature, overall
 /// composition) and fill in the per-phase saturations, compressibility factors
 /// and densities for the two-phase (oil/gas) system.
@@ -112,11 +125,13 @@ void flashWellboreFluidState(CompositionalFluidState<T, FluidSystem>& fluid_stat
 }
 
 /// Flash a fluid state, holding an overall composition, at the given surface
-/// pressure and temperature.
+/// pressure and temperature with the equation of state eos_type.
 template <typename FluidSystem, typename T>
 void flashAtSurfaceConditions(CompositionalFluidState<T, FluidSystem>& fluid_state,
                               const typename FluidSystem::Scalar pressure,
-                              const typename FluidSystem::Scalar temperature)
+                              const typename FluidSystem::Scalar temperature,
+                              const CompositionalConfig::EOSType eos_type
+                              = CompositionalConfig::EOSType::PR)
 {
     fluid_state.setTemperature(temperature);
     fluid_state.setPressure(FluidSystem::oilPhaseIdx, pressure);
@@ -126,7 +141,7 @@ void flashAtSurfaceConditions(CompositionalFluidState<T, FluidSystem>& fluid_sta
         fluid_state.setKvalue(i, fluid_state.wilsonK_(i));
     }
 
-    flashWellboreFluidState(fluid_state);
+    flashWellboreFluidState(fluid_state, 1.e-6, eos_type);
 }
 
 /// Volume rate of each phase of a component stream at surface conditions [m^3/s],
