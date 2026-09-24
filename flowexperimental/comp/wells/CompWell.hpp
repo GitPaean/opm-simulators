@@ -58,6 +58,7 @@ public:
 
     template <typename T>
     using FluidState = CompositionalFluidState<T, FluidSystem>;
+    using SurfaceFluidSystem = typename SurfaceFluidSystemOf<FluidSystem>::type;
 
     // TODO: this can be a rate converter role later
     // currently, it has the surface densities for each phase and volume fractions for each phase
@@ -181,8 +182,9 @@ private:
                            SingleWellState& well_state) const;
 
     template <typename T>
-    void
-    updateSurfaceCondition_(const StandardCond& surface_cond, FluidState<T>& fluid_state);
+    void updateSurfaceCondition_(const StandardCond& surface_cond,
+                                 CompositionalConfig::EOSType surface_eos_type,
+                                 const FluidState<T>& wellbore_state);
 
     template <typename T>
     void

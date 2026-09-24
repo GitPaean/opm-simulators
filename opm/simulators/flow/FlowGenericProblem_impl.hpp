@@ -638,6 +638,11 @@ void FlowGenericProblem<GridView,FluidSystem>::
 initFluidSystem_()
 {
     FluidSystem::initFromState(eclState_, schedule_);
+    // Compositional runs also flash at stock-tank conditions, with the
+    // surface-condition equation of state.
+    if constexpr (requires { typename FluidSystem::SurfaceFluidSystem; }) {
+        FluidSystem::SurfaceFluidSystem::initFromState(eclState_, schedule_);
+    }
 }
 
 template<class GridView, class FluidSystem>

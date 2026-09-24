@@ -125,17 +125,19 @@ CompWell<TypeTag>::
 updateSurfaceQuantities(const Simulator& simulator)
 {
     const auto& surface_cond = simulator.vanguard().eclState().getTableManager().stCond();
+    const auto surface_eos_type
+        = simulator.vanguard().eclState().compositionalConfig().eosTypeSurf(0);
     if (this->well_ecl_.isInjector()) { // we look for well stream for injection composition
         const auto& inj_composition = this->well_ecl_.getInjectionProperties().gasInjComposition();
         FluidState<Scalar> fluid_state;
         for (unsigned comp_idx = 0; comp_idx < FluidSystem::numComponents; ++comp_idx) {
             fluid_state.setMoleFraction(comp_idx, std::max(inj_composition[comp_idx], 1.e-10));
         }
-        updateSurfaceCondition_(surface_cond, fluid_state);
+        updateSurfaceCondition_(surface_cond, surface_eos_type, fluid_state);
     } else { // the composition will be from the wellbore
         // here, it will use the composition from the wellbore and the pressure and temperature from the surface condition
         auto fluid_state = this->primary_variables_.template toFluidState<EvalWell>();
-        updateSurfaceCondition_(surface_cond, fluid_state);
+        updateSurfaceCondition_(surface_cond, surface_eos_type, fluid_state);
      }
 }
 
@@ -592,11 +594,17 @@ updateWellControl(const SummaryState& summary_state,
 template <typename TypeTag>
 template <typename T>
 void
-CompWell<TypeTag>::
-updateSurfaceCondition_(const StandardCond& surface_cond, FluidState<T>& fluid_state)
+CompWell<TypeTag>::updateSurfaceCondition_(const StandardCond& surface_cond,
+                                           const CompositionalConfig::EOSType surface_eos_type,
+                                           const FluidState<T>& wellbore_state)
 {
     static_assert(std::is_same_v<T, Scalar> || std::is_same_v<T, EvalWell>, "Unsupported type in CompWell::updateSurfaceCondition_");
 
+    // Stock-tank conditions take the surface-condition equation of state.
+    CompositionalFluidState<T, SurfaceFluidSystem> fluid_state;
+    for (unsigned compidx = 0; compidx < FluidSystem::numComponents; ++compidx) {
+        fluid_state.setMoleFraction(compidx, wellbore_state.moleFraction(compidx));
+    }
     fluid_state.setTemperature(surface_cond.temperature);
     fluid_state.setPressure(FluidSystem::oilPhaseIdx, surface_cond.pressure);
     fluid_state.setPressure(FluidSystem::gasPhaseIdx, surface_cond.pressure);
@@ -605,7 +613,7 @@ updateSurfaceCondition_(const StandardCond& surface_cond, FluidState<T>& fluid_s
         fluid_state.setKvalue(i, fluid_state.wilsonK_(i));
     }
 
-    flashFluidState_(fluid_state);
+    flashWellboreFluidState(fluid_state, 1.e-6, surface_eos_type);
 
     for (unsigned compidx = 0; compidx < FluidSystem::numComponents; ++compidx) {
         this->surface_conditions_.mass_fractions_[FluidSystem::oilPhaseIdx][compidx] =

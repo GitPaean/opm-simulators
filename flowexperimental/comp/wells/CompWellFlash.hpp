@@ -33,6 +33,19 @@
 
 namespace Opm {
 
+/// The fluid system for flashes at stock-tank conditions: the surface-condition
+/// equation of state where the fluid system provides one.
+template <typename FluidSystem>
+struct SurfaceFluidSystemOf {
+    using type = FluidSystem;
+};
+
+template <typename FluidSystem>
+    requires requires { typename FluidSystem::SurfaceFluidSystem; }
+struct SurfaceFluidSystemOf<FluidSystem> {
+    using type = typename FluidSystem::SurfaceFluidSystem;
+};
+
 /// Flash the wellbore fluid at its current (pressure, temperature, overall
 /// composition) and fill in the per-phase saturations, compressibility factors
 /// and densities for the two-phase (oil/gas) system.
@@ -47,29 +60,32 @@ namespace Opm {
 ///                      default reproduces the value used in production; the unit
 ///                      test tightens it so the finite-difference comparison is
 ///                      not dominated by flash-convergence noise.
+/// \param eos_type     equation of state of the flash and the phase properties
 ///
 /// This is a free-function extraction of the wellbore flash that previously
 /// lived inline in CompWell, so it can be unit tested (e.g. by a finite
 /// difference check of the AD derivatives) without instantiating a full
 /// Simulator. The behaviour is intentionally identical to the original.
 template <typename FluidSystem, typename T>
-void flashWellboreFluidState(CompositionalFluidState<T, FluidSystem>& fluid_state,
-                             const typename FluidSystem::Scalar flash_tolerance = 1.e-6)
+void
+flashWellboreFluidState(CompositionalFluidState<T, FluidSystem>& fluid_state,
+                        const typename FluidSystem::Scalar flash_tolerance = 1.e-6,
+                        const CompositionalConfig::EOSType eos_type
+                        = CompositionalConfig::EOSType::PR)
 {
     using Scalar = typename FluidSystem::Scalar;
-    using EOSType = CompositionalConfig::EOSType;
 
     bool single_phase = false;
     if constexpr (std::is_same_v<T, Scalar>) {
         single_phase = PTFlash<Scalar, FluidSystem>::flash_solve_scalar_(
-            fluid_state, PTFlashMethod::Ssi, flash_tolerance, EOSType::PR);
+            fluid_state, PTFlashMethod::Ssi, flash_tolerance, eos_type);
     } else { // Evaluation
         single_phase = PTFlash<Scalar, FluidSystem>::solve(
-            fluid_state, PTFlashMethod::Ssi, flash_tolerance, EOSType::PR);
+            fluid_state, PTFlashMethod::Ssi, flash_tolerance, eos_type);
     }
 
     constexpr Scalar R = Constants<Scalar>::R;
-    typename FluidSystem::template ParameterCache<T> param_cache {EOSType::PR};
+    typename FluidSystem::template ParameterCache<T> param_cache {eos_type};
     param_cache.updatePhase(fluid_state, FluidSystem::oilPhaseIdx);
     const auto Z_L = (param_cache.molarVolume(FluidSystem::oilPhaseIdx) * fluid_state.pressure(FluidSystem::oilPhaseIdx)) /
                      (R * fluid_state.temperature(FluidSystem::oilPhaseIdx));
