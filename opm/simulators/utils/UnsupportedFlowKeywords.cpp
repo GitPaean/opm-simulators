@@ -685,6 +685,7 @@ const KeywordValidation::UnsupportedKeywords& unsupportedKeywords()
         {"WH3NUM", {true, std::nullopt}},
         {"WHEDREFD", {true, std::nullopt}},
         {"WHTEMP", {true, std::nullopt}},
+        {"WINJOIL", {false, std::nullopt}},
         {"WLIMTOL", {true, std::nullopt}},
         {"WLIFT", {true, std::nullopt}},
         {"WLISTARG", {true, std::nullopt}},
