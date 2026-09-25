@@ -59,6 +59,27 @@ add_test_compareECLFiles(
     compositional
 )
 
+# The reference output is generated with the opt-in explicit-SWAT rule. The
+# unmodified input SWAT differs enough that running without the flag fails.
+add_test_compareECLFiles(
+  CASENAME
+    compat_explicit_swat_compositional
+  FILENAME
+    1D_COMP_NO_WELLS_DUMMY_WATER
+  SIMULATOR
+    flow_comp
+  REFERENCE_SIMULATOR
+    flow_comp
+  ABS_TOL
+    1e-2
+  REL_TOL
+    ${rel_tol}
+  DIR
+    compositional
+  TEST_ARGS
+    --compat-explicit-swat-init=true
+)
+
 add_test_compareECLFiles(
   CASENAME
     sshift_compositional
