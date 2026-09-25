@@ -81,13 +81,15 @@ update_injector_targets(const Well& well,
                   "Well control must be specified for well " + this->name);
     }
 
+    // The well model books all injected rates to the gas phase.
+    if (injection_properties.injectorType != InjectorType::GAS) {
+        OPM_THROW(std::runtime_error,
+                  "Only gas injection is supported, but well " + this->name
+                  + " injects " + InjectorType2String(injection_properties.injectorType));
+    }
+
     const auto& inj_composition = injection_properties.gasInjComposition();
-#ifndef NDEBUG
     assert(this->total_molar_fractions.size() == inj_composition.size());
-    const auto injection_type = injection_properties.injectorType;
-    const bool is_gas_injecting = (injection_type == InjectorType::GAS);
-    assert(is_gas_injecting && "Only gas injection is supported for now");
-#endif
     this->bhp = inj_controls.bhp_limit;
     this->injection_cmode = inj_controls.cmode;
     // TODO: this might not be correct when crossing flow is involved
