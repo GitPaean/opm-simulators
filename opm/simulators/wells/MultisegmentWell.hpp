@@ -420,6 +420,9 @@ namespace Opm {
                                          const int local_perf_index,
                                          DeferredLogger& deferred_logger);
 
+        // assemble the WSEGHEAT wellbore heat-transfer source terms for a single segment
+        void assembleSegmentHeatTransfer(const int seg, DeferredLogger& deferred_logger);
+
         void updateWellHeadCondition(const Simulator& simulator,
                                      const Scalar first_perf_temperature,
                                      const Scalar first_perf_salt_concentration,

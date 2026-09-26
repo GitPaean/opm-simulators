@@ -91,6 +91,7 @@ MultisegmentWellSegments(const int numSegments,
     // local information. This is an exception and intentionally, since here, we only need the local entries.
     , inlets_(well.wellEcl().getSegments().size())
     , depth_diffs_(numSegments, 0.0)
+    , lengths_(numSegments, 0.0)
     , surface_densities_(surfaceDensities<FluidSystem>(well.pvtRegionIdx(), well.numConservationQuantities()))
     , densities_(numSegments, 0.0)
     , volume_ratios_(numSegments, 0.0)
@@ -157,6 +158,13 @@ MultisegmentWellSegments(const int numSegments,
         const Segment& outlet_segment = segment_set[segment_set.segmentNumberToIndex(outlet_segment_number)];
         const Scalar outlet_depth = outlet_segment.depth();
         depth_diffs_[seg] = segment_depth - outlet_depth;
+    }
+
+    // segment lengths along the tubing; the top segment is measured from the wellhead
+    lengths_[0] = segment_set[0].totalLength();
+    for (int seg = 1; seg < numSegments; ++seg) {
+        const int outlet_segment_index = segment_set.segmentNumberToIndex(segment_set[seg].outletSegment());
+        lengths_[seg] = segment_set[seg].totalLength() - segment_set[outlet_segment_index].totalLength();
     }
 }
 
@@ -243,8 +251,7 @@ getFrictionPressureLoss(const int seg,
     }
 
     const auto& segment_set = well_.wellEcl().getSegments();
-    const int outlet_segment_index = segment_set.segmentNumberToIndex(segment_set[seg].outletSegment());
-    const Scalar length = segment_set[seg].totalLength() - segment_set[outlet_segment_index].totalLength();
+    const Scalar length = lengths_[seg];
     assert(length > 0.);
     const Scalar roughness = segment_set[seg].roughness();
     const Scalar area = segment_set[seg].crossArea();

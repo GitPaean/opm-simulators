@@ -135,6 +135,17 @@ public:
                                const EvalWell& cq_s_effective,
                                Equations& eqns) const;
 
+    //! \brief Assemble one contribution to the wellbore heat-transfer term (WSEGHEAT).
+    //!
+    //! @p heat_rate is a single term of the heat flow into @p seg, and its temperature
+    //! derivative belongs to @p deriv_seg -- the segment whose temperature the term was
+    //! built from. A term depending on two segments is assembled by calling this once per
+    //! segment, so that each derivative reaches the right block of D.
+    void assembleHeatTransferTerm(const int seg,
+                                  const int deriv_seg,
+                                  const EvalWell& heat_rate,
+                                  Equations& eqns) const;
+
 private:
     const WellInterfaceIndices<FluidSystem,Indices>& well_; //!< Reference to well
 };

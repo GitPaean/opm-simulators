@@ -1195,6 +1195,8 @@ reportSegmentResults(const int well_id,
         segpress[Value::PDropAccel] = segments.pressure_drop_accel[seg_ix];
     }
 
+    seg_res.temperature = segments.temperature[seg_ix];
+
     const int num_phases = this->numPhases();
     const auto* rate = &segments.rates[seg_ix * num_phases];
     const auto* resv = &segments.phase_resv_rates[seg_ix * num_phases];

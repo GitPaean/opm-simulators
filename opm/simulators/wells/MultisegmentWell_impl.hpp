@@ -31,6 +31,7 @@
 #include <opm/common/OpmLog/OpmLog.hpp>
 
 #include <opm/input/eclipse/Schedule/MSW/Segment.hpp>
+#include <opm/input/eclipse/Schedule/MSW/SegmentHeatTransfer.hpp>
 #include <opm/input/eclipse/Schedule/MSW/Valve.hpp>
 #include <opm/input/eclipse/Schedule/MSW/WellSegments.hpp>
 #include <opm/input/eclipse/Schedule/Well/Connection.hpp>
@@ -2069,6 +2070,11 @@ namespace Opm
                 }
             }
 
+            // heat exchange between the wellbore and its surroundings (WSEGHEAT)
+            if constexpr (has_energy) {
+                this->assembleSegmentHeatTransfer(seg, deferred_logger);
+            }
+
             // the fourth equation, the pressure drop equation
             if (seg == 0) { // top segment, pressure equation is the control equation
                 const bool stopped_or_zero_target = this->stoppedOrZeroRateTarget(groupStateHelper);
@@ -2775,6 +2781,85 @@ namespace Opm
 
     template <typename TypeTag>
     void
+    MultisegmentWell<TypeTag>::
+    assembleSegmentHeatTransfer(const int seg, DeferredLogger& deferred_logger)
+    {
+        const auto& segment_set = this->wellEcl().getSegments();
+        const auto& coefficients = segment_set[seg].heatTransfer();
+        deferred_logger.info(fmt::format("XXDIAG well {} seg-index {} segno {} ncoeff {} wallArea {} wallCv {}",
+                                         this->name(), seg, segment_set[seg].segmentNumber(),
+                                         coefficients.size(), segment_set[seg].wallArea(),
+                                         segment_set[seg].wallVolumetricHeatCapacity()));
+        if (coefficients.empty()) {
+            return;
+        }
+
+        using Coeff = SegmentHeatTransferCoeff;
+        const EvalWell segment_temperature = this->primary_variables_.getSegmentTemperature(seg);
+
+        for (const auto& coeff : coefficients) {
+            // The thermal resistance (WSEGHEAT item 5) is per unit contact length, so the
+            // conductance is contact length divided by resistance.
+            const Scalar resistance = coeff.thermalResistance();
+            if (!(resistance > 0.)) {
+                continue;
+            }
+
+            switch (coeff.type()) {
+            case Coeff::Type::TEMP: {
+                // Heat exchange with a fixed surrounding temperature (item 7), over the
+                // segment's own length unless a contact length is given (item 9).
+                const Scalar contact_length =
+                    coeff.contactLength().value_or(this->segments_.length(seg));
+                const EvalWell heat_rate = energy_scaling_factor_ * (contact_length / resistance)
+                                         * (coeff.temperature().value() - segment_temperature);
+                MultisegmentWellAssemble(*this).
+                    assembleHeatTransferTerm(seg, seg, heat_rate, this->linSys_);
+                break;
+            }
+
+            case Coeff::Type::SEG: {
+                const int target = segment_set.segmentNumberToIndex(coeff.targetSegment());
+                if (target < 0) {
+                    continue;
+                }
+                // The interpolation constant (item 8) weights the two segments' lengths into
+                // the contact length. Its 0.5 default then reproduces the documented default
+                // of the mean adjacent-segment length.
+                const Scalar alpha = coeff.interpolationConstant();
+                const Scalar contact_length = coeff.contactLength().value_or(
+                    alpha * this->segments_.length(seg) + (1.0 - alpha) * this->segments_.length(target));
+                const Scalar conductance = contact_length / resistance;
+
+                // Split into the two segments' contributions so that each temperature
+                // derivative is assembled into the block of the segment it belongs to.
+                const EvalWell own_term = -energy_scaling_factor_ * conductance * segment_temperature;
+                const EvalWell target_term = energy_scaling_factor_ * conductance
+                                           * this->primary_variables_.getSegmentTemperature(target);
+                MultisegmentWellAssemble(*this).
+                    assembleHeatTransferTerm(seg, seg, own_term, this->linSys_);
+                MultisegmentWellAssemble(*this).
+                    assembleHeatTransferTerm(seg, target, target_term, this->linSys_);
+                break;
+            }
+
+            case Coeff::Type::COMP:
+                // Heat exchange with the perforated formation still to be implemented; it
+                // needs the derivative with respect to the reservoir cell temperature.
+                deferred_logger.warning("WSEGHEAT_COMP_NOT_SUPPORTED",
+                                        fmt::format("Well {}: COMP heat transfer on segment {} "
+                                                    "is not supported yet and is ignored.",
+                                                    this->name(), segment_set[seg].segmentNumber()));
+                break;
+
+            case Coeff::Type::NONE:
+                break;
+            }
+        }
+    }
+
+    template <typename TypeTag>
+    void
     MultisegmentWell<TypeTag>::updateWellHeadCondition(const Simulator& simulator,
                                                        const Scalar first_perf_temperature,
                                                        const Scalar first_perf_salt_concentration,
@@ -2839,7 +2924,8 @@ namespace Opm
 
         ValueType result {0.};
         const auto& segment_fluid_state = this->segment_fluid_state_[seg];
-        const Scalar segment_volume = this->wellEcl().getSegments()[seg].volume();
+        const auto& segment = this->wellEcl().getSegments()[seg];
+        const Scalar segment_volume = segment.volume();
         for (unsigned phaseIdx = 0; phaseIdx < FluidSystem::numPhases; ++phaseIdx) {
             if (!FluidSystem::phaseIsActive(phaseIdx)) {
                 continue;
@@ -2849,6 +2935,17 @@ namespace Opm
             const auto rho = obtain(segment_fluid_state.density(phaseIdx));
             result += segment_volume * u * s * rho;
         }
+
+        // The pipe wall is taken to be in thermal equilibrium with the segment fluid, so its
+        // heat capacity adds to the segment's thermal inertia. Zero unless the deck gives both
+        // the wall cross-sectional area (WELSEGS item 10/13) and its volumetric heat capacity
+        // (item 11/14).
+        const Scalar wall_heat_capacity = segment.wallArea() * this->segments_.length(seg)
+                                        * segment.wallVolumetricHeatCapacity();
+        if (wall_heat_capacity > 0.) {
+            result += wall_heat_capacity * obtain(this->primary_variables_.getSegmentTemperature(seg));
+        }
+
         return result;
     }
 

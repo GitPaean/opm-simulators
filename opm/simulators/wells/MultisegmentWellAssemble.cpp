@@ -433,6 +433,27 @@ assemblePerforationEq(const int seg,
     }
 }
 
+template<class FluidSystem, class Indices>
+void MultisegmentWellAssemble<FluidSystem,Indices>::
+assembleHeatTransferTerm(const int seg,
+                         const int deriv_seg,
+                         const EvalWell& heat_rate,
+                         Equations& eqns1) const
+{
+    /*
+        This method is called from MultisegmentWell::assembleWellEqWithoutIteration.
+        It does *not* need communication.
+    */
+    if constexpr (enable_energy) {
+        MultisegmentWellEquationAccess<Scalar,IndexTraits,numWellEq,Indices::numEq> eqns(eqns1);
+        // Heat flowing into the segment lowers the residual, as for the perforation
+        // energy source term.
+        eqns.residual()[seg][Temperature] -= heat_rate.value();
+        eqns.D()[seg][deriv_seg][Temperature][Temperature] -=
+            heat_rate.derivative(Temperature + Indices::numEq);
+    }
+}
+
 
 #include <opm/simulators/utils/InstantiationIndicesMacros.hpp>
 

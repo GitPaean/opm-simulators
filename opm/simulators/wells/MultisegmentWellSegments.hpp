@@ -160,6 +160,14 @@ public:
         return local_perforation_depth_diffs_[local_perf_index];
     }
 
+    //! \brief Length of a segment along the tubing.
+    //!
+    //! Measured from the outlet segment's node, and from the wellhead for the top segment.
+    Scalar length(const int seg) const
+    {
+        return lengths_[seg];
+    }
+
     void copyPhaseDensities(SegmentState<Scalar>& segSol) const;
 
 private:
@@ -186,6 +194,9 @@ private:
     std::vector<std::vector<int>> inlets_;
 
     std::vector<Scalar> depth_diffs_;
+
+    // length of each segment along the tubing, see length()
+    std::vector<Scalar> lengths_;
 
     std::vector<Scalar> surface_densities_;
 
