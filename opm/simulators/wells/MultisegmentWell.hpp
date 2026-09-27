@@ -54,7 +54,6 @@ namespace Opm {
         using typename Base::Indices;
         using typename Base::RateConverterType;
         using typename Base::SparseMatrixAdapter;
-        using typename Base::FluidState;
         using typename Base::WellStateType;
         using typename Base::GroupStateHelperType;
 
@@ -73,11 +72,6 @@ namespace Opm {
         // fluid state's enableDissolution flag (see WellInterface::BlackOilFluidStateType).
         static constexpr bool compositionSwitchEnabled =
             Indices::compositionSwitchIdx != std::numeric_limits<unsigned>::max();
-
-        // True when the segment fluid state stores a temperature. This includes thermal modes
-        // without a fully implicit energy equation.
-        static constexpr bool enable_temperature =
-            Base::energyModuleType != EnergyModules::NoTemperature;
 
         // Scales the well-side energy equation onto the mass-balance residual
         // scale. Reuses the reservoir energy factor so both live on the same scale.
@@ -398,15 +392,6 @@ namespace Opm {
         // updating the inflow based on the current reservoir condition
         void updateIPR(const Simulator& ebos_simulator,
                        DeferredLogger& deferred_logger) const override;
-
-        // this function can potentially be shared between multisegment wells and standard wells
-        template <typename ValueType = EvalWell>
-        SegmentFluidState<ValueType>
-        createFluidState(const std::vector<ValueType>& fluid_composition,
-                         const ValueType& pressure,
-                         const ValueType& temperature,
-                         const ValueType& saltConcentration,
-                         DeferredLogger& deferred_logger) const;
 
         SegmentFluidState<EvalWell>
         createSegmentFluidState(int seg, const FSInfo& info, DeferredLogger& deferred_logger) const;

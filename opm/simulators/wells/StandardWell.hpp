@@ -70,7 +70,6 @@ namespace Opm
         using typename Base::Indices;
         using typename Base::RateConverterType;
         using typename Base::SparseMatrixAdapter;
-        using typename Base::FluidState;
         using typename Base::RateVector;
         using typename Base::GroupStateHelperType;
 
@@ -83,27 +82,13 @@ namespace Opm
         using Base::has_energy;
         using Base::has_bioeffects;
         using Base::has_micp;
-        using Base::has_watVapor;
-        using Base::has_disgas_in_water;
 
         using FoamModule = BlackOilFoamModule<TypeTag, has_foam>;
         using PolymerModule =  BlackOilPolymerModule<TypeTag, has_polymer>;
-        using SolventModule = BlackOilSolventModule<TypeTag, has_solvent>;
         using typename Base::PressureMatrix;
 
         template <typename ValueType>
         using WellboreFluidState = Base::template BlackOilFluidStateType<ValueType>;
-
-        // True when the composition switch primary variable is active, i.e. both oil and
-        // gas phases are present so that Rs/Rv are stored in the fluid state.
-        static constexpr bool compositionSwitchEnabled =
-            Indices::compositionSwitchIdx != std::numeric_limits<unsigned>::max();
-
-        // True when the fluid state stores a temperature. This includes thermal modes
-        // without a fully implicit energy equation, so it is weaker than has_energy and
-        // must be used when populating the temperature.
-        static constexpr bool enable_temperature =
-            Base::energyModuleType != EnergyModules::NoTemperature;
 
         // number of the conservation equations
         static constexpr int numWellConservationEq = Indices::numPhases + Indices::numSolvents;
@@ -520,17 +505,6 @@ namespace Opm
         // update well_fluid_state_ and wellbore_volume_ratio_ from the current
         // primary variables
         void updateWellFluidState();
-
-        // Fluid state representing the mixture in the wellbore, together with the volume
-        // ratio, i.e. the in-situ (wellbore condition) volume per unit surface volume of
-        // the mixture. The volume ratio is not a property of the fluid state, so it is
-        // kept by the well itself.
-        template <typename ValueType>
-        std::pair<WellboreFluidState<ValueType>, ValueType>
-        createFluidState(const std::vector<ValueType>& fluid_composition,
-                         const ValueType& pressure,
-                         const ValueType& temperature,
-                         const Scalar saltConcentration = 0.0) const;
     };
 
 }
