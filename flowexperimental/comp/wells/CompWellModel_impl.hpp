@@ -158,9 +158,11 @@ createWellContainer()
 
         // The wellbore takes the EOS region of the cell of its first connection.
         const auto cell = well_connection_data_[w].front().cell_index;
-        well_container_.emplace_back(std::make_shared<CompWell<TypeTag>>(
-            wells_ecl_[w], w, well_connection_data_[w], dwell_fraction_max_, dbhp_max_rel_,
-            problem.eosRegionIndex(cell), problem.getEosType(cell)));
+        const auto eos_region = problem.eosRegionIndex(cell);
+        const auto eos_type = problem.getEosType(cell);
+        well_container_.emplace_back(std::make_shared<CompWell<TypeTag>>(wells_ecl_[w], w, well_connection_data_[w],
+                                                                          dwell_fraction_max_, dbhp_max_rel_,
+                                                                          eos_region, eos_type));
     }
 }
 
