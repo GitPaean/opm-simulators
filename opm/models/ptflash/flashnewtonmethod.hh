@@ -142,6 +142,10 @@ protected:
             if (update[Indices::water0Idx] > dSwMax) {
                 nextValue[Indices::water0Idx] = priVarsOld[Indices::water0Idx] - dSwMax;
             }
+
+            // Above one the hydrocarbon share stays at its floor, so the residual
+            // no longer changes with Sw while its derivatives still do.
+            nextValue[Indices::water0Idx] = std::min(nextValue[Indices::water0Idx], Scalar{1});
         }
     }
 };  // class FlashNewtonMethod
