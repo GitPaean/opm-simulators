@@ -60,6 +60,7 @@ class FlashNewtonMethod : public GetPropType<TypeTag, Properties::DiscNewtonMeth
     using Simulator = GetPropType<TypeTag, Properties::Simulator>;
     using Scalar = GetPropType<TypeTag, Properties::Scalar>;
     using Indices = GetPropType<TypeTag, Properties::Indices>;
+    using IntensiveQuantities = GetPropType<TypeTag, Properties::IntensiveQuantities>;
 
     enum { pressure0Idx = Indices::pressure0Idx };
     enum { z0Idx = Indices::z0Idx };
@@ -107,6 +108,30 @@ protected:
                                              priVarsOld[pressure0Idx] * upper_bound);
 
         ////
+        // Water saturation updates
+        ////
+        Scalar zStepScale = 1.0;
+        if constexpr (waterEnabled) {
+            // limit change in water saturation
+            constexpr Scalar dSwMax = 0.2;
+            if (update[Indices::water0Idx] > dSwMax) {
+                nextValue[Indices::water0Idx] = priVarsOld[Indices::water0Idx] - dSwMax;
+            }
+
+            // Above one the hydrocarbon share stays at its floor, so the residual
+            // no longer changes with Sw while its derivatives still do.
+            nextValue[Indices::water0Idx] = std::min(nextValue[Indices::water0Idx], Scalar{1});
+
+            // Where the hydrocarbon share h grows, take the composition step in the
+            // component amounts h z. The step in z alone grows as 1/h and overshoots
+            // when hydrocarbon enters a cell that holds water only.
+            const auto share = [](const Scalar sw)
+            { return std::max(1 - sw, IntensiveQuantities::hydrocarbonFloor); };
+            zStepScale = std::min(share(priVarsOld[Indices::water0Idx]) /
+                                  share(nextValue[Indices::water0Idx]), Scalar{1});
+        }
+
+        ////
         // z updates
         ////
         // restrict update
@@ -123,29 +148,18 @@ protected:
         // \Note: original code uses 0.1, while 0.1 looks like having problem make it converged.
         // So there is some more to investigate here
         constexpr Scalar deltaz_limit = 0.2;
-        if (maxDeltaZ > deltaz_limit) {
-            const Scalar alpha = deltaz_limit / maxDeltaZ;
-            for (unsigned compIdx = 0; compIdx < numComponents - 1; ++compIdx) {
-                nextValue[z0Idx + compIdx] = priVarsOld[z0Idx + compIdx] - alpha * update[z0Idx + compIdx];
-            }
+        Scalar alpha = zStepScale;
+        if (alpha * maxDeltaZ > deltaz_limit) {
+            alpha = deltaz_limit / maxDeltaZ;
+        }
+        for (unsigned compIdx = 0; compIdx < numComponents - 1; ++compIdx) {
+            nextValue[z0Idx + compIdx] = priVarsOld[z0Idx + compIdx] - alpha * update[z0Idx + compIdx];
         }
 
         // ensure that z-values are less than tol or more than 1-tol
         constexpr Scalar tol = 1e-8;
         for (unsigned compIdx = 0; compIdx < numComponents - 1; ++compIdx) {
            nextValue[z0Idx + compIdx] = std::clamp(nextValue[z0Idx + compIdx], tol, 1-tol);
-        }
-
-        if constexpr (waterEnabled) {
-            // limit change in water saturation
-            constexpr Scalar dSwMax = 0.2;
-            if (update[Indices::water0Idx] > dSwMax) {
-                nextValue[Indices::water0Idx] = priVarsOld[Indices::water0Idx] - dSwMax;
-            }
-
-            // Above one the hydrocarbon share stays at its floor, so the residual
-            // no longer changes with Sw while its derivatives still do.
-            nextValue[Indices::water0Idx] = std::min(nextValue[Indices::water0Idx], Scalar{1});
         }
     }
 };  // class FlashNewtonMethod

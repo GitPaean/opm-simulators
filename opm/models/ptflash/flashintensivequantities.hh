@@ -91,11 +91,6 @@ class FlashIntensiveQuantities
 
     using Scalar = GetPropType<TypeTag, Properties::Scalar>;
 
-    /// Minimum hydrocarbon share of the pore space, including cells that would
-    /// otherwise hold water alone. Component-storage derivatives scale with this
-    /// share, so it cannot vanish. The value matches the composition floor.
-    static constexpr Scalar hydrocarbonFloor = 1.0e-8;
-
     using Evaluation = GetPropType<TypeTag, Properties::Evaluation>;
     using FluidSystem = GetPropType<TypeTag, Properties::FluidSystem>;
     using FlashSolver = GetPropType<TypeTag, Properties::FlashSolver>;
@@ -110,6 +105,11 @@ class FlashIntensiveQuantities
 public:
     //! The type of the object returned by the fluidState() method
     using FluidState = CompositionalFluidState<Evaluation, FluidSystem, enableEnergy>;
+
+    /// Minimum hydrocarbon share of the pore space, including cells that would
+    /// otherwise hold water alone. Component-storage derivatives scale with this
+    /// share, so it cannot vanish. The value matches the composition floor.
+    static constexpr Scalar hydrocarbonFloor = 1.0e-8;
 
     FlashIntensiveQuantities() = default;
 
