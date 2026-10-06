@@ -55,6 +55,7 @@ init()
 {
     Base::init();
     well_equations_.init(this->number_of_connection_, this->well_cells_);
+    connection_pressure_diffs_.assign(this->number_of_connection_, 0.);
 }
 
 template <typename TypeTag>
@@ -99,6 +100,15 @@ calculateExplicitQuantities(const Simulator& simulator,
                                this->wellbore_volume_);
         this->component_masses_ = contents.component_masses;
         this->water_mass_ = contents.water_mass;
+
+        // As for the black-oil wells, the hydrostatic head between the
+        // reference depth and the connections is fixed at the start of the
+        // time step. The single wellbore node gives one fluid density.
+        const Scalar gravity = simulator.problem().gravity()[2];
+        for (int con_idx = 0; con_idx < this->number_of_connection_; ++con_idx) {
+            this->connection_pressure_diffs_[con_idx] = contents.density * gravity
+                * (this->connection_depths_[con_idx] - this->reference_depth_);
+        }
     }
 }
 
@@ -205,26 +215,27 @@ template <typename TypeTag>
 void
 CompWell<TypeTag>::
 calculateSingleConnectionRate(const Simulator& simulator,
+                              const int con_idx,
                               std::vector<EvalWell>& con_rates) const
 {
-    constexpr int con_idx = 0; // TODO: to be a function argument for multiple connection wells
     // The components travel in the two EOS phases, so their rate loop runs over
     // the miscible phases; water is pure and gets its own rate below. The
     // mobility vector is sized for every phase getMobility() fills.
     constexpr int np = FluidSystem::numMisciblePhases;
-    const EvalWell& bhp = this->primary_variables_.getBhp();
-    const unsigned cell_idx = this->well_cells_[0];
+    const EvalWell connection_pressure = this->primary_variables_.getBhp()
+        + this->connection_pressure_diffs_[con_idx];
+    const unsigned cell_idx = this->well_cells_[con_idx];
     const auto& int_quantities = simulator.problem().model().cachedIntensiveQuantities(cell_idx, 0);
     assert(int_quantities);
     std::vector<EvalWell> mob(FluidSystem::numPhases, 0.);
     getMobility(simulator, con_idx, mob);
 
-    const Scalar tw = this->well_index_[0]; // only one connection
+    const Scalar tw = this->well_index_[con_idx];
 
     const auto& fluid_state = int_quantities->fluidState();
 
     const EvalWell cell_pressure = PrimaryVariables::extendEval(fluid_state.pressure(FluidSystem::oilPhaseIdx));
-    const EvalWell drawdown = cell_pressure - bhp;
+    const EvalWell drawdown = cell_pressure - connection_pressure;
 
     if (drawdown > 0.) { // producing connection
         std::vector<EvalWell> cq_v(np);
@@ -297,43 +308,43 @@ assembleWellEq(const Simulator& simulator,
 {
     this->well_equations_.clear();
 
-    // The reservoir residual is volume-specific when UseVolumetricResidual is
-    // set (the models-layer default, used by the compositional model), so the
-    // reservoir rows of the coupling, C, carry the connected cell's 1/volume.
-    Scalar coupling_scale = 1.;
-    if constexpr (getPropValue<TypeTag, Properties::UseVolumetricResidual>()) {
-        coupling_scale = 1. / simulator.model().dofTotalVolume(this->well_cells_[0]);
-    }
-
     this->updateSecondaryQuantities(simulator);
 
     assembleSourceTerm(dt);
 
-    // one equation per hydrocarbon component plus one for water when enabled;
-    // the water slot in the reservoir rate vector has the same position
-    // (conti0EqIdx + numComponents) as the water conservation row here
-    std::vector<EvalWell> connection_rates(PrimaryVariables::numWellConservationEq, 0.);
-    calculateSingleConnectionRate(simulator, connection_rates);
-    // only one perforation for now
-    auto& con_rates = this->connectionRates_[0];
-    for (unsigned comp_idx = 0; comp_idx < PrimaryVariables::numWellConservationEq; ++comp_idx) {
-        con_rates[comp_idx] = PrimaryVariables::restrictEval(connection_rates[comp_idx]);
-    }
-
-    // here we use perf index, need to check how the things are done in the StandardWellAssemble
-    // assemble the well equations related to the production/injection mass rates for each component
-    for (unsigned comp_idx = 0; comp_idx < PrimaryVariables::numWellConservationEq; ++comp_idx) {
-        // the signs need to be checked
-        this->well_equations_.residual()[0][comp_idx] += connection_rates[comp_idx].value();
-        for (unsigned pvIdx = 0; pvIdx < PrimaryVariables::numWellEq; ++pvIdx) {
-            // C, needs the cell_idx
-            this->well_equations_.C()[0][0][pvIdx][comp_idx]
-                -= coupling_scale * connection_rates[comp_idx].derivative(pvIdx + PrimaryVariables::numResEq);
-            this->well_equations_.D()[0][0][comp_idx][pvIdx] += connection_rates[comp_idx].derivative(pvIdx + PrimaryVariables::numResEq);
+    for (int con_idx = 0; con_idx < this->number_of_connection_; ++con_idx) {
+        // The reservoir residual is volume-specific when UseVolumetricResidual is
+        // set (the models-layer default, used by the compositional model), so the
+        // reservoir rows of the coupling, C, carry the connected cell's 1/volume.
+        Scalar coupling_scale = 1.;
+        if constexpr (getPropValue<TypeTag, Properties::UseVolumetricResidual>()) {
+            coupling_scale = 1. / simulator.model().dofTotalVolume(this->well_cells_[con_idx]);
         }
 
-        for (unsigned pvIdx = 0; pvIdx < PrimaryVariables::numResEq; ++pvIdx) {
-            this->well_equations_.B()[0][0][comp_idx][pvIdx] += connection_rates[comp_idx].derivative(pvIdx);
+        // one equation per hydrocarbon component plus one for water when enabled;
+        // the water slot in the reservoir rate vector has the same position
+        // (conti0EqIdx + numComponents) as the water conservation row here
+        std::vector<EvalWell> connection_rates(PrimaryVariables::numWellConservationEq, 0.);
+        calculateSingleConnectionRate(simulator, con_idx, connection_rates);
+        auto& con_rates = this->connectionRates_[con_idx];
+        for (unsigned comp_idx = 0; comp_idx < PrimaryVariables::numWellConservationEq; ++comp_idx) {
+            con_rates[comp_idx] = PrimaryVariables::restrictEval(connection_rates[comp_idx]);
+        }
+
+        // here we use perf index, need to check how the things are done in the StandardWellAssemble
+        // assemble the well equations related to the production/injection mass rates for each component
+        for (unsigned comp_idx = 0; comp_idx < PrimaryVariables::numWellConservationEq; ++comp_idx) {
+            // the signs need to be checked
+            this->well_equations_.residual()[0][comp_idx] += connection_rates[comp_idx].value();
+            for (unsigned pvIdx = 0; pvIdx < PrimaryVariables::numWellEq; ++pvIdx) {
+                this->well_equations_.C()[0][con_idx][pvIdx][comp_idx]
+                    -= coupling_scale * connection_rates[comp_idx].derivative(pvIdx + PrimaryVariables::numResEq);
+                this->well_equations_.D()[0][0][comp_idx][pvIdx] += connection_rates[comp_idx].derivative(pvIdx + PrimaryVariables::numResEq);
+            }
+
+            for (unsigned pvIdx = 0; pvIdx < PrimaryVariables::numResEq; ++pvIdx) {
+                this->well_equations_.B()[0][con_idx][comp_idx][pvIdx] += connection_rates[comp_idx].derivative(pvIdx);
+            }
         }
     }
 
