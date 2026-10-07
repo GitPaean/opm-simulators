@@ -164,7 +164,7 @@ initialLinearization(SimulatorReportSingle& report,
     ParentType::initialLinearization(report,
                                      minIter,
                                      maxIter,
-                                     timer);                                 
+                                     timer);
 
     // -----------   Check if converged   -----------
     std::vector<Scalar> residual_norms;
@@ -475,6 +475,14 @@ solveJacobianSystem(BVector& x)
         // consistent, this is not relevant for OPM-flow...
         linSolver.solve(x);
     }
+
+#if HAVE_MPI
+    // The solver may leave an overlap entry of x different from its owner's
+    // (e.g. for a cell without couplings); every copy must get the same update.
+    if (this->grid_.comm().size() > 1) {
+        linSolver.comm()->copyOwnerToAll(x, x);
+    }
+#endif
 }
 
 template <class TypeTag>
@@ -524,6 +532,15 @@ storeSolutionUpdate(const GlobalEqVector& dx)
         // Transfer update from dx to solution update container (SolutionVector type)
         std::ranges::copy(update, value.begin());
     }
+}
+
+template <class TypeTag>
+void
+NonlinearSystemBlackOilReservoir<TypeTag>::
+postSolutionUpdate()
+{
+    // Overlap cells got their owners' update in solveJacobianSystem(), so
+    // their primary variables already match and need no communication.
 }
 
 template <class TypeTag>

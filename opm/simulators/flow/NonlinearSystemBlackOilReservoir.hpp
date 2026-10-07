@@ -194,6 +194,9 @@ public:
     bool shouldStoreSolutionUpdate() const override;
     void prepareSolutionUpdate() override;
     void storeSolutionUpdate(const GlobalEqVector& dx) override;
+    /// Skips the base class's overlap synchronisation: solveJacobianSystem()
+    /// already gives every overlap cell its owner's update.
+    void postSolutionUpdate() override;
     MaxSolutionUpdateData getMaxSolutionUpdate(const std::vector<unsigned>& ixCells);
 
     std::tuple<Scalar,Scalar>
