@@ -654,11 +654,11 @@ namespace Dune
           diagonal.solve(x[row.index()], b[row.index()]);
       }
 
+      // Copy the owner's values of the rows solved above to all ranks, since
+      // not every smoother does this in pre().
+      matrices_->parallelInformation().finest()->copyOwnerToAll(x,x);
       if(smoothers_->levels()>0)
         smoothers_->finest()->pre(x,b);
-      else
-        // No smoother to make x consistent! Do it by hand
-        matrices_->parallelInformation().coarsest()->copyOwnerToAll(x,x);
 
 
       typedef std::shared_ptr< Range  >  RangePtr ;

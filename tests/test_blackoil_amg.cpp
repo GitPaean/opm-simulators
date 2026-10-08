@@ -379,8 +379,8 @@ BOOST_AUTO_TEST_CASE(IsolatedRowsHaveConsistentInitialSolution)
     Dune::Amg::AMGCPR<Operator, Vector, Smoother, Communication> amg(
         op, criterion, smootherArgs, comm);
 
-    // A one-level hierarchy uses AMG's own copyOwnerToAll(), bypassing the
-    // smoother whose pre() must make the locally solved isolated rows consistent.
+    // Use two levels, so that AMGCPR::pre also calls the ILU smoother's pre(),
+    // which does not copy the owner's values.
     BOOST_REQUIRE_GE(ccomm.min(amg.levels()), 2u);
     Vector x(numRows), rhs(numRows);
     x = 1.0;
@@ -394,7 +394,7 @@ BOOST_AUTO_TEST_CASE(IsolatedRowsHaveConsistentInitialSolution)
 
     // Owner rows 0 and 3 are isolated and become 7 and 11. Their identity
     // copy rows have zero right hand sides, so AMG locally sets those copies
-    // to zero before calling the ILU smoother's pre().
+    // to zero before copying the owner's values to them.
     amg.pre(x, rhs);
     const std::array<double, numRows> expected = {7.0, 1.0, 1.0, 11.0, 1.0, 1.0};
     for (int row = 0; row < numRows; ++row) {
