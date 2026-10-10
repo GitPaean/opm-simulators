@@ -300,6 +300,10 @@ std::unique_ptr<Matrix> blockJacobiAdjacency(const Grid& grid,
             ElementMapper elemMapper(simulator_.vanguard().gridView(), Dune::mcmgElementLayout());
             detail::findOverlapAndInterior(simulator_.vanguard().grid(), elemMapper, overlapRows_, interiorRows_);
             useWellConn_ = Parameters::Get<Parameters::MatrixAddWellContributions>();
+            const bool hasWells = simulator_.vanguard().schedule().numWells() > 0;
+            for (const auto& prm : prm_) {
+                checkUmfpackMatrixAddWell(prm, useWellConn_, hasWells);
+            }
             const bool ownersFirst = Parameters::Get<Parameters::OwnerCellsFirst>();
             if (!ownersFirst) {
                 const std::string msg = "The linear solver no longer supports --owner-cells-first=false.";
