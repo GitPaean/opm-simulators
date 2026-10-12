@@ -652,11 +652,14 @@ protected:
     void normalizeExplicitSwat_()
     {
         using FlashSolver = GetPropType<TypeTag, Properties::FlashSolver>;
-        const auto eos_type = getEosType();
         constexpr Scalar flash_tolerance = 1e-8;
         int zmf_oil_and_gas_cells = 0;
 
-        for (auto& fs : initialFluidStates_) {
+        for (std::size_t cell = 0; cell < initialFluidStates_.size(); ++cell) {
+            auto& fs = initialFluidStates_[cell];
+            // the properties and equation of state of the cell's EOS region
+            const typename FluidSystem::ScopedEosRegion eosRegion{eosRegionIndex(cell)};
+            const auto eos_type = getEosType(cell);
             const Scalar sw_in = fs.saturation(FluidSystem::waterPhaseIdx);
             if (sw_in <= 0.0 || sw_in >= 1.0) {
                 continue;
