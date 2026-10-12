@@ -145,13 +145,16 @@ void flashAtSurfaceConditions(CompositionalFluidState<T, FluidSystem>& fluid_sta
 }
 
 /// Volume rate of each phase of a component stream at surface conditions [m^3/s],
-/// from flashing the stream's own composition. The rates take the sign of the
-/// component mass rates [kg/s]; a stream without flow gives zero rates.
+/// from flashing the stream's own composition with the equation of state
+/// eos_type. The rates take the sign of the component mass rates [kg/s]; a
+/// stream without flow gives zero rates.
 template <typename FluidSystem>
 std::array<typename FluidSystem::Scalar, FluidSystem::numPhases>
 surfacePhaseRates(const std::array<typename FluidSystem::Scalar, FluidSystem::numComponents>& component_mass_rates,
                   const typename FluidSystem::Scalar pressure,
-                  const typename FluidSystem::Scalar temperature)
+                  const typename FluidSystem::Scalar temperature,
+                  const CompositionalConfig::EOSType eos_type
+                  = CompositionalConfig::EOSType::PR)
 {
     using Scalar = typename FluidSystem::Scalar;
     constexpr int num_comp = FluidSystem::numComponents;
@@ -174,7 +177,7 @@ surfacePhaseRates(const std::array<typename FluidSystem::Scalar, FluidSystem::nu
     for (int comp_idx = 0; comp_idx < num_comp; ++comp_idx) {
         fluid_state.setMoleFraction(comp_idx, std::max(molar_rates[comp_idx] / molar_rate, Scalar{1.e-10}));
     }
-    flashAtSurfaceConditions(fluid_state, pressure, temperature);
+    flashAtSurfaceConditions(fluid_state, pressure, temperature, eos_type);
 
     const Scalar so = fluid_state.saturation(FluidSystem::oilPhaseIdx);
     const Scalar sg = fluid_state.saturation(FluidSystem::gasPhaseIdx);
