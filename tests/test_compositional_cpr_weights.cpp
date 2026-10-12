@@ -227,6 +227,12 @@ struct TestContext
     const auto& intensiveQuantities(unsigned, unsigned) const { return iq; }
     const IntensiveQuantities<waterEnabled>* thermodynamicHint(unsigned, unsigned) const
     { return nullptr; }
+    // no cached intensive quantities to warm-start the flash from
+    struct Model {
+        const IntensiveQuantities<waterEnabled>* lastIntensiveQuantities(unsigned, unsigned) const
+        { return nullptr; }
+    };
+    Model model() const { return {}; }
     unsigned globalSpaceIndex(unsigned, unsigned) const { return 0; }
     struct SubControlVolume { double volume() const { return 100.0; } };
     struct Stencil {

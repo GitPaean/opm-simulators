@@ -83,8 +83,9 @@ struct FixedFlash
 {
     static inline double liquidFraction = 0.4;
 
+    // returns whether the mixture is single-phase, as the flash solvers do
     template<class FluidState, class Method>
-    static void solve(FluidState& fs, Method, double, int, int)
+    static bool solve(FluidState& fs, Method, double, int, int)
     {
         fs.setLvalue(Evaluation{liquidFraction});
         for (unsigned phase = 0; phase < 2; ++phase) {
@@ -92,6 +93,7 @@ struct FixedFlash
                 fs.setMoleFraction(phase, comp, fs.moleFraction(comp));
             }
         }
+        return liquidFraction <= 0.0 || liquidFraction >= 1.0;
     }
 };
 
@@ -208,6 +210,12 @@ struct TestContext
     const TestProblem& problem() const { return problem_; }
     const IntensiveQuantities<waterEnabled>* thermodynamicHint(unsigned, unsigned) const
     { return nullptr; }
+    // no cached intensive quantities to warm-start the flash from
+    struct Model {
+        const IntensiveQuantities<waterEnabled>* lastIntensiveQuantities(unsigned, unsigned) const
+        { return nullptr; }
+    };
+    Model model() const { return {}; }
     unsigned globalSpaceIndex(unsigned, unsigned) const { return 0; }
 };
 
