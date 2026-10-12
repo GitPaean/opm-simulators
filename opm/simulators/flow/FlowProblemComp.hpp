@@ -654,7 +654,6 @@ protected:
     void normalizeExplicitSwat_()
     {
         using FlashSolver = GetPropType<TypeTag, Properties::FlashSolver>;
-        const auto eos_type = getEosType();
         // Flash as the model does, so that this converges wherever the model's flash does.
         const Scalar flash_tolerance = Parameters::Get<Parameters::FlashTolerance<Scalar>>();
         const int flash_verbosity = Parameters::Get<Parameters::FlashVerbosity>();
@@ -665,7 +664,11 @@ protected:
         // A failing flash on one rank must not leave the others in the reduction below.
         const auto& comm = this->simulator().vanguard().grid().comm();
         OPM_BEGIN_PARALLEL_TRY_CATCH();
-        for (auto& fs : initialFluidStates_) {
+        for (std::size_t cell = 0; cell < initialFluidStates_.size(); ++cell) {
+            auto& fs = initialFluidStates_[cell];
+            // the properties and equation of state of the cell's EOS region
+            const typename FluidSystem::ScopedEosRegion eosRegion{eosRegionIndex(cell)};
+            const auto eos_type = getEosType(cell);
             const Scalar sw_in = fs.saturation(FluidSystem::waterPhaseIdx);
             if (sw_in <= 0.0 || sw_in >= 1.0) {
                 continue;
