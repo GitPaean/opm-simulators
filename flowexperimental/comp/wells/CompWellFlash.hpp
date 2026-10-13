@@ -51,7 +51,7 @@ namespace Opm {
 /// This is a free-function extraction of the wellbore flash that previously
 /// lived inline in CompWell, so it can be unit tested (e.g. by a finite
 /// difference check of the AD derivatives) without instantiating a full
-/// Simulator. The behaviour is intentionally identical to the original.
+/// Simulator.
 template <typename FluidSystem, typename T>
 void flashWellboreFluidState(CompositionalFluidState<T, FluidSystem>& fluid_state,
                              const typename FluidSystem::Scalar flash_tolerance = 1.e-6)
@@ -59,13 +59,16 @@ void flashWellboreFluidState(CompositionalFluidState<T, FluidSystem>& fluid_stat
     using Scalar = typename FluidSystem::Scalar;
     using EOSType = CompositionalConfig::EOSType;
 
+    // Substitution alone stalls close to the critical point, e.g. for gas
+    // injected into a rich condensate. Newton finishes the split, as in the
+    // reservoir flash.
     bool single_phase = false;
     if constexpr (std::is_same_v<T, Scalar>) {
         single_phase = PTFlash<Scalar, FluidSystem>::flash_solve_scalar_(
-            fluid_state, PTFlashMethod::Ssi, flash_tolerance, EOSType::PR);
+            fluid_state, PTFlashMethod::SsiNewton, flash_tolerance, EOSType::PR);
     } else { // Evaluation
         single_phase = PTFlash<Scalar, FluidSystem>::solve(
-            fluid_state, PTFlashMethod::Ssi, flash_tolerance, EOSType::PR);
+            fluid_state, PTFlashMethod::SsiNewton, flash_tolerance, EOSType::PR);
     }
 
     constexpr Scalar R = Constants<Scalar>::R;
