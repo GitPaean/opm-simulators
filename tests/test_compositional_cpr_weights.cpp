@@ -171,6 +171,13 @@ struct TestProblem
     { return Opm::CompositionalConfig::EOSType::PR; }
     std::size_t eosRegionIndex(unsigned) const { return 0; }
     template<class Context>
+    unsigned pvtRegionIndex(const Context&, unsigned, unsigned) const { return 0; }
+    // the porosity below carries the compressibility
+    template<class Context>
+    double rockCompressibility(const Context&, unsigned, unsigned) const { return 0.0; }
+    template<class Context>
+    double rockReferencePressure(const Context&, unsigned, unsigned) const { return 1.0e7; }
+    template<class Context>
     TestMaterialLaw::Params materialLawParams(const Context&, unsigned, unsigned) const { return {}; }
     template<class Context>
     auto porosity(const Context& context, unsigned, unsigned) const
