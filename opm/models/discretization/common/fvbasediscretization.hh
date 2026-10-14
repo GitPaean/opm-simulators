@@ -630,6 +630,27 @@ public:
     }
 
     /*!
+     * \brief Return the intensive quantities last cached for an entity, up
+     *        to date or not.
+     *
+     * While invalidateAndUpdateIntensiveQuantities() recomputes an entity,
+     * this still holds its previous values, which can seed nonlinear solves
+     * in the update. Nothing is returned if there is no cache for timeIdx;
+     * an entry that was never computed holds default-constructed values.
+     *
+     * \param globalIdx The global space index of the entity.
+     * \param timeIdx The index used by the time discretization.
+     */
+    const IntensiveQuantities* lastIntensiveQuantities(unsigned globalIdx, unsigned timeIdx) const
+    {
+        if (!enableIntensiveQuantityCache_ || timeIdx >= cachedIntensiveQuantityHistorySize_
+            || intensiveQuantityCache_[timeIdx].empty()) {
+            return nullptr;
+        }
+        return &intensiveQuantityCache_[timeIdx][globalIdx];
+    }
+
+    /*!
      * \brief Return the cached intensive quantities for a entity on the
      *        grid at given time.
      *

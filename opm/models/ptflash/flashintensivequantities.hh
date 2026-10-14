@@ -31,6 +31,8 @@
 #include <dune/common/fmatrix.hh>
 #include <dune/common/fvector.hh>
 
+#include <opm/common/ErrorMacros.hpp>
+#include <opm/common/Exceptions.hpp>
 #include <opm/common/OpmLog/OpmLog.hpp>
 
 #include <opm/input/eclipse/EclipseState/Grid/FaceDir.hpp>
@@ -49,6 +51,7 @@
 #include <opm/models/ptflash/flashparameters.hh>
 
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 
 #include <array>
 #include <iterator>
@@ -193,15 +196,31 @@ public:
              }
              const Evaluation& Ltmp = hint2->fluidState().L();
              fluidState_.setLvalue(Ltmp);
+        } else if (const auto* last = elemCtx.model().lastIntensiveQuantities(
+                       elemCtx.globalSpaceIndex(dofIdx, timeIdx), timeIdx);
+                   last != nullptr && last->twoPhase_) {
+            // The previous split of this cell, from the last Newton iterate or
+            // time step, seeds the flash and spares its stability test. Its
+            // ratios follow from the phase compositions, which every flash
+            // result carries.
+            const auto& lastState = last->fluidState();
+            for (unsigned compIdx = 0; compIdx < numComponents; ++compIdx) {
+                const Scalar x
+                    = getValue(lastState.moleFraction(FluidSystem::oilPhaseIdx, compIdx));
+                const Scalar y
+                    = getValue(lastState.moleFraction(FluidSystem::gasPhaseIdx, compIdx));
+                fluidState_.setKvalue(compIdx,
+                                      x > 0 ? y / x : getValue(fluidState_.wilsonK_(compIdx)));
+            }
+            fluidState_.setLvalue(getValue(lastState.L()));
+        } else {
+            for (unsigned compIdx = 0; compIdx < numComponents; ++compIdx) {
+                const Evaluation Ktmp = fluidState_.wilsonK_(compIdx);
+                fluidState_.setKvalue(compIdx, Ktmp);
+            }
+            const Evaluation& Ltmp = -1.0;
+            fluidState_.setLvalue(Ltmp);
         }
-        else {
-             for (unsigned compIdx = 0; compIdx < numComponents; ++compIdx) {
-                 const Evaluation Ktmp = fluidState_.wilsonK_(compIdx);
-                 fluidState_.setKvalue(compIdx, Ktmp);
-             }
-             const Evaluation& Ltmp = -1.0;
-             fluidState_.setLvalue(Ltmp);
-         }
 
         /////////////
         // Compute the phase compositions and densities
@@ -211,7 +230,25 @@ public:
                                       elemCtx.globalSpaceIndex(dofIdx, timeIdx)));
         }
         const auto& eos_type = problem.getEosType(globalIdx);
-        FlashSolver::solve(fluidState_, ptFlashMethod, flashTolerance, eos_type, flashVerbosity);
+        twoPhase_ = false;
+        try {
+            twoPhase_ = !FlashSolver::solve(
+                fluidState_, ptFlashMethod, flashTolerance, eos_type, flashVerbosity);
+        } catch (const NumericalProblem& error) {
+            // Name the state, so a failed flash can be traced back to its cell.
+            std::array<Scalar, numComponents> composition;
+            for (unsigned compIdx = 0; compIdx < numComponents; ++compIdx) {
+                composition[compIdx] = getValue(fluidState_.moleFraction(compIdx));
+            }
+            OPM_THROW_NOLOG(NumericalProblem,
+                            fmt::format("Flash failed in cell {} at p = {} Pa, T = {} K and "
+                                        "z = [{}]: {}",
+                                        elemCtx.globalSpaceIndex(dofIdx, timeIdx),
+                                        getValue(fluidState_.pressure(FluidSystem::oilPhaseIdx)),
+                                        getValue(fluidState_.temperature(0)),
+                                        fmt::join(composition, ", "),
+                                        error.what()));
+        }
 
         if (flashVerbosity >= 5) {
             std::string phaseCompositions;
@@ -420,6 +457,8 @@ public:
 
 private:
     bool hasHydrocarbon_{true};
+    // Whether the flash of this update found two phases.
+    bool twoPhase_ {false};
     DimMatrix intrinsicPerm_;
     FluidState fluidState_;
     Evaluation porosity_;
