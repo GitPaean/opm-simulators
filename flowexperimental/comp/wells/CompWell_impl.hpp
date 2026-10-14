@@ -189,6 +189,8 @@ updateSurfaceQuantities(const Simulator& simulator)
 {
     const auto& tables = simulator.vanguard().eclState().getTableManager();
     const auto& surface_cond = tables.stCond();
+    const auto surface_eos_type
+        = simulator.vanguard().eclState().compositionalConfig().eosTypeSurf(0);
     // Surface volumes of water are defined by DENSITY. PVTW holds at reservoir
     // temperature, so its density at surface pressure is a different one.
     Scalar surface_water_density = 0.;
@@ -212,12 +214,13 @@ updateSurfaceQuantities(const Simulator& simulator)
             fluid_state.setMoleFraction(comp_idx, std::max(inj_composition[comp_idx], 1.e-10));
         }
         // the injection stream carries no water
-        updateSurfaceCondition_(surface_cond, surface_water_density, fluid_state, Scalar{0.});
+        updateSurfaceCondition_(surface_cond, surface_eos_type, surface_water_density,
+                                fluid_state, Scalar{0.});
     } else { // the composition will be from the wellbore
         // here, it will use the composition from the wellbore and the pressure and temperature from the surface condition
         auto fluid_state = this->primary_variables_.template toFluidState<EvalWell>();
-        updateSurfaceCondition_(surface_cond, surface_water_density, fluid_state,
-                                this->water_mass_fraction_);
+        updateSurfaceCondition_(surface_cond, surface_eos_type, surface_water_density,
+                                fluid_state, this->water_mass_fraction_);
      }
 }
 
@@ -931,16 +934,20 @@ template <typename T>
 void
 CompWell<TypeTag>::
 updateSurfaceCondition_(const StandardCond& surface_cond,
+                        const CompositionalConfig::EOSType surface_eos_type,
                         const Scalar surface_water_density,
-                        FluidState<T>& fluid_state,
+                        const FluidState<T>& wellbore_state,
                         const T& water_mass_fraction)
 {
     static_assert(std::is_same_v<T, Scalar> || std::is_same_v<T, EvalWell>, "Unsupported type in CompWell::updateSurfaceCondition_");
 
-    // The stock-tank flash keeps the first EOS region and Peng-Robinson until
-    // the surface equation of state is supported.
-    const typename FluidSystem::ScopedEosRegion eos_region{0};
-    flashAtSurfaceConditions(fluid_state, surface_cond.pressure, surface_cond.temperature);
+    // Stock-tank conditions take the surface-condition equation of state.
+    CompositionalFluidState<T, SurfaceFluidSystem> fluid_state;
+    for (unsigned compidx = 0; compidx < FluidSystem::numComponents; ++compidx) {
+        fluid_state.setMoleFraction(compidx, wellbore_state.moleFraction(compidx));
+    }
+    flashAtSurfaceConditions(fluid_state, surface_cond.pressure, surface_cond.temperature,
+                             surface_eos_type);
 
     for (unsigned compidx = 0; compidx < FluidSystem::numComponents; ++compidx) {
         this->surface_conditions_.mass_fractions_[FluidSystem::oilPhaseIdx][compidx] =

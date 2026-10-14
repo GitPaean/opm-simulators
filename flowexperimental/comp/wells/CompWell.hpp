@@ -62,6 +62,7 @@ public:
 
     template <typename T>
     using FluidState = CompositionalFluidState<T, FluidSystem>;
+    using SurfaceFluidSystem = typename SurfaceFluidSystemOf<FluidSystem>::type;
 
     // TODO: this can be a rate converter role later
     // currently, it has the surface densities for each phase and volume fractions for each phase
@@ -248,8 +249,9 @@ private:
     template <typename T>
     void
     updateSurfaceCondition_(const StandardCond& surface_cond,
+                            const CompositionalConfig::EOSType surface_eos_type,
                             const Scalar surface_water_density,
-                            FluidState<T>& fluid_state,
+                            const FluidState<T>& wellbore_state,
                             const T& water_mass_fraction);
 
     bool isWaterInjector_() const;
