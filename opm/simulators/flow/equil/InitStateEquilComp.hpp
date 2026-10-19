@@ -405,8 +405,8 @@ private:
         /// each with its own EOS root and its own hydrostatic column.
         bool twoZone{false};
         /// Depth of the last vapour row of such a table. With EQUIL item 10 = 1
-        /// the rows decide the phase, so a cell at this depth stays in the gas
-        /// zone even when the contact lies on it.
+        /// the row labels bound the gas zone, so a cell at this depth stays in
+        /// it even when the contact lies on it.
         Scalar lastVaporDepth{};
         /// Gas-zone composition of a type 3 region whose COMPVD names both phases.
         std::vector<TabulatedFunction> vaporVdTable;
@@ -1162,10 +1162,11 @@ private:
                                               std::max(pressureSpan[1], reg.zgoc)};
         if ((reg.zgoc < span[0]) || (reg.zgoc > span[1])) {
             OpmLog::warning(fmt::format("Equilibration region {}: the gas zone ends at {} m, "
-                                        "outside the cells of the region, so the COMPVD "
-                                        "rows of one phase describe no cell.",
+                                        "outside the cells of the region, so all of them "
+                                        "lie in the {} zone.",
                                         regionIdx + 1,
-                                        reg.zgoc));
+                                        reg.zgoc,
+                                        (reg.zgoc < span[0]) ? "liquid" : "gas"));
         }
 
         if (datum < reg.zgoc) {
@@ -1281,8 +1282,8 @@ private:
 
     /// Whether \p depth lies in the gas zone of a region that has one. A depth
     /// on the gas-oil contact belongs to the liquid zone, except the last vapour
-    /// row of a two-zone COMPVD table with EQUIL item 10 = 1, whose rows decide
-    /// the phase. That row, not the contact, bounds the exception: a contact
+    /// row of a two-zone COMPVD table with EQUIL item 10 = 1, which its label
+    /// keeps gas. That row, not the contact, bounds the exception: a contact
     /// moved down onto the first liquid row leaves that row liquid.
     static bool isInGasZone(const Region& reg, const Scalar depth)
     {

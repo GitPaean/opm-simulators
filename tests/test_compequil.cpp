@@ -1167,9 +1167,9 @@ BOOST_AUTO_TEST_CASE(CompvdTwoZoneContactOutsideRowGap)
 BOOST_AUTO_TEST_CASE(CompvdTwoZoneKeepsTheLastVapourRowGas)
 {
     // A cell on the gas-oil contact belongs to the liquid zone, but with EQUIL
-    // item 10 = 1 the rows decide the phase. The cell at 2032.5 m sits on the
-    // last vapour row, both when the contact lies on that row and when it moves
-    // there from above.
+    // item 10 = 1 the last vapour row keeps its label. The cell at 2032.5 m sits
+    // on that row, both when the contact lies on it and when it moves there
+    // from above.
     for (const std::string goc : {"2032.5", "2020"}) {
         BOOST_TEST_CONTEXT("Contact at " << goc << " m") {
             const EquilFixture fix(deckString(
