@@ -230,6 +230,14 @@ public:
 
         // Defaulted threshold pressures are taken from the initial solution.
         this->thresholdPressures_.finishInit();
+
+        // The fluid-in-place reports of later steps need the initial values.
+        const auto& grid = this->simulator().vanguard().gridView().grid();
+        using GridType = std::remove_cv_t<std::remove_reference_t<decltype(grid)>>;
+        constexpr bool isCpGrid = std::is_same_v<GridType, Dune::CpGrid>;
+        if ((!isCpGrid || grid.maxLevel() == 0) && this->simulator().episodeIndex() == 0) {
+            eclWriter_->writeInitialFIPReport();
+        }
     }
 
     /*!

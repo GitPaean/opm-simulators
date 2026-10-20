@@ -1125,7 +1125,8 @@ updateSummaryRegionValues(const Inplace& inplace,
             miscSummaryData["FHPV"] = inplace.get(Inplace::Phase::HydroCarbonPV);
         }
 
-        if (this->summaryConfig_.hasKeyword("FOE") && this->initialInplace_) {
+        if (this->summaryConfig_.hasKeyword("FOE") && this->initialInplace_
+            && this->initialInplace_->get(Inplace::Phase::OIL) > 0.0) {
             miscSummaryData["FOE"] = (this->initialInplace_.value().get(Inplace::Phase::OIL) - inplace.get(Inplace::Phase::OIL))
                 / this->initialInplace_.value().get(Inplace::Phase::OIL);
         }
