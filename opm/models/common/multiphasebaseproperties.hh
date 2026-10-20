@@ -98,6 +98,12 @@ struct EnableDispersion { using type = UndefinedProperty; };
 template<class TypeTag, class MyTypeTag>
 struct EnableConvectiveMixing { using type = UndefinedProperty; };
 
+//! Weight the phase densities of the gravity term at a face by saturation?
+template <class TypeTag, class MyTypeTag>
+struct SaturationWeightedDensity {
+    using type = UndefinedProperty;
+};
+
 //! Enable water?
 template <class TypeTag, class MyTypeTag>
 struct EnableWater { using type = UndefinedProperty; };

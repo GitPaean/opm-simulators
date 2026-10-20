@@ -101,5 +101,12 @@ template<class TypeTag>
 struct EnableConvectiveMixing<TypeTag, TTag::FlowBaseProblemComp>
 { static constexpr bool value = false; };
 
+// The flash gives a phase absent from a cell the density of the overall
+// composition on that phase's root, which can be the other phase's density.
+template <class TypeTag>
+struct SaturationWeightedDensity<TypeTag, TTag::FlowBaseProblemComp> {
+    static constexpr bool value = true;
+};
+
 } // namespace Opm::Properties
 #endif // OPM_FLOW_PROBLEM_COMP_PROPERTIES_HPP

@@ -128,6 +128,8 @@ class NewTranExtensiveQuantities
     enum { numPhases = FluidSystem::numPhases };
 
     static constexpr bool enableConvectiveMixing = getPropValue<TypeTag, Properties::EnableConvectiveMixing>();
+    static constexpr bool saturationWeightedDensity
+        = getPropValue<TypeTag, Properties::SaturationWeightedDensity>();
     static constexpr bool enableExtbo = getPropValue<TypeTag, Properties::EnableExtbo>();
     static constexpr bool enableEnergy =
         getPropValue<TypeTag, Properties::EnergyModuleType>() == EnergyModules::FullyImplicitThermal;
@@ -360,6 +362,15 @@ public:
         const Evaluation& rhoIn = intQuantsIn.fluidState().density(phaseIdx);
         Scalar rhoEx = Toolbox::value(intQuantsEx.fluidState().density(phaseIdx));
         Evaluation rhoAvg = (rhoIn + rhoEx)/2;
+
+        if constexpr (saturationWeightedDensity) {
+            // A cell without the phase contributes nothing to its density.
+            const Evaluation& satIn = intQuantsIn.fluidState().saturation(phaseIdx);
+            const Scalar satEx = Toolbox::value(intQuantsEx.fluidState().saturation(phaseIdx));
+            if (satIn + satEx > 0.0) {
+                rhoAvg = (rhoIn * satIn + rhoEx * satEx) / (satIn + satEx);
+            }
+        }
 
         if constexpr (enableConvectiveMixing) {
             ConvectiveMixingModule::modifyAvgDensity(rhoAvg, intQuantsIn, intQuantsEx, phaseIdx, moduleParams.convectiveMixingModuleParam);
