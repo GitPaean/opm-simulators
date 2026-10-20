@@ -33,6 +33,7 @@
 
 #include <opm/common/ErrorMacros.hpp>
 #include <opm/common/OpmLog/OpmLog.hpp>
+#include <opm/common/utility/numeric/RootFinders.hpp>
 
 #include <opm/material/common/Tabulated1DFunction.hpp>
 #include <opm/material/constraintsolvers/SaturationPressure.hpp>
@@ -229,10 +230,13 @@ private:
  * pressure. Regions confined above the contact take their water pressure from
  * the hydrocarbon pressure there.
  *
- * Above the water-oil contact a cell keeps its connate water, unless SWATINIT
- * gives the water instead. As in the black-oil equilibration, the water-oil
- * capillary pressure curve of such a cell is then scaled so that it holds that
- * water at the pressure difference between the hydrocarbon and the water.
+ * The water saturation of a cell is the one at which its water-oil capillary
+ * pressure equals the pressure difference between the hydrocarbon and the
+ * water: the connate water high above the water-oil contact, the maximum water
+ * below it, and a transition zone between. Without capillary pressure the
+ * transition zone shrinks to the contact. SWATINIT gives the water instead,
+ * where the curve of the cell can be scaled to hold it, as in the black-oil
+ * equilibration.
  */
 template <class FluidSystem>
 class InitialStateComputer
@@ -244,9 +248,14 @@ public:
     /// Scales the water-oil capillary pressure curve of a cell (first argument)
     /// to hold a water saturation (third) at a capillary pressure (second).
     /// Returns the water saturation, and whether the curve cannot hold it
-    /// there, in which case the cell keeps its saturation end point.
-    /// EclMaterialLawManager::applySwatinit() does this.
+    /// there, in which case the cell takes the water its curve holds at that
+    /// capillary pressure. EclMaterialLawManager::applySwatinit() does this.
     using SwatinitScaling = std::function<std::pair<Scalar, bool>(unsigned, Scalar, Scalar)>;
+
+    /// The water-oil capillary pressure, the hydrocarbon pressure less the
+    /// water pressure, of a cell (first argument) at a water saturation
+    /// (second), on the curve of the cell as currently scaled.
+    using WaterCapillaryPressure = std::function<Scalar(unsigned, Scalar)>;
 
     /// \param[in] inputState      Input state, provides EQUIL, ZMFVD or COMPVD,
     ///                            RTEMP(VD).
@@ -267,6 +276,8 @@ public:
     ///                            when the input does not give it.
     /// \param[in] scaleSwatinit   Capillary pressure scaling that holds the
     ///                            SWATINIT water, required with \p swatinit.
+    /// \param[in] waterCapillaryPressure Water-oil capillary pressure of the
+    ///                            cells, zero when not given.
     InitialStateComputer(const EclipseState& inputState,
                          const std::vector<int>& eosnum,
                          const std::vector<Scalar>& cellCenterDepth,
@@ -278,11 +289,13 @@ public:
                          const std::vector<Scalar>& connateWater = {},
                          const std::vector<Scalar>& maxWater = {},
                          const std::vector<Scalar>& swatinit = {},
-                         SwatinitScaling scaleSwatinit = {})
+                         SwatinitScaling scaleSwatinit = {},
+                         WaterCapillaryPressure waterCapillaryPressure = {})
         : connateWater_(connateWater)
         , maxWater_(maxWater)
         , swatinit_(swatinit)
         , scaleSwatinit_(std::move(scaleSwatinit))
+        , waterCapillaryPressure_(std::move(waterCapillaryPressure))
     {
         const auto& records = inputState.getInitConfig().getEquil();
         const auto& tables = inputState.getTableManager();
@@ -386,9 +399,10 @@ public:
     const std::vector<FluidState>& fluidStates() const
     { return fluidStates_; }
 
-    /// Pressure of the water column below the water-oil contact, or of the
-    /// hydrocarbon column above it. The current flash uses this common pressure;
-    /// fluidStates() retains the independently integrated phase pressures.
+    /// Pressure of the hydrocarbon column, except where a cell holds its maximum
+    /// water: there the water pressure plus the capillary pressure of that
+    /// water. The current flash uses this common pressure; fluidStates()
+    /// retains the independently integrated phase pressures.
     const std::vector<Scalar>& referencePressures() const
     { return referencePressures_; }
 
@@ -1100,19 +1114,56 @@ private:
 
     /// The SWATINIT water of \p cell, with the capillary pressure curve of the
     /// cell scaled to hold it at \p pcow, the hydrocarbon pressure less the
-    /// water pressure. The cell keeps \p endPoint without SWATINIT, and where
-    /// the curve cannot hold the water: at or below the free water level, or
-    /// where it has no capillary pressure at that saturation.
-    Scalar swatinitWater(const std::size_t cell,
-                         const Scalar pcow,
-                         const Scalar endPoint) const
+    /// water pressure. Empty without SWATINIT, and where the curve cannot hold
+    /// the water: at or below the free water level, or where it has no
+    /// capillary pressure at that saturation.
+    std::optional<Scalar> swatinitWater(const std::size_t cell, const Scalar pcow) const
     {
         if (swatinit_.empty()) {
-            return endPoint;
+            return std::nullopt;
         }
-        const auto [sw, keepEndPoint] =
+        const auto [sw, cannotHold] =
             scaleSwatinit_(static_cast<unsigned>(cell), pcow, swatinit_[cell]);
-        return keepEndPoint ? endPoint : sw;
+        if (cannotHold) {
+            return std::nullopt;
+        }
+        return sw;
+    }
+
+    /// The water-oil capillary pressure of \p cell at the water saturation \p sw.
+    Scalar waterOilPc(const std::size_t cell, const Scalar sw) const
+    {
+        return waterCapillaryPressure_
+            ? waterCapillaryPressure_(static_cast<unsigned>(cell), sw) : Scalar{0};
+    }
+
+    /// The water saturation at which the capillary pressure curve of \p cell
+    /// reaches \p pcow, between the connate water \p swl and the maximum water
+    /// \p swu. The curve falls as the water saturation rises. A curve that does
+    /// not vary leaves a sharp contact, with \p swu below it.
+    Scalar capillaryWater(const std::size_t cell,
+                          const Scalar pcow,
+                          const Scalar swl,
+                          const Scalar swu,
+                          const bool belowContact) const
+    {
+        const Scalar pcAtSwl = waterOilPc(cell, swl);
+        const Scalar pcAtSwu = waterOilPc(cell, swu);
+        if (std::abs(pcAtSwl - pcAtSwu) < std::numeric_limits<Scalar>::epsilon()) {
+            return belowContact ? swu : swl;
+        }
+        if (pcAtSwl <= pcow) {
+            return swl;
+        }
+        if (pcAtSwu >= pcow) {
+            return swu;
+        }
+        constexpr Scalar tolerance{1.0e-10};
+        constexpr int maxIterations{100};
+        int iterations{};
+        return RegulaFalsiBisection<ThrowOnError>::solve(
+            [this, cell, pcow](const Scalar sw) { return waterOilPc(cell, sw) - pcow; },
+            swl, swu, maxIterations, tolerance, iterations);
     }
 
     /// EQUIL item 10 type 1: the table gives the total composition and the
@@ -1355,18 +1406,17 @@ private:
                       "Evaluating the equilibrated pressure of a region without cells.");
         }
 
-        // The common pressure used by the current flash follows the water
-        // column below the contact, including when the scaled maximum water
-        // saturation leaves some residual hydrocarbon. Keep this separate from
-        // the phase pressures so equilibration retains the capillary offset.
+        // The common pressure used by the current flash is the hydrocarbon
+        // pressure, except where the water fills what it can, including when
+        // the scaled maximum water saturation leaves some residual hydrocarbon.
+        // Keep this separate from the phase pressures so equilibration retains
+        // the capillary offset.
         const Scalar hydrocarbonPressure = pressFunc->value(depth);
+        Scalar press = hydrocarbonPressure;
         // The water column of the cell's own PVT region.
         const auto water = reg.waterPressure.find(pvtRegion);
         const WaterPressFunc* waterPressure =
             (water != reg.waterPressure.end()) ? &water->second : nullptr;
-        const bool inWaterZone = (depth > reg.zwoc) && (waterPressure != nullptr);
-        const Scalar press = inWaterZone ? waterPressure->value(depth)
-                                         : hydrocarbonPressure;
 
         fs.setTemperature(Details::evalDepthTable(reg.tempVdTable, depth));
         for (unsigned phaseIdx = 0; phaseIdx < FluidSystem::numPhases; ++phaseIdx) {
@@ -1376,20 +1426,32 @@ private:
             }
         }
 
-        // Below the water-oil contact the pore space holds water alone; above
-        // it the hydrocarbon leaves room for the connate water, or for the
-        // SWATINIT water where it is given.
+        // The water fills what it can below the transition zone and leaves the
+        // connate water above it. Within the zone, the capillary pressure curve
+        // of the cell holds the water at the pressure difference between the
+        // hydrocarbon and the water, or holds the SWATINIT water where given.
         Scalar sWat = 0.0;
         if (FluidSystem::phaseIsActive(FluidSystem::waterPhaseIdx)) {
-            // The saturation function's own endpoints, per cell: below the
-            // contact the water fills what it can, above it only the connate
-            // water remains.
-            sWat = (depth > reg.zwoc) ? waterLimit(maxWater_, cell, Scalar{1})
-                                      : waterLimit(connateWater_, cell, Scalar{0});
+            // The saturation function's own endpoints, per cell.
+            const Scalar swl = waterLimit(connateWater_, cell, Scalar{0});
+            const Scalar swu = waterLimit(maxWater_, cell, Scalar{1});
+            const bool belowContact = depth > reg.zwoc;
+            sWat = belowContact ? swu : swl;
             if (waterPressure != nullptr) {
                 const Scalar waterPhasePressure = waterPressure->value(depth);
                 fs.setPressure(FluidSystem::waterPhaseIdx, waterPhasePressure);
-                sWat = swatinitWater(cell, hydrocarbonPressure - waterPhasePressure, sWat);
+                const Scalar pcow = hydrocarbonPressure - waterPhasePressure;
+                // SWATINIT may scale the curve, so the curve is read after it.
+                const auto held = swatinitWater(cell, pcow);
+                sWat = held ? *held : capillaryWater(cell, pcow, swl, swu, belowContact);
+                // The flow takes the water pressure as the common pressure less
+                // the capillary pressure. Where the water fills what it can, only
+                // the water moves, so the common pressure keeps it at rest.
+                constexpr Scalar maxWaterTolerance{1.0e-6};
+                if (sWat + maxWaterTolerance > swu) {
+                    sWat = swu;
+                    press = waterPhasePressure + waterOilPc(cell, swu);
+                }
             }
             fs.setSaturation(FluidSystem::waterPhaseIdx, sWat);
         }
@@ -1413,6 +1475,7 @@ private:
     std::vector<Scalar> maxWater_;
     std::vector<Scalar> swatinit_;
     SwatinitScaling scaleSwatinit_;
+    WaterCapillaryPressure waterCapillaryPressure_;
     std::vector<FluidState> fluidStates_;
     std::vector<Scalar> referencePressures_;
 };

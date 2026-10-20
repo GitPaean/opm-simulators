@@ -52,6 +52,7 @@
 #include <fmt/format.h>
 
 #include <algorithm>
+#include <array>
 #include <functional>
 #include <vector>
 
@@ -489,6 +490,23 @@ protected:
             { return materialLawManager.applySwatinit(cell, pcow, sw); };
         }
 
+        // The water-oil capillary pressure of each cell places its water in the
+        // transition zone, read from the curve as SWATINIT scales it.
+        typename StateComputer::WaterCapillaryPressure waterCapillaryPressure;
+        if constexpr (Indices::waterEnabled) {
+            waterCapillaryPressure = [&materialLawManager = this->materialLawManager()]
+                (const unsigned cell, const Scalar sw)
+            {
+                InitialFluidState fs;
+                fs.setSaturation(waterPhaseIdx, sw);
+                fs.setSaturation(oilPhaseIdx, 1.0 - sw);
+                fs.setSaturation(gasPhaseIdx, 0.0);
+                std::array<Scalar, numPhases> pc{};
+                MaterialLaw::capillaryPressures(pc, materialLawManager.materialLawParams(cell), fs);
+                return pc[oilPhaseIdx] - pc[waterPhaseIdx];
+            };
+        }
+
         StateComputer initialState(
             eclState,
             eosnum_,
@@ -501,13 +519,15 @@ protected:
             connateWater,
             maxWater,
             swatinit,
-            std::move(scaleSwatinit));
+            std::move(scaleSwatinit),
+            std::move(waterCapillaryPressure));
 
         initialFluidStates_ = std::move(initialState.fluidStates());
-        // The current flash has one pressure for all phases. Adapt the
-        // independent equilibrium columns here, using the water column below
-        // the contact. Once phase-pressure differences are supported by the
-        // flash, the equilibrated phase pressures can be used directly.
+        // The flash has one pressure for the oil and the gas, and the flow
+        // takes the water pressure as that pressure less the capillary
+        // pressure, so the primary variables need only the reference pressure.
+        // Once the flash supports a gas-oil pressure difference, the
+        // equilibrated phase pressures can be used directly.
         for (std::size_t cell = 0; cell < initialFluidStates_.size(); ++cell) {
             for (unsigned phaseIdx = 0; phaseIdx < FluidSystem::numPhases; ++phaseIdx) {
                 initialFluidStates_[cell].setPressure(phaseIdx,
