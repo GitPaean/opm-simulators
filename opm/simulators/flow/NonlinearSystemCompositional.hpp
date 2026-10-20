@@ -110,7 +110,16 @@ public:
     void writePartitions(const std::filesystem::path&) const {}
 
 private:
-    std::vector<Scalar> reservoirResidualMetrics() const;
+    struct ResidualMetrics {
+        std::vector<Scalar> perEquation;
+        // Where the largest of them is, or -1 if no cell has a residual.
+        long worstCartesianIdx = -1;
+        int worstEqIdx = -1;
+    };
+
+    ResidualMetrics reservoirResidualMetrics() const;
+
+    void logIteration(const ResidualMetrics& metrics, bool wellsConverged) const;
 
     double linear_solve_setup_time_ = 0.0;
 };

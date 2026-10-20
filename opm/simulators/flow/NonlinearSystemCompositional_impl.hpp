@@ -27,6 +27,8 @@
 
 #include <dune/common/timer.hh>
 
+#include <fmt/format.h>
+
 #include <opm/common/ErrorMacros.hpp>
 #include <opm/common/OpmLog/OpmLog.hpp>
 
@@ -40,6 +42,7 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <string>
 
 namespace Opm {
 
@@ -112,7 +115,8 @@ initialLinearization(SimulatorReportSingle& report,
     perfTimer.start();
 
     auto convrep = ConvergenceReport{timer.simulationTimeElapsed()};
-    const auto residualMetrics = this->reservoirResidualMetrics();
+    const auto metrics = this->reservoirResidualMetrics();
+    const auto& residualMetrics = metrics.perEquation;
     const auto tolerance = this->simulator_.model().newtonMethod().tolerance();
 
     for (int compIdx = 0; compIdx < numEq; ++compIdx) {
@@ -142,6 +146,10 @@ initialLinearization(SimulatorReportSingle& report,
     const bool wellConverged = this->wellModel().getWellConvergence();
     report.converged = convrep.converged() && wellConverged &&
                        this->simulator_.problem().iterationContext().iteration() >= minIter;
+
+    if (this->terminal_output_) {
+        this->logIteration(metrics, wellConverged);
+    }
 
     this->convergence_reports_.back().report.push_back(std::move(convrep));
     report.update_time += perfTimer.stop();
@@ -315,17 +323,20 @@ solveJacobianSystem(BVector& x)
 }
 
 template <class TypeTag>
-std::vector<typename NonlinearSystemCompositional<TypeTag>::Scalar>
-NonlinearSystemCompositional<TypeTag>::
-reservoirResidualMetrics() const
+typename NonlinearSystemCompositional<TypeTag>::ResidualMetrics
+NonlinearSystemCompositional<TypeTag>::reservoirResidualMetrics() const
 {
     const auto& model = this->simulator_.model();
     const auto& residual = model.linearizer().residual();
     const auto& constraintsMap = model.linearizer().constraintsMap();
 
-    std::vector<Scalar> residualMetrics(numEq, 0.0);
+    ResidualMetrics metrics;
+    auto& residualMetrics = metrics.perEquation;
+    residualMetrics.assign(numEq, 0.0);
     // std::max skips a NaN residual, which must still fail the convergence check.
     std::vector<int> nanResidual(numEq, 0);
+    Scalar worstResidual = 0.0;
+    unsigned worstDofIdx = 0;
 
     // Ghost-cell residuals may omit fluxes from neighbors beyond the overlap.
     // Use the owning rank's residual to assess convergence.
@@ -347,12 +358,33 @@ reservoirResidualMetrics() const
             if (std::isnan(value)) {
                 nanResidual[eqIdx] = 1;
             }
+            // Name the first NaN residual before any finite one.
+            const Scalar magnitude
+                = std::isnan(value) ? std::numeric_limits<Scalar>::infinity() : value;
+            if (magnitude > worstResidual) {
+                worstResidual = magnitude;
+                worstDofIdx = dofIdx;
+                metrics.worstEqIdx = eqIdx;
+            }
         }
     }
 
-    if (this->grid_.comm().size() > 1 && !residualMetrics.empty()) {
-        this->grid_.comm().max(residualMetrics.data(), residualMetrics.size());
-        this->grid_.comm().max(nanResidual.data(), nanResidual.size());
+    // Encodes the cell and the equation in one value for the reduction below.
+    long worst = -1;
+    if (metrics.worstEqIdx >= 0) {
+        worst = static_cast<long>(this->simulator_.vanguard().cartesianIndex(worstDofIdx)) * numEq
+            + metrics.worstEqIdx;
+    }
+
+    const auto& comm = this->grid_.comm();
+    if (comm.size() > 1) {
+        comm.max(residualMetrics.data(), residualMetrics.size());
+        comm.max(nanResidual.data(), nanResidual.size());
+        // The rank holding the largest residual names its cell.
+        if (worstResidual != comm.max(worstResidual)) {
+            worst = -1;
+        }
+        worst = comm.max(worst);
     }
 
     for (int eqIdx = 0; eqIdx < numEq; ++eqIdx) {
@@ -361,7 +393,44 @@ reservoirResidualMetrics() const
         }
     }
 
-    return residualMetrics;
+    if (worst >= 0) {
+        metrics.worstCartesianIdx = worst / numEq;
+        metrics.worstEqIdx = static_cast<int>(worst % numEq);
+    }
+
+    return metrics;
+}
+
+template <class TypeTag>
+void
+NonlinearSystemCompositional<TypeTag>::logIteration(const ResidualMetrics& metrics,
+                                                    const bool wellsConverged) const
+{
+    const auto& iterCtx = this->simulator_.problem().iterationContext();
+    if (iterCtx.isFirstGlobalIteration()) {
+        std::string header = "Iter";
+        for (int eqIdx = 0; eqIdx < numEq; ++eqIdx) {
+            header += fmt::format("{:>11}", this->compNames_.name(eqIdx));
+        }
+        header += "  Wells  Relax  Largest residual";
+        OpmLog::debug(header);
+    }
+
+    std::string row = fmt::format("{:>4}", iterCtx.iteration());
+    for (const auto value : metrics.perEquation) {
+        row += fmt::format("{:>11.3e}", value);
+    }
+    row += fmt::format("{:>7}{:>7.2f}", wellsConverged ? "yes" : "no", this->current_relaxation_);
+    if (metrics.worstEqIdx >= 0) {
+        const auto& dims = this->simulator_.vanguard().cartesianDimensions();
+        const long idx = metrics.worstCartesianIdx;
+        row += fmt::format("  {} in cell ({}, {}, {})",
+                           this->compNames_.name(metrics.worstEqIdx),
+                           idx % dims[0] + 1,
+                           idx / dims[0] % dims[1] + 1,
+                           idx / (static_cast<long>(dims[0]) * dims[1]) + 1);
+    }
+    OpmLog::debug(row);
 }
 
 } // namespace Opm
