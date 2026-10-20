@@ -342,6 +342,17 @@ public:
                                             materialParams, fluidState_);
         Valgrind::CheckDefined(relativePermeability_);
 
+        // Water lies outside the flash, so its pressure can differ from the oil
+        // pressure by the water-oil capillary pressure. Oil and gas keep the
+        // common pressure of the flash.
+        if constexpr (waterEnabled) {
+            std::array<Evaluation, numPhases> pC;
+            MaterialLaw::capillaryPressures(pC, materialParams, fluidState_);
+            fluidState_.setPressure(
+                FluidSystem::waterPhaseIdx,
+                p + (pC[FluidSystem::waterPhaseIdx] - pC[FluidSystem::oilPhaseIdx]));
+        }
+
         // set the phase viscosity and density
         for (unsigned phaseIdx = 0; phaseIdx < numPhases; ++phaseIdx) {
             if (phaseIdx == static_cast<unsigned int>(FluidSystem::oilPhaseIdx) ||

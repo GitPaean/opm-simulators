@@ -75,6 +75,14 @@ struct TestMaterialLaw
             values[phase] = fs.saturation(phase);
         }
     }
+
+    template<class Values, class FluidState>
+    static void capillaryPressures(Values& values, const Params&, const FluidState&)
+    {
+        for (auto& value : values) {
+            value = 0.0;
+        }
+    }
 };
 
 struct TestDiscretization
