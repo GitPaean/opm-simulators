@@ -30,7 +30,6 @@
 #include <opm/simulators/wells/PerforationData.hpp>
 
 #include <opm/input/eclipse/EclipseState/Compositional/CompositionalConfig.hpp>
-#include <opm/input/eclipse/Schedule/GasPlantTable.hpp>
 
 #include <optional>
 
@@ -112,7 +111,7 @@ public:
              Scalar dbhp_max_rel,
              std::size_t eos_region,
              CompositionalConfig::EOSType eos_type,
-             std::optional<GasPlantTable> gas_plant);
+             std::optional<GasPlant<Scalar>> gas_plant);
 
     void init() override;
 
@@ -175,7 +174,7 @@ private:
     std::size_t eos_region_;
     CompositionalConfig::EOSType eos_type_;
     // splits a produced stream into surface oil and gas in place of the flash
-    std::optional<GasPlantTable> gas_plant_;
+    std::optional<GasPlant<Scalar>> gas_plant_;
 
     // the following varialbes are temporary and remain to be cleaned up and re-organized
     // some are testing variables, and some are secondary variables might be kept
@@ -254,7 +253,7 @@ private:
     void
     updateSurfaceCondition_(const StandardCond& surface_cond,
                             const CompositionalConfig::EOSType surface_eos_type,
-                            const GasPlantTable* gas_plant,
+                            const GasPlant<Scalar>* gas_plant,
                             const Scalar surface_water_density,
                             const FluidState<T>& wellbore_state,
                             const T& water_mass_fraction);

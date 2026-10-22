@@ -24,6 +24,7 @@
 #include <opm/output/data/Wells.hpp>
 
 #include <opm/models/discretization/common/baseauxiliarymodule.hh>
+#include <opm/input/eclipse/EclipseState/InitConfig/FieldSep.hpp>
 #include <opm/input/eclipse/Schedule/Events.hpp>
 #include <opm/input/eclipse/Schedule/Well/WellTestState.hpp>
 #include <opm/input/eclipse/Schedule/Schedule.hpp>
@@ -220,11 +221,11 @@ private:
      Scalar dwell_fraction_max_;
      Scalar dbhp_max_rel_;
 
-     // the gas plant table that the single FIELDSEP stage refers to, and that
-     // table at the current report step; 0 when the produced streams are
-     // flashed at standard conditions
-     int gas_plant_table_number_;
-     std::optional<GasPlantTable> gas_plant_;
+     // the FIELDSEP stage whose gas plant splits the produced streams, and
+     // that gas plant at the current report step; unset when the produced
+     // streams are flashed at standard conditions
+     const FieldSepRecord* gas_plant_stage_;
+     std::optional<GasPlant<Scalar>> gas_plant_;
 
      // this is needed for parallel running, not all the wells will be in the same process
      std::vector<Well> wells_ecl_;
@@ -257,7 +258,7 @@ private:
      template <class Param>
      static Scalar wellNewtonLimit_();
 
-     static int gasPlantTableNumber_(const EclipseState& ecl_state);
+     static const FieldSepRecord* gasPlantStage_(const EclipseState& ecl_state);
 };
 
 } // end of namespace Opm

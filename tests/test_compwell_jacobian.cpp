@@ -439,9 +439,10 @@ void checkWaterFilledWellboreContents()
     checkSame(ad_flash.density, scalar_flash.density, "density");
 }
 
-// Gas plant table 1 for CO2, C1 and C10, keyed by the C10 mole fraction: the
-// recoveries into the liquid at C10 fractions of 0.1 and 0.5.
-Opm::GasPlantTable makeGasPlantTable()
+// A gas plant for CO2, C1 and C10 with the recoveries into the liquid at C10
+// mole fractions of 0.1 and 0.5. Its liquid takes its density at 1 atm and
+// 15.56 C.
+Opm::GasPlant<Scalar> makeGasPlant()
 {
     const auto deck = Opm::Parser{}.parseString(R"(
 RUNSPEC
@@ -455,7 +456,8 @@ GPTABLE
 /
 )");
     const auto& keyword = deck["GPTABLE"].back();
-    return Opm::GasPlantTable{keyword.getRecord(0), numComponents, keyword.location()};
+    return {Opm::GasPlantTable{keyword.getRecord(0), numComponents, keyword.location()},
+            1.01325e5, 288.71};
 }
 
 } // anonymous namespace
@@ -565,7 +567,7 @@ BOOST_AUTO_TEST_CASE(ConnectionStreamSurfaceRates)
 BOOST_AUTO_TEST_CASE(GasPlantSplit)
 {
     registerFluidSystemComponents(volumeShift);
-    const auto gas_plant = makeGasPlantTable();
+    const auto gas_plant = makeGasPlant();
 
     constexpr Scalar surface_pressure = 1.01325e5; // Pa
     constexpr Scalar surface_temperature = 288.15; // K
@@ -600,18 +602,25 @@ BOOST_AUTO_TEST_CASE(GasPlantSplit)
         BOOST_CHECK_CLOSE(fs.saturation(oil) + fs.saturation(gas), 1.0, 1.e-12);
     }
 
-    // Where the flash splits a stream as the plant does, decane staying liquid
-    // and CO2 vapour, the two give the same phase densities.
-    for (const auto& [z, phase] : {std::pair{Composition{1.e-10, 1.e-10, 1. - 2.e-10}, oil},
-                                   std::pair{Composition{1. - 2.e-10, 1.e-10, 1.e-10}, gas}}) {
+    // The liquid has the density of the equation of state at the plant's
+    // liquid conditions, that of decane flashed there on its own. The vapour
+    // is an ideal gas at the surface conditions.
+    {
+        const Composition decane{1.e-10, 1.e-10, 1. - 2.e-10};
         Opm::CompositionalFluidState<Scalar, FluidSystem> flashed;
         for (int c = 0; c < numComponents; ++c) {
-            flashed.setMoleFraction(c, z[c]);
+            flashed.setMoleFraction(c, decane[c]);
         }
-        Opm::flashAtSurfaceConditions(flashed, surface_pressure, surface_temperature);
-        const auto fs = split(z);
-        BOOST_CHECK_CLOSE(fs.saturation(phase), 1.0, 1.e-4);
-        BOOST_CHECK_CLOSE(fs.density(phase), flashed.density(phase), 1.e-4);
+        Opm::flashAtSurfaceConditions(flashed, gas_plant.liquid_pressure,
+                                      gas_plant.liquid_temperature);
+        const auto fs = split(decane);
+        BOOST_CHECK_CLOSE(fs.saturation(oil), 1.0, 1.e-4);
+        BOOST_CHECK_CLOSE(fs.density(oil), flashed.density(oil), 1.e-6);
+
+        const auto mixed = split({0.40, 0.30, 0.30});
+        const Scalar ideal_gas_density = mixed.averageMolarMass(gas) * surface_pressure
+            / (Opm::Constants<Scalar>::R * surface_temperature);
+        BOOST_CHECK_CLOSE(mixed.density(gas), ideal_gas_density, 1.e-10);
     }
 
     // AD derivatives with respect to the composition, against central

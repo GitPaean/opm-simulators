@@ -49,7 +49,7 @@ CompWell(const Well& well,
          const Scalar dbhp_max_rel,
          const std::size_t eos_region,
          const CompositionalConfig::EOSType eos_type,
-         std::optional<GasPlantTable> gas_plant)
+         std::optional<GasPlant<Scalar>> gas_plant)
   : CompWellInterface<TypeTag>(well, index_of_well, well_connection_data)
   , dwell_fraction_max_(dwell_fraction_max)
   , dbhp_max_rel_(dbhp_max_rel)
@@ -789,7 +789,7 @@ updateConnectionQuantities(const Simulator& simulator,
     const auto& surface_cond = tables.stCond();
     const auto surface_eos_type
         = simulator.vanguard().eclState().compositionalConfig().eosTypeSurf(0);
-    const GasPlantTable* gas_plant
+    const GasPlant<Scalar>* gas_plant
         = this->well_ecl_.isProducer() && this->gas_plant_ ? &*this->gas_plant_ : nullptr;
     constexpr int np = FluidSystem::numPhases;
     auto& conn_data = well_state.connection_data;
@@ -960,7 +960,7 @@ void
 CompWell<TypeTag>::
 updateSurfaceCondition_(const StandardCond& surface_cond,
                         const CompositionalConfig::EOSType surface_eos_type,
-                        const GasPlantTable* gas_plant,
+                        const GasPlant<Scalar>* gas_plant,
                         const Scalar surface_water_density,
                         const FluidState<T>& wellbore_state,
                         const T& water_mass_fraction)

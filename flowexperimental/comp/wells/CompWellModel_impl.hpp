@@ -34,6 +34,7 @@
 #include <opm/common/OpmLog/OpmLog.hpp>
 
 #include <opm/input/eclipse/EclipseState/EclipseState.hpp>
+#include <opm/input/eclipse/EclipseState/InitConfig/FieldSep.hpp>
 #include <opm/input/eclipse/EclipseState/InitConfig/InitConfig.hpp>
 #include <opm/input/eclipse/Schedule/Schedule.hpp>
 #include <opm/input/eclipse/Schedule/Well/WellConnections.hpp>
@@ -59,7 +60,7 @@ CompWellModel<TypeTag>::CompWellModel(Simulator& simulator, const NewtonIteratio
     , last_valid_comp_well_states_(comp_config_)
     , dwell_fraction_max_(wellNewtonLimit_<Parameters::DwellFractionMax<Scalar>>())
     , dbhp_max_rel_(wellNewtonLimit_<Parameters::DbhpMaxRel<Scalar>>())
-    , gas_plant_table_number_(gasPlantTableNumber_(ecl_state_))
+    , gas_plant_stage_(gasPlantStage_(ecl_state_))
 {
     local_num_cells_ = simulator.gridView().size(0);
 }
@@ -75,26 +76,22 @@ wellNewtonLimit_()
 }
 
 template <typename TypeTag>
-int
+const FieldSepRecord*
 CompWellModel<TypeTag>::
-gasPlantTableNumber_(const EclipseState& ecl_state)
+gasPlantStage_(const EclipseState& ecl_state)
 {
     const auto& init_config = ecl_state.getInitConfig();
     if (!init_config.hasFieldSep()) {
-        return 0;
+        return nullptr;
     }
     const auto& separator = init_config.getFieldSep();
     const auto& stage = separator.getRecord(0);
     if (separator.size() > 1 || stage.gasPlantTableNumber() == 0) {
         OpmLog::warning("FIELDSEP is only supported as a single stage with a gas plant table. "
                         "The produced streams are flashed at standard conditions instead.");
-        return 0;
+        return nullptr;
     }
-    if (stage.nglDensityTemperature() || stage.nglDensityPressure()) {
-        OpmLog::warning("FIELDSEP: the gas plant liquid takes its density at standard "
-                        "conditions, items 9 and 10 are ignored.");
-    }
-    return stage.gasPlantTableNumber();
+    return &stage;
 }
 
 template <typename TypeTag>
@@ -106,14 +103,19 @@ beginReportStep(unsigned report_step)
     report_step_start_events_ = schedule_[report_step].wellgroup_events();
     wells_ecl_ = schedule_.getWells(report_step);
 
-    if (gas_plant_table_number_ > 0) {
-        const auto& gas_plants = schedule_[report_step].gptable;
-        if (!gas_plants.has(gas_plant_table_number_)) {
+    if (gas_plant_stage_) {
+        const int table_number = gas_plant_stage_->gasPlantTableNumber();
+        const auto& tables = schedule_[report_step].gptable;
+        if (!tables.has(table_number)) {
             OPM_THROW(std::invalid_argument,
                       fmt::format("FIELDSEP refers to gas plant table {}, which GPTABLE "
-                                  "does not define", gas_plant_table_number_));
+                                  "does not define", table_number));
         }
-        gas_plant_ = gas_plants(gas_plant_table_number_);
+        // the liquid density conditions default to those of the stage
+        const auto& stage = *gas_plant_stage_;
+        gas_plant_ = GasPlant<Scalar>{tables(table_number),
+                                      stage.nglDensityPressure().value_or(stage.pressure()),
+                                      stage.nglDensityTemperature().value_or(stage.temperature())};
     }
 
     constexpr auto events_mask = ScheduleEvents::WELL_STATUS_CHANGE |
