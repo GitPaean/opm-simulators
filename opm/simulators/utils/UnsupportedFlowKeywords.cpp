@@ -176,7 +176,6 @@ const KeywordValidation::UnsupportedKeywords& unsupportedKeywords()
         {"EXTREPGL", {true, std::nullopt}},
         {"FHERCHBL", {true, std::nullopt}},
         {"FRICTION", {true, std::nullopt}},
-        {"FIELDSEP", {false, std::nullopt}},
         {"FIPOWG", {false, std::string{"Report not available"}}},
         {"FIPSEP", {true, std::nullopt}},
         {"FLUXREG", {true, std::nullopt}},

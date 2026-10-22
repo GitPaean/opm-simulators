@@ -27,9 +27,12 @@
 #include <opm/material/fluidstates/CompositionalFluidState.hpp>
 
 #include <opm/input/eclipse/EclipseState/Compositional/CompositionalConfig.hpp>
+#include <opm/input/eclipse/Schedule/GasPlantTable.hpp>
 
 #include <algorithm>
 #include <array>
+#include <cassert>
+#include <cstddef>
 #include <type_traits>
 
 namespace Opm {
@@ -147,17 +150,90 @@ void flashAtSurfaceConditions(CompositionalFluidState<T, FluidSystem>& fluid_sta
     flashWellboreFluidState(fluid_state, 1.e-6, eos_type);
 }
 
+/// Split a fluid state, holding an overall composition, into the liquid (oil)
+/// and vapour (gas) of a gas plant. Each component goes to the liquid by its
+/// recovery fraction in the table, which is linear in the mole fraction of the
+/// table's heavy components between rows and constant beyond the first and
+/// last row. Both streams take their densities from the equation of state
+/// eos_type at the given pressure and temperature.
+template <typename FluidSystem, typename T>
+void splitInGasPlant(CompositionalFluidState<T, FluidSystem>& fluid_state,
+                     const GasPlantTable& gas_plant,
+                     const typename FluidSystem::Scalar pressure,
+                     const typename FluidSystem::Scalar temperature,
+                     const CompositionalConfig::EOSType eos_type
+                     = CompositionalConfig::EOSType::PR)
+{
+    constexpr int num_comp = FluidSystem::numComponents;
+    constexpr int oil = FluidSystem::oilPhaseIdx;
+    constexpr int gas = FluidSystem::gasPhaseIdx;
+    assert(gas_plant.numComponents() == num_comp);
+
+    fluid_state.setTemperature(temperature);
+    fluid_state.setPressure(oil, pressure);
+    fluid_state.setPressure(gas, pressure);
+
+    T heavy = 0.;
+    for (int c = gas_plant.lowerComponent() - 1; c < gas_plant.upperComponent(); ++c) {
+        heavy += fluid_state.moleFraction(c);
+    }
+    const std::size_t num_rows = gas_plant.numRows();
+    std::size_t row = 0;
+    while (row + 2 < num_rows && heavy > gas_plant.heavyMoleFraction(row + 1)) {
+        ++row;
+    }
+    const std::size_t next = std::min(row + 1, num_rows - 1);
+    T weight = 0.; // of the next row
+    if (next > row && heavy > gas_plant.heavyMoleFraction(row)) {
+        const auto lower = gas_plant.heavyMoleFraction(row);
+        const auto upper = gas_plant.heavyMoleFraction(next);
+        weight = heavy < upper ? T((heavy - lower) / (upper - lower)) : T(1.);
+    }
+
+    std::array<T, num_comp> liquid_moles{};
+    T liquid = 0.;
+    T vapour = 0.;
+    for (int c = 0; c < num_comp; ++c) {
+        const T recovery = gas_plant.recovery(row, c)
+            + weight * (gas_plant.recovery(next, c) - gas_plant.recovery(row, c));
+        liquid_moles[c] = fluid_state.moleFraction(c) * recovery;
+        liquid += liquid_moles[c];
+        vapour += fluid_state.moleFraction(c) - liquid_moles[c];
+    }
+    // a stream that is all liquid or all vapour gives the empty one the feed composition
+    for (int c = 0; c < num_comp; ++c) {
+        const T& z = fluid_state.moleFraction(c);
+        fluid_state.setMoleFraction(oil, c, liquid > 0. ? T(liquid_moles[c] / liquid) : z);
+        fluid_state.setMoleFraction(gas, c, vapour > 0. ? T((z - liquid_moles[c]) / vapour) : z);
+    }
+    const T L = liquid / (liquid + vapour);
+    fluid_state.setLvalue(L);
+
+    typename FluidSystem::template ParameterCache<T> param_cache {eos_type};
+    param_cache.updatePhase(fluid_state, oil);
+    param_cache.updatePhase(fluid_state, gas);
+    const auto Vm_L = param_cache.correctedMolarVolume(oil);
+    const auto Vm_V = param_cache.correctedMolarVolume(gas);
+    const T So = L * Vm_L / (L * Vm_L + (1. - L) * Vm_V);
+    fluid_state.setSaturation(oil, So);
+    fluid_state.setSaturation(gas, 1. - So);
+    fluid_state.setDensity(oil, FluidSystem::density(fluid_state, param_cache, oil));
+    fluid_state.setDensity(gas, FluidSystem::density(fluid_state, param_cache, gas));
+}
+
 /// Volume rate of each phase of a component stream at surface conditions [m^3/s],
 /// from flashing the stream's own composition with the equation of state
-/// eos_type. The rates take the sign of the component mass rates [kg/s]; a
-/// stream without flow gives zero rates.
+/// eos_type, or from splitting it in the gas plant where one is given. The
+/// rates take the sign of the component mass rates [kg/s]; a stream without
+/// flow gives zero rates.
 template <typename FluidSystem>
 std::array<typename FluidSystem::Scalar, FluidSystem::numPhases>
 surfacePhaseRates(const std::array<typename FluidSystem::Scalar, FluidSystem::numComponents>& component_mass_rates,
                   const typename FluidSystem::Scalar pressure,
                   const typename FluidSystem::Scalar temperature,
                   const CompositionalConfig::EOSType eos_type
-                  = CompositionalConfig::EOSType::PR)
+                  = CompositionalConfig::EOSType::PR,
+                  const GasPlantTable* gas_plant = nullptr)
 {
     using Scalar = typename FluidSystem::Scalar;
     constexpr int num_comp = FluidSystem::numComponents;
@@ -180,7 +256,11 @@ surfacePhaseRates(const std::array<typename FluidSystem::Scalar, FluidSystem::nu
     for (int comp_idx = 0; comp_idx < num_comp; ++comp_idx) {
         fluid_state.setMoleFraction(comp_idx, std::max(molar_rates[comp_idx] / molar_rate, Scalar{1.e-10}));
     }
-    flashAtSurfaceConditions(fluid_state, pressure, temperature, eos_type);
+    if (gas_plant) {
+        splitInGasPlant(fluid_state, *gas_plant, pressure, temperature, eos_type);
+    } else {
+        flashAtSurfaceConditions(fluid_state, pressure, temperature, eos_type);
+    }
 
     const Scalar so = fluid_state.saturation(FluidSystem::oilPhaseIdx);
     const Scalar sg = fluid_state.saturation(FluidSystem::gasPhaseIdx);

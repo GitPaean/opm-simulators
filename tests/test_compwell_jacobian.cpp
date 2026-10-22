@@ -37,7 +37,7 @@
  * variables and re-flashing. It does the same for the wellbore contents of
  * wellboreContents(), where water fills a volume fraction of the wellbore that
  * is a primary variable as well. It also checks the surface phase rates of a
- * connection stream.
+ * connection stream, and the split of a stream in a gas plant.
  */
 #include "config.h"
 
@@ -55,11 +55,17 @@
 #include <opm/material/fluidstates/CompositionalFluidState.hpp>
 #include <opm/material/fluidsystems/GenericOilGasWaterFluidSystem.hpp>
 
+#include <opm/input/eclipse/Deck/Deck.hpp>
+#include <opm/input/eclipse/Parser/Parser.hpp>
+#include <opm/input/eclipse/Schedule/GasPlantTable.hpp>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <string>
 #include <type_traits>
+#include <utility>
 
 namespace {
 
@@ -433,6 +439,25 @@ void checkWaterFilledWellboreContents()
     checkSame(ad_flash.density, scalar_flash.density, "density");
 }
 
+// Gas plant table 1 for CO2, C1 and C10, keyed by the C10 mole fraction: the
+// recoveries into the liquid at C10 fractions of 0.1 and 0.5.
+Opm::GasPlantTable makeGasPlantTable()
+{
+    const auto deck = Opm::Parser{}.parseString(R"(
+RUNSPEC
+COMPS
+ 3 /
+SOLUTION
+GPTABLE
+ 1 3 3
+ 0.1  0.0 0.1 0.9
+ 0.5  0.0 0.3 1.0 /
+/
+)");
+    const auto& keyword = deck["GPTABLE"].back();
+    return Opm::GasPlantTable{keyword.getRecord(0), numComponents, keyword.location()};
+}
+
 } // anonymous namespace
 
 BOOST_AUTO_TEST_CASE(WellboreFlashDerivatives)
@@ -529,6 +554,124 @@ BOOST_AUTO_TEST_CASE(ConnectionStreamSurfaceRates)
         }
         Opm::flashAtSurfaceConditions(fs, surface_pressure, surface_temperature);
 
+        for (int c = 0; c < numComponents; ++c) {
+            const Scalar mass = rates[oil] * fs.density(oil) * fs.massFraction(oil, c)
+                              + rates[gas] * fs.density(gas) * fs.massFraction(gas, c);
+            BOOST_CHECK_CLOSE(mass, produced[c], 1.e-6); // percent
+        }
+    }
+}
+
+BOOST_AUTO_TEST_CASE(GasPlantSplit)
+{
+    registerFluidSystemComponents(volumeShift);
+    const auto gas_plant = makeGasPlantTable();
+
+    constexpr Scalar surface_pressure = 1.01325e5; // Pa
+    constexpr Scalar surface_temperature = 288.15; // K
+    constexpr int oil = FluidSystem::oilPhaseIdx;
+    constexpr int gas = FluidSystem::gasPhaseIdx;
+    using Composition = std::array<Scalar, numComponents>;
+
+    const auto split = [&](const Composition& z) {
+        Opm::CompositionalFluidState<Scalar, FluidSystem> fs;
+        for (int c = 0; c < numComponents; ++c) {
+            fs.setMoleFraction(c, z[c]);
+        }
+        Opm::splitInGasPlant(fs, gas_plant, surface_pressure, surface_temperature);
+        return fs;
+    };
+
+    // Below, between and beyond the rows: the recoveries are linear in the C10
+    // fraction between the rows and constant outside them.
+    const std::array<std::pair<Composition, Composition>, 3> recoveries{{
+        {{0.60, 0.35, 0.05}, {0.0, 0.1, 0.90}},
+        {{0.40, 0.30, 0.30}, {0.0, 0.2, 0.95}},
+        {{0.20, 0.20, 0.60}, {0.0, 0.3, 1.00}},
+    }};
+    for (const auto& [z, recovery] : recoveries) {
+        const auto fs = split(z);
+        const Scalar L = fs.L();
+        for (int c = 0; c < numComponents; ++c) {
+            BOOST_CHECK_SMALL(L * fs.moleFraction(oil, c) - z[c] * recovery[c], 1.e-14);
+            BOOST_CHECK_SMALL((1. - L) * fs.moleFraction(gas, c) - z[c] * (1. - recovery[c]),
+                              1.e-14);
+        }
+        BOOST_CHECK_CLOSE(fs.saturation(oil) + fs.saturation(gas), 1.0, 1.e-12);
+    }
+
+    // Where the flash splits a stream as the plant does, decane staying liquid
+    // and CO2 vapour, the two give the same phase densities.
+    for (const auto& [z, phase] : {std::pair{Composition{1.e-10, 1.e-10, 1. - 2.e-10}, oil},
+                                   std::pair{Composition{1. - 2.e-10, 1.e-10, 1.e-10}, gas}}) {
+        Opm::CompositionalFluidState<Scalar, FluidSystem> flashed;
+        for (int c = 0; c < numComponents; ++c) {
+            flashed.setMoleFraction(c, z[c]);
+        }
+        Opm::flashAtSurfaceConditions(flashed, surface_pressure, surface_temperature);
+        const auto fs = split(z);
+        BOOST_CHECK_CLOSE(fs.saturation(phase), 1.0, 1.e-4);
+        BOOST_CHECK_CLOSE(fs.density(phase), flashed.density(phase), 1.e-4);
+    }
+
+    // AD derivatives with respect to the composition, against central
+    // differences within a segment of the table
+    {
+        const Composition z{0.40, 0.30, 0.30};
+        std::array<Evaluation, numComponents> z_ad;
+        z_ad[0] = Evaluation::createVariable(z[0], z0Idx);
+        z_ad[1] = Evaluation::createVariable(z[1], z1Idx);
+        z_ad[2] = 1.0 - z_ad[0] - z_ad[1];
+        Opm::CompositionalFluidState<Evaluation, FluidSystem> fs_ad;
+        for (int c = 0; c < numComponents; ++c) {
+            fs_ad.setMoleFraction(c, z_ad[c]);
+        }
+        Opm::splitInGasPlant(fs_ad, gas_plant, surface_pressure, surface_temperature);
+
+        const auto quantities = [](const auto& fs) {
+            return std::array{fs.saturation(oil), fs.density(oil), fs.density(gas),
+                              fs.massFraction(oil, 1), fs.massFraction(gas, 2)};
+        };
+        const auto ad = quantities(fs_ad);
+        constexpr Scalar h = 1.e-6;
+        for (const int s : {z0Idx, z1Idx}) {
+            Composition zp = z;
+            Composition zm = z;
+            zp[s - z0Idx] += h;
+            zp[2] -= h;
+            zm[s - z0Idx] -= h;
+            zm[2] += h;
+            const auto qp = quantities(split(zp));
+            const auto qm = quantities(split(zm));
+            for (std::size_t i = 0; i < ad.size(); ++i) {
+                const Scalar fd = (qp[i] - qm[i]) / (2. * h);
+                const Scalar tol = 1.e-5 * std::abs(fd) + 1.e-7 * std::abs(ad[i].value());
+                BOOST_CHECK_MESSAGE(std::abs(ad[i].derivative(s) - fd) <= tol,
+                                    "quantity " << i << ", slot " << s << ": AD="
+                                    << ad[i].derivative(s) << " FD=" << fd);
+            }
+        }
+    }
+
+    // The surface rates of a produced stream carry the mass of each component.
+    {
+        const Composition produced{-0.2, -0.3, -1.5}; // kg/s
+        const auto rates = Opm::surfacePhaseRates<FluidSystem>(
+            produced, surface_pressure, surface_temperature,
+            Opm::CompositionalConfig::EOSType::PR, &gas_plant);
+        BOOST_REQUIRE_LT(rates[oil], 0.0);
+        BOOST_REQUIRE_LT(rates[gas], 0.0);
+
+        Composition z{};
+        Scalar moles = 0.;
+        for (int c = 0; c < numComponents; ++c) {
+            z[c] = produced[c] / FluidSystem::molarMass(c);
+            moles += z[c];
+        }
+        for (auto& zc : z) {
+            zc /= moles;
+        }
+        const auto fs = split(z);
         for (int c = 0; c < numComponents; ++c) {
             const Scalar mass = rates[oil] * fs.density(oil) * fs.massFraction(oil, c)
                               + rates[gas] * fs.density(gas) * fs.massFraction(gas, c);

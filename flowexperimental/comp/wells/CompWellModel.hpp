@@ -41,6 +41,7 @@
 
 #include <cstddef>
 #include <map>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -219,6 +220,12 @@ private:
      Scalar dwell_fraction_max_;
      Scalar dbhp_max_rel_;
 
+     // the gas plant table that the single FIELDSEP stage refers to, and that
+     // table at the current report step; 0 when the produced streams are
+     // flashed at standard conditions
+     int gas_plant_table_number_;
+     std::optional<GasPlantTable> gas_plant_;
+
      // this is needed for parallel running, not all the wells will be in the same process
      std::vector<Well> wells_ecl_;
      std::vector<std::vector<CompConnectionData> > well_connection_data_;
@@ -249,6 +256,8 @@ private:
      // not, so fall back to the default unless the parameter was given
      template <class Param>
      static Scalar wellNewtonLimit_();
+
+     static int gasPlantTableNumber_(const EclipseState& ecl_state);
 };
 
 } // end of namespace Opm

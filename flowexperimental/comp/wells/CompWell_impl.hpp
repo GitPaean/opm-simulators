@@ -36,6 +36,7 @@
 #include <array>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace Opm {
 
@@ -47,12 +48,14 @@ CompWell(const Well& well,
          const Scalar dwell_fraction_max,
          const Scalar dbhp_max_rel,
          const std::size_t eos_region,
-         const CompositionalConfig::EOSType eos_type)
+         const CompositionalConfig::EOSType eos_type,
+         std::optional<GasPlantTable> gas_plant)
   : CompWellInterface<TypeTag>(well, index_of_well, well_connection_data)
   , dwell_fraction_max_(dwell_fraction_max)
   , dbhp_max_rel_(dbhp_max_rel)
   , eos_region_(eos_region)
   , eos_type_(eos_type)
+  , gas_plant_(std::move(gas_plant))
 {
 }
 
@@ -217,13 +220,14 @@ updateSurfaceQuantities(const Simulator& simulator)
             fluid_state.setMoleFraction(comp_idx, std::max(inj_composition[comp_idx], 1.e-10));
         }
         // the injection stream carries no water
-        updateSurfaceCondition_(surface_cond, surface_eos_type, surface_water_density,
+        updateSurfaceCondition_(surface_cond, surface_eos_type, nullptr, surface_water_density,
                                 fluid_state, Scalar{0.});
     } else { // the composition will be from the wellbore
         // here, it will use the composition from the wellbore and the pressure and temperature from the surface condition
         auto fluid_state = this->primary_variables_.template toFluidState<EvalWell>();
-        updateSurfaceCondition_(surface_cond, surface_eos_type, surface_water_density,
-                                fluid_state, this->water_mass_fraction_);
+        updateSurfaceCondition_(surface_cond, surface_eos_type,
+                                this->gas_plant_ ? &*this->gas_plant_ : nullptr,
+                                surface_water_density, fluid_state, this->water_mass_fraction_);
      }
 }
 
@@ -779,12 +783,14 @@ updateConnectionQuantities(const Simulator& simulator,
                            SingleWellState& well_state) const
 {
     // A connection stream can differ in composition from the wellbore fluid,
-    // e.g. while the wellbore fluid changes, so it is flashed on its own, with
-    // the surface equation of state as the well stream.
+    // e.g. while the wellbore fluid changes, so it is separated on its own, in
+    // the same way as the well stream.
     const auto& tables = simulator.vanguard().eclState().getTableManager();
     const auto& surface_cond = tables.stCond();
     const auto surface_eos_type
         = simulator.vanguard().eclState().compositionalConfig().eosTypeSurf(0);
+    const GasPlantTable* gas_plant
+        = this->well_ecl_.isProducer() && this->gas_plant_ ? &*this->gas_plant_ : nullptr;
     constexpr int np = FluidSystem::numPhases;
     auto& conn_data = well_state.connection_data;
     for (int con = 0; con < this->number_of_connection_; ++con) {
@@ -794,7 +800,7 @@ updateConnectionQuantities(const Simulator& simulator,
         }
         auto rates = surfacePhaseRates<SurfaceFluidSystem>(mass_rates, surface_cond.pressure,
                                                            surface_cond.temperature,
-                                                           surface_eos_type);
+                                                           surface_eos_type, gas_plant);
         if constexpr (FluidSystem::waterEnabled) {
             // water takes no part in the flash; DENSITY gives its surface volume
             rates[FluidSystem::waterPhaseIdx] = getValue(this->connectionRates_[con][num_comp])
@@ -954,6 +960,7 @@ void
 CompWell<TypeTag>::
 updateSurfaceCondition_(const StandardCond& surface_cond,
                         const CompositionalConfig::EOSType surface_eos_type,
+                        const GasPlantTable* gas_plant,
                         const Scalar surface_water_density,
                         const FluidState<T>& wellbore_state,
                         const T& water_mass_fraction)
@@ -965,8 +972,13 @@ updateSurfaceCondition_(const StandardCond& surface_cond,
     for (unsigned compidx = 0; compidx < FluidSystem::numComponents; ++compidx) {
         fluid_state.setMoleFraction(compidx, wellbore_state.moleFraction(compidx));
     }
-    flashAtSurfaceConditions(fluid_state, surface_cond.pressure, surface_cond.temperature,
-                             surface_eos_type);
+    if (gas_plant) {
+        splitInGasPlant(fluid_state, *gas_plant, surface_cond.pressure, surface_cond.temperature,
+                        surface_eos_type);
+    } else {
+        flashAtSurfaceConditions(fluid_state, surface_cond.pressure, surface_cond.temperature,
+                                 surface_eos_type);
+    }
 
     for (unsigned compidx = 0; compidx < FluidSystem::numComponents; ++compidx) {
         this->surface_conditions_.mass_fractions_[FluidSystem::oilPhaseIdx][compidx] =

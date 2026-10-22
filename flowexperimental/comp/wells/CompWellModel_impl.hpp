@@ -29,7 +29,12 @@
 #include <set>
 #include <algorithm>
 
+#include <fmt/format.h>
+
+#include <opm/common/OpmLog/OpmLog.hpp>
+
 #include <opm/input/eclipse/EclipseState/EclipseState.hpp>
+#include <opm/input/eclipse/EclipseState/InitConfig/InitConfig.hpp>
 #include <opm/input/eclipse/Schedule/Schedule.hpp>
 #include <opm/input/eclipse/Schedule/Well/WellConnections.hpp>
 
@@ -54,6 +59,7 @@ CompWellModel<TypeTag>::CompWellModel(Simulator& simulator, const NewtonIteratio
     , last_valid_comp_well_states_(comp_config_)
     , dwell_fraction_max_(wellNewtonLimit_<Parameters::DwellFractionMax<Scalar>>())
     , dbhp_max_rel_(wellNewtonLimit_<Parameters::DbhpMaxRel<Scalar>>())
+    , gas_plant_table_number_(gasPlantTableNumber_(ecl_state_))
 {
     local_num_cells_ = simulator.gridView().size(0);
 }
@@ -69,6 +75,29 @@ wellNewtonLimit_()
 }
 
 template <typename TypeTag>
+int
+CompWellModel<TypeTag>::
+gasPlantTableNumber_(const EclipseState& ecl_state)
+{
+    const auto& init_config = ecl_state.getInitConfig();
+    if (!init_config.hasFieldSep()) {
+        return 0;
+    }
+    const auto& separator = init_config.getFieldSep();
+    const auto& stage = separator.getRecord(0);
+    if (separator.size() > 1 || stage.gasPlantTableNumber() == 0) {
+        OpmLog::warning("FIELDSEP is only supported as a single stage with a gas plant table. "
+                        "The produced streams are flashed at standard conditions instead.");
+        return 0;
+    }
+    if (stage.nglDensityTemperature() || stage.nglDensityPressure()) {
+        OpmLog::warning("FIELDSEP: the gas plant liquid takes its density at standard "
+                        "conditions, items 9 and 10 are ignored.");
+    }
+    return stage.gasPlantTableNumber();
+}
+
+template <typename TypeTag>
 void
 CompWellModel<TypeTag>::
 beginReportStep(unsigned report_step)
@@ -76,6 +105,16 @@ beginReportStep(unsigned report_step)
     // TODO: not considering the parallel running yet
     report_step_start_events_ = schedule_[report_step].wellgroup_events();
     wells_ecl_ = schedule_.getWells(report_step);
+
+    if (gas_plant_table_number_ > 0) {
+        const auto& gas_plants = schedule_[report_step].gptable;
+        if (!gas_plants.has(gas_plant_table_number_)) {
+            OPM_THROW(std::invalid_argument,
+                      fmt::format("FIELDSEP refers to gas plant table {}, which GPTABLE "
+                                  "does not define", gas_plant_table_number_));
+        }
+        gas_plant_ = gas_plants(gas_plant_table_number_);
+    }
 
     constexpr auto events_mask = ScheduleEvents::WELL_STATUS_CHANGE |
                                  ScheduleEvents::REQUEST_OPEN_WELL |
@@ -162,7 +201,7 @@ createWellContainer()
         const auto eos_type = problem.getEosType(cell);
         well_container_.emplace_back(std::make_shared<CompWell<TypeTag>>(wells_ecl_[w], w, well_connection_data_[w],
                                                                           dwell_fraction_max_, dbhp_max_rel_,
-                                                                          eos_region, eos_type));
+                                                                          eos_region, eos_type, gas_plant_));
     }
 }
 
