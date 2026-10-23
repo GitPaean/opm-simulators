@@ -45,10 +45,12 @@ CompWell(const Well& well,
          int index_of_well,
          const std::vector<CompConnectionData>& well_connection_data,
          const Scalar dwell_fraction_max,
-         const Scalar dbhp_max_rel)
+         const Scalar dbhp_max_rel,
+         const unsigned pvt_region_idx)
   : CompWellInterface<TypeTag>(well, index_of_well, well_connection_data)
   , dwell_fraction_max_(dwell_fraction_max)
   , dbhp_max_rel_(dbhp_max_rel)
+  , pvt_region_idx_(pvt_region_idx)
 {
 }
 
@@ -65,15 +67,17 @@ template <typename TypeTag>
 template <typename T>
 T
 CompWell<TypeTag>::
-waterDensity_(const T& pressure, const Scalar temperature)
+waterDensity_(const T& pressure, const Scalar temperature) const
 {
-    // the water PVT only reads pressure and temperature; a fluid state and
-    // parameter cache are built to satisfy the fluid system's interface
+    // the water PVT only reads pressure, temperature and the PVT region; a
+    // fluid state and parameter cache are built to satisfy the fluid system's
+    // interface
     FluidState<T> fluid_state;
     fluid_state.setPressure(FluidSystem::waterPhaseIdx, pressure);
     fluid_state.setTemperature(temperature);
     typename FluidSystem::template ParameterCache<T> param_cache
         {CompositionalConfig::EOSType::PR};
+    param_cache.setRegionIndex(this->pvt_region_idx_);
     return FluidSystem::density(fluid_state, param_cache, FluidSystem::waterPhaseIdx);
 }
 
@@ -177,7 +181,7 @@ updateSurfaceQuantities(const Simulator& simulator)
     // temperature, so its density at surface pressure is a different one.
     Scalar surface_water_density = 0.;
     if constexpr (FluidSystem::waterEnabled) {
-        surface_water_density = tables.getDensityTable()[0].water;
+        surface_water_density = tables.getDensityTable()[this->pvt_region_idx_].water;
     }
     if (this->isWaterInjector_()) {
         // The stream is water alone, so the hydrocarbon surface split carries
@@ -724,7 +728,7 @@ updateConnectionQuantities(const Simulator& simulator,
         if constexpr (FluidSystem::waterEnabled) {
             // water takes no part in the flash; DENSITY gives its surface volume
             rates[FluidSystem::waterPhaseIdx] = getValue(this->connectionRates_[con][num_comp])
-                / tables.getDensityTable()[0].water;
+                / tables.getDensityTable()[this->pvt_region_idx_].water;
         }
         std::ranges::copy(rates, conn_data.surface_phase_rates.begin() + con * np);
         // no pressure drop between the bottom hole and the connections

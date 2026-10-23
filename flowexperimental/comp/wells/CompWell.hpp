@@ -105,7 +105,8 @@ public:
              int index_of_well,
              const std::vector<CompConnectionData>& well_connection_data,
              Scalar dwell_fraction_max,
-             Scalar dbhp_max_rel);
+             Scalar dbhp_max_rel,
+             unsigned pvt_region_idx);
 
     void init() override;
 
@@ -152,6 +153,8 @@ private:
     // Newton update
     const Scalar dwell_fraction_max_;
     const Scalar dbhp_max_rel_;
+    // PVT region of the connection cell, which gives the water properties
+    const unsigned pvt_region_idx_;
 
     // primary variables
     PrimaryVariables primary_variables_;
@@ -235,9 +238,9 @@ private:
     bool isWaterInjector_() const;
 
     // water density at the given pressure and temperature via the fluid
-    // system's water PVT
+    // system's water PVT of the well's PVT region
     template <typename T>
-    static T waterDensity_(const T& pressure, const Scalar temperature);
+    T waterDensity_(const T& pressure, const Scalar temperature) const;
 
     template <typename T>
     void
