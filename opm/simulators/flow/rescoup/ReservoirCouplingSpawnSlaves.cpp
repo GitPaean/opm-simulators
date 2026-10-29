@@ -36,6 +36,8 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <string>
+#include <system_error>
 #include <vector>
 
 #include <fmt/format.h>
@@ -158,7 +160,10 @@ createSlaveNameToMasterGroupsMap_()
 template <class Scalar>
 std::vector<char *> ReservoirCouplingSpawnSlaves<Scalar>::
 getSlaveArgv_(
-    const std::filesystem::path &data_file,
+    // Narrow std::string (not std::filesystem::path): path::c_str() is wchar_t*
+    // on Windows, but slave_argv holds char*. The caller keeps the backing
+    // string alive for as long as the returned argv is used.
+    const std::string &data_file,
     const std::string &slave_name,
     std::string &log_filename) const
 {
@@ -468,7 +473,24 @@ void
 ReservoirCouplingSpawnSlaves<Scalar>::
 spawnSlaveProcesses_()
 {
-    char *flow_program_name = this->master_.getArgv(0);
+    // Resolve the program name to an absolute path before handing it to
+    // MPI_Comm_spawn: the command is launched by the MPI process manager
+    // (an mpiexec/hydra daemon, or on Windows the hydra service), whose
+    // working directory is not necessarily ours, so a relative path such as
+    // "./flow" or "build/bin/flow" may not resolve there. A bare program
+    // name without a directory component is left untouched so the process
+    // manager can look it up in PATH, as it was resolved for the master.
+    std::string program_name{this->master_.getArgv(0)};
+    if (const std::filesystem::path program_path{program_name};
+        program_path.has_parent_path() && !program_path.is_absolute())
+    {
+        std::error_code ec;
+        const auto abs_path = std::filesystem::absolute(program_path, ec);
+        if (!ec) {
+            program_name = abs_path.string();
+        }
+    }
+
     for (const auto& [slave_name, slave] : this->rescoup_.slaves()) {
         MPI_Comm master_slave_comm = MPI_COMM_NULL;
         const auto& data_file_name = slave.dataFilename();
@@ -477,9 +499,12 @@ spawnSlaveProcesses_()
         std::filesystem::path dir_path{directory_path};
         std::filesystem::path data_file{data_file_name};
         std::filesystem::path full_path = dir_path / data_file;
+        // Keep the narrow path string alive for as long as slave_argv (which
+        // points into it) is used below in MPI_Comm_spawn.
+        std::string full_path_str = full_path.string();
         std::string log_filename; // the getSlaveArgv() function will set this
         std::vector<char *> slave_argv = this->getSlaveArgv_(
-            full_path, slave_name, log_filename
+            full_path_str, slave_name, log_filename
         );
         auto num_procs = slave.numprocs();
         std::vector<int> errcodes(num_procs);
@@ -509,12 +534,12 @@ spawnSlaveProcesses_()
         // The slaves receive this parameter too, as they receive every other one, and
         // ignore it: they never spawn.
         const std::string& spawn_wrapper = Parameters::Get<Parameters::RescoupSpawnWrapper>();
-        const char* spawn_command = flow_program_name;
+        const char* spawn_command = program_name.c_str();
         std::vector<char*> wrapper_argv;
         if (!spawn_wrapper.empty()) {
             spawn_command = spawn_wrapper.c_str();
             wrapper_argv.reserve(slave_argv.size() + 1);
-            wrapper_argv.push_back(flow_program_name);
+            wrapper_argv.push_back(program_name.data());
             wrapper_argv.insert(wrapper_argv.end(), slave_argv.begin(), slave_argv.end());
             this->logger_.info(fmt::format(
                 "Spawning slave {} through wrapper {}", slave_name, spawn_wrapper));
@@ -543,7 +568,27 @@ spawnSlaveProcesses_()
                     this->logger_.info(fmt::format("Error spawning process {}: {}", i, error_string));
                 }
             }
-            RCOUP_LOG_THROW(std::runtime_error, "Failed to spawn slave process");
+            std::string reason;
+            if (spawn_result != MPI_SUCCESS) {
+                char error_string[MPI_MAX_ERROR_STRING];
+                int length_of_error_string = 0;
+                MPI_Error_string(spawn_result, error_string, &length_of_error_string);
+                reason = error_string;
+            }
+            else {
+                reason = "no intercommunicator was returned";
+            }
+            // What the MPI library reports, plus the launch context the spawn
+            // depends on: MPI_Comm_spawn hands the command to the MPI process
+            // manager, so the master must have been started through mpiexec
+            // (a program started directly has no process manager to spawn
+            // with), and the command must be reachable from that manager.
+            RCOUP_LOG_THROW(std::runtime_error,
+                            fmt::format("Failed to spawn slave process '{}' with command '{}': {}. "
+                                        "MPI_Comm_spawn is carried out by the MPI process manager: "
+                                        "the master must itself have been started through mpiexec, "
+                                        "and the command must be reachable from that process manager.",
+                                        slave_name, spawn_command, reason));
         }
         // NOTE: By installing a custom error handler for all slave-master communicators, which
         //   eventually will call MPI_Abort(), there is no need to check the return value of any

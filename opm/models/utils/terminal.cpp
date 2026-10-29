@@ -28,11 +28,19 @@
 #include <mpi.h>
 #endif
 
+#include <chrono>
 #include <csignal>
+#include <cstdio>
 #include <iostream>
+#include <thread>
 #include <unordered_map>
+
+#if defined(_WIN32)
+#include <io.h>  // _isatty, _fileno
+#else
 #include <sys/ioctl.h>
 #include <unistd.h>
+#endif
 
 namespace {
 
@@ -43,7 +51,9 @@ const char* getSignalAbbrev(int sig)
         {SIGILL, "ILL"},
         {SIGABRT, "ABRT"},
         {SIGFPE, "FPE"},
-        {SIGKILL, "KILL"},
+#ifdef SIGKILL
+        {SIGKILL, "KILL"},   // not defined by MSVC's <signal.h>
+#endif
         {SIGSEGV, "SEGV"},
         {SIGTERM, "TERM"},
     };
@@ -55,6 +65,20 @@ const char* getSignalAbbrev(int sig)
 }
 
 namespace Opm {
+
+bool isTty(std::FILE* stream)
+{
+#if defined(_WIN32)
+    // _fileno() returns a negative descriptor (-2) for a standard stream that
+    // is attached to nothing - a process started by a service or a process
+    // manager without a console - and _isatty() on that is an invalid
+    // parameter, which the CRT may treat as fatal. No descriptor, no terminal.
+    const int fd = _fileno(stream);
+    return fd >= 0 && _isatty(fd) != 0;
+#else
+    return isatty(fileno(stream)) != 0;
+#endif
+}
 
 std::string breakLines(const std::string& msg,
                        int indentWidth,
@@ -110,7 +134,7 @@ std::string breakLines(const std::string& msg,
 int getTtyWidth()
 {
     int ttyWidth = 10*1000; // effectively do not break lines at all.
-    if (isatty(STDOUT_FILENO) != 0) {
+    if (isTty(stdout)) {
 #if defined TIOCGWINSZ
         // This is a bit too linux specific, IMO. let's do it anyway
         struct winsize ttySize;
@@ -129,13 +153,17 @@ void assignResetTerminalSignalHandlers()
 {
     // set the signal handlers to reset the TTY to a well defined state on unexpected
     // program aborts
-    if (isatty(STDIN_FILENO) != 0) {
+    if (isTty(stdin)) {
         signal(SIGINT, resetTerminal);
-        signal(SIGHUP, resetTerminal);
+#ifdef SIGHUP
+        signal(SIGHUP, resetTerminal);   // not on Windows
+#endif
         signal(SIGABRT, resetTerminal);
         signal(SIGFPE, resetTerminal);
         signal(SIGSEGV, resetTerminal);
-        signal(SIGPIPE, resetTerminal);
+#ifdef SIGPIPE
+        signal(SIGPIPE, resetTerminal);  // not on Windows
+#endif
         signal(SIGTERM, resetTerminal);
     }
 }
@@ -149,9 +177,10 @@ void resetTerminal()
     std::cout << "    \r\n";
     std::cout.flush();
 
+#if !defined(_WIN32)
     // it seems like some terminals sometimes takes their time to react, so let's
     // accommodate them.
-    usleep(/*usec=*/500*1000);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     // this requires the 'stty' command to be available in the command search path. on
     // most linux systems, is the case. (but even if the system() function fails, the
@@ -160,6 +189,7 @@ void resetTerminal()
         std::cout << "Executing the 'stty' command failed."
                   << " Terminal might be left in an undefined state!\n";
     }
+#endif
 }
 
 void resetTerminal(int signum)
@@ -178,7 +208,7 @@ void resetTerminal(int signum)
     }
 #endif
 
-    if (isatty(fileno(stdout)) != 0 && isatty(fileno(stdin)) != 0) {
+    if (isTty(stdout) && isTty(stdin)) {
         std::cout << "\n\nReceived signal " << signum
                   << " (\"" << getSignalAbbrev(signum) << "\")."
                   << " Trying to reset the terminal.\n";
