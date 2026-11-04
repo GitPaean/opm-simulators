@@ -55,13 +55,16 @@
 #include <opm/simulators/flow/FemCpGridCompat.hpp>
 #endif //HAVE_DUNE_FEM
 
+#include <algorithm>
 #include <cassert>
+#include <cctype>
+#include <charconv>
 #include <fstream>
-#include <iterator>
 #include <numeric>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <fmt/format.h>
@@ -69,6 +72,66 @@
 namespace Opm {
 
 #if HAVE_MPI
+namespace {
+
+// Appends the integers on one line of a partition file to 'partition'.  As in
+// a deck, "--" starts a comment that runs to the end of the line.  Returns
+// false if the line holds anything other than integers.
+bool readPartitionFileLine(const std::string_view line, std::vector<int>& partition)
+{
+    const auto isSpace = [](const char c)
+    { return std::isspace(static_cast<unsigned char>(c)) != 0; };
+
+    const auto text = line.substr(0, line.find("--"));
+    const auto* end = text.data() + text.size();
+    for (const auto* p = std::find_if_not(text.data(), end, isSpace); p != end;
+         p = std::find_if_not(p, end, isSpace))
+    {
+        // Accept a leading '+', as stream input does; from_chars() does not.
+        if ((*p == '+') && (p + 1 != end) &&
+            (std::isdigit(static_cast<unsigned char>(p[1])) != 0))
+        {
+            ++p;
+        }
+
+        auto value = 0;
+        const auto [next, ec] = std::from_chars(p, end, value);
+        if ((ec != std::errc {}) || ((next != end) && ! isSpace(*next))) {
+            return false;
+        }
+
+        partition.push_back(value);
+        p = next;
+    }
+
+    return true;
+}
+
+// Reads all integers in the external partition file (--external-partition).
+// Throws std::invalid_argument naming the first line that holds anything
+// other than integers.
+std::vector<int> readPartitionFile(const std::filesystem::path& partitionFile)
+{
+    std::ifstream pfile { partitionFile };
+
+    auto partition = std::vector<int> {};
+    auto lineNo = 0;
+    for (std::string line; std::getline(pfile, line); ) {
+        ++lineNo;
+        if (! readPartitionFileLine(line, partition)) {
+            throw std::invalid_argument {
+                fmt::format("Line {} of partition file '{}' holds "
+                            "something other than integers",
+                            lineNo, partitionFile.generic_string())
+            };
+        }
+    }
+
+    return partition;
+}
+
+} // Anonymous namespace
+
 namespace details {
 
 std::vector<int>
@@ -80,12 +143,7 @@ MPIPartitionFromFile::operator()(const Dune::CpGrid& grid) const
                   fmt::format("External partition file '{}' does not exist.", this->partitionFile_.string()));
     }
 
-    std::ifstream pfile { this->partitionFile_ };
-
-    auto partition = std::vector<int> {
-        std::istream_iterator<int> { pfile },
-        std::istream_iterator<int> {}
-    };
+    auto partition = readPartitionFile(this->partitionFile_);
 
     const auto nc =
         static_cast<std::vector<int>::size_type>(grid.size(0));

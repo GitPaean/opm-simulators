@@ -37,7 +37,13 @@
 #include <opm/input/eclipse/Deck/Deck.hpp>
 #include <opm/input/eclipse/EclipseState/Grid/EclipseGrid.hpp>
 
+#include <opm/simulators/flow/GenericCpGridVanguard.hpp>
 #include <opm/simulators/flow/partitionCells.hpp>
+
+#include <filesystem>
+#include <fstream>
+#include <string>
+#include <vector>
 
 // Helper functions
 namespace {
@@ -112,6 +118,53 @@ BOOST_AUTO_TEST_CASE(FileBasedWrongNumberOfCells)
     auto func = []() { auto [part, num_part] = Opm::partitionCellsFromFile("test10.partition", 11); };
     BOOST_CHECK_THROW(func(), std::runtime_error);
 }
+
+#if HAVE_MPI
+namespace {
+    std::filesystem::path writePartitionFile(const std::string& name,
+                                             const std::string& content)
+    {
+        const auto path = std::filesystem::temp_directory_path() / name;
+        std::ofstream { path } << content;
+        return path;
+    }
+}
+
+BOOST_AUTO_TEST_CASE(ExternalPartitionFileWithComments)
+{
+    const auto grid = createTestGrid({2, 2, 1}, {1.0, 1.0, 1.0});
+    const auto file = writePartitionFile("external_with_comments.partition",
+                                         "-- rank, Cartesian index, domain\n"
+                                         "1 1 0  -- second cell\n"
+                                         "0 0 0\n"
+                                         "\n"
+                                         "0 3 0\n"
+                                         "+1 2 0\n");
+
+    const auto part = Opm::details::MPIPartitionFromFile { file }(grid);
+    const auto expected = std::vector<int> { 0, 1, 1, 0 };
+    BOOST_CHECK_EQUAL_COLLECTIONS(expected.begin(), expected.end(), part.begin(), part.end());
+}
+
+BOOST_AUTO_TEST_CASE(ExternalPartitionFileMalformed)
+{
+    const auto grid = createTestGrid({2, 2, 1}, {1.0, 1.0, 1.0});
+
+    // Each holds the four valid values plus one token that is not an int.
+    for (const auto* content : { "0\n1\n1\n0 x\n",
+                                 "0\n1\n+\n1\n0\n",
+                                 "0\n1\n+-1\n1\n0\n",
+                                 "0\n1\n-\n1\n0\n",
+                                 "0\n1\n99999999999999999999\n1\n0\n" })
+    {
+        BOOST_TEST_CONTEXT("Partition file " << content) {
+            const auto file = writePartitionFile("external_malformed.partition", content);
+            BOOST_CHECK_THROW(Opm::details::MPIPartitionFromFile { file }(grid),
+                              std::invalid_argument);
+        }
+    }
+}
+#endif
 
 BOOST_AUTO_TEST_CASE(Simple1)
 {
