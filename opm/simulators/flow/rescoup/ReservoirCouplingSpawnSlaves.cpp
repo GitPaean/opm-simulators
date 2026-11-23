@@ -158,7 +158,9 @@ createSlaveNameToMasterGroupsMap_()
 template <class Scalar>
 std::vector<char *> ReservoirCouplingSpawnSlaves<Scalar>::
 getSlaveArgv_(
-    const std::filesystem::path &data_file,
+    // std::string, not std::filesystem::path: path::c_str() is wchar_t* on
+    // Windows, and slave_argv holds char*.
+    const std::string &data_file,
     const std::string &slave_name,
     std::string &log_filename) const
 {
@@ -477,9 +479,11 @@ spawnSlaveProcesses_()
         std::filesystem::path dir_path{directory_path};
         std::filesystem::path data_file{data_file_name};
         std::filesystem::path full_path = dir_path / data_file;
+        // Kept alive for as long as slave_argv, which points into it.
+        const std::string full_path_str = full_path.string();
         std::string log_filename; // the getSlaveArgv() function will set this
         std::vector<char *> slave_argv = this->getSlaveArgv_(
-            full_path, slave_name, log_filename
+            full_path_str, slave_name, log_filename
         );
         auto num_procs = slave.numprocs();
         std::vector<int> errcodes(num_procs);
