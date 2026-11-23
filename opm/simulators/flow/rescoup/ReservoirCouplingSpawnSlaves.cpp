@@ -36,6 +36,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <string>
 #include <vector>
 
 #include <fmt/format.h>
@@ -543,7 +544,25 @@ spawnSlaveProcesses_()
                     this->logger_.info(fmt::format("Error spawning process {}: {}", i, error_string));
                 }
             }
-            RCOUP_LOG_THROW(std::runtime_error, "Failed to spawn slave process");
+            std::string reason;
+            if (spawn_result != MPI_SUCCESS) {
+                char error_string[MPI_MAX_ERROR_STRING];
+                int length_of_error_string = 0;
+                MPI_Error_string(spawn_result, error_string, &length_of_error_string);
+                reason = error_string;
+            }
+            else {
+                reason = "no intercommunicator was returned";
+            }
+            // MPI_Comm_spawn hands the command to the MPI process manager, so the
+            // master must have been started through mpiexec, and the command must
+            // be reachable from that process manager.
+            RCOUP_LOG_THROW(std::runtime_error,
+                            fmt::format("Failed to spawn slave process '{}' with command '{}': {}. "
+                                        "MPI_Comm_spawn is carried out by the MPI process manager: "
+                                        "the master must itself have been started through mpiexec, "
+                                        "and the command must be reachable from that process manager.",
+                                        slave_name, spawn_command, reason));
         }
         // NOTE: By installing a custom error handler for all slave-master communicators, which
         //   eventually will call MPI_Abort(), there is no need to check the return value of any
