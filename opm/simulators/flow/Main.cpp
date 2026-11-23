@@ -51,7 +51,11 @@
 #include <iostream>
 // NOTE: There is no C++ header replacement for these C posix headers (as of C++17)
 #include <fcntl.h>  // for open()
+#if defined(_WIN32)
+#include <io.h>     // MSVC's POSIX-named open(), dup2(), close()
+#else
 #include <unistd.h> // for dup2(), close()
+#endif
 
 #include <iostream>
 
