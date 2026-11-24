@@ -34,18 +34,25 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
-#include <sys/utsname.h>
 #include <thread>
+
+#if defined(_WIN32)
+#include <cstdlib> // std::getenv()
+#else
+#include <sys/utsname.h>
 #include <unistd.h>
+#endif
 
 namespace {
 
+#if !defined(_WIN32)
 unsigned long long getTotalSystemMemory()
 {
     long pages = sysconf(_SC_PHYS_PAGES);
     long page_size = sysconf(_SC_PAGE_SIZE);
     return pages * page_size;
 }
+#endif
 
 }
 
@@ -59,14 +66,19 @@ void printPRTHeader(const std::size_t nprocs,
 {
     const double megabyte = 1024 * 1024;
     unsigned num_cpu = std::thread::hardware_concurrency();
+#if defined(_WIN32)
+    // No uname(), sysconf() or getlogin() on Windows: the header leaves out
+    // the machine and operating system lines there.
+    const char* user = std::getenv("USERNAME");
+#else
     struct utsname arch;
     const char* user = getlogin();
+#endif
     std::time_t now = std::time(nullptr);
     struct std::tm  tstruct;
     std::array<char,80>  tmstr;
     tstruct = *std::localtime(&now);
     std::strftime(tmstr.data(), tmstr.size(), "%d-%m-%Y at %X", &tstruct);
-    const double mem_size = static_cast<double>(getTotalSystemMemory()) / megabyte;
     std::ostringstream ss;
     ss << "\n\n\n";
     ss << " ########  #          ######   #           #\n";
@@ -77,13 +89,16 @@ void printPRTHeader(const std::size_t nprocs,
     ss << "Flow is a simulator for fully implicit three-phase black-oil flow,";
     ss << " and is part of OPM.\nFor more information visit: https://opm-project.org \n\n";
     ss << "Flow Version     =  " << moduleVersion << "\n";
+#if !defined(_WIN32)
     if (uname(&arch) == 0) {
+       const double mem_size = static_cast<double>(getTotalSystemMemory()) / megabyte;
        ss << "Machine name     =  " << arch.nodename << " (Number of logical cores: " << num_cpu;
        ss << ", Memory size: " << std::fixed << std::setprecision (2) << mem_size << " MB) \n";
        ss << "Operating system =  " << arch.sysname << " " << arch.machine << " (Kernel: " << arch.release;
        ss << ", " << arch.version << " )\n";
        ss << "Build time       =  " << compileTimestamp << "\n";
     }
+#endif
     if (user != nullptr) {
        ss << "User             =  " << user << std::endl;
     }
