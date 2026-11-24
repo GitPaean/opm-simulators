@@ -24,6 +24,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <memory>
+#include <new>
 #include <type_traits>
 #include <utility>
 
@@ -79,17 +80,16 @@ inline void* aligned_alloc(std::size_t alignment,
     if (alignment < sizeof(void*)) {
         alignment = sizeof(void*);
     }
-    void* p;
-    if (::posix_memalign(&p, alignment, size) != 0) {
-        p = 0;
-    }
-    return p;
+    return ::operator new(size, std::align_val_t{alignment}, std::nothrow);
 }
 
-inline void aligned_free(void* ptr)
-    noexcept
+inline void aligned_free(void* ptr,
+                         std::size_t alignment) noexcept
 {
-    ::free(ptr);
+    if (alignment < sizeof(void*)) {
+        alignment = sizeof(void*);
+    }
+    ::operator delete(ptr, std::align_val_t{alignment});
 }
 
 template<class T, std::size_t Alignment>
@@ -148,7 +148,7 @@ public:
 
     void deallocate(pointer ptr, size_type)
     {
-        aligned_free(ptr);
+        aligned_free(ptr, MaxAlign::value);
     }
 
     constexpr size_type max_size() const noexcept
