@@ -29,22 +29,91 @@
 
 #include <fmt/format.h>
 
+#include <algorithm>
 #include <array>
 #include <ctime>
 #include <iomanip>
 #include <iostream>
+#include <optional>
 #include <sstream>
-#include <sys/utsname.h>
+#include <string>
 #include <thread>
+
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <cstdlib> // getenv
+#else
+#include <sys/utsname.h>
 #include <unistd.h>
+#endif
 
 namespace {
 
 unsigned long long getTotalSystemMemory()
 {
+#if defined(_WIN32)
+    // Windows has no sysconf(_SC_PHYS_PAGES); query the total physical memory.
+    MEMORYSTATUSEX status;
+    status.dwLength = sizeof(status);
+    if (GlobalMemoryStatusEx(&status)) {
+        return static_cast<unsigned long long>(status.ullTotalPhys);
+    }
+    return 0;
+#else
     long pages = sysconf(_SC_PHYS_PAGES);
     long page_size = sysconf(_SC_PAGE_SIZE);
     return pages * page_size;
+#endif
+}
+
+struct SystemDescription
+{
+    std::string nodename;
+    std::string os;
+};
+
+std::optional<SystemDescription> getSystemDescription()
+{
+#if defined(_WIN32)
+    // Windows has no uname()/utsname; query the machine name and the
+    // processor architecture through the Win32 API so that the PRT header
+    // keeps its "Operating system" line. The architecture is spelled the
+    // way uname() spells it, so the line reads the same on both platforms.
+    char computer_name[MAX_COMPUTERNAME_LENGTH + 1] = {};
+    DWORD computer_name_len = sizeof(computer_name);
+    SYSTEM_INFO sys_info{};
+    GetNativeSystemInfo(&sys_info);   // the machine, not this process:
+                                      // GetSystemInfo() would report x86
+                                      // for a 32-bit build under WOW64
+    const char* arch = "unknown architecture";
+    switch (sys_info.wProcessorArchitecture) {
+    case PROCESSOR_ARCHITECTURE_AMD64: arch = "x86_64"; break;
+    case PROCESSOR_ARCHITECTURE_ARM64: arch = "aarch64"; break;
+    case PROCESSOR_ARCHITECTURE_ARM:   arch = "arm";     break;
+    case PROCESSOR_ARCHITECTURE_INTEL: arch = "x86";     break;
+    default: break;
+    }
+    const std::string os = std::string{"Windows "} + arch;
+    return SystemDescription {
+        GetComputerNameA(computer_name, &computer_name_len) ? computer_name : "unknown",
+        os
+    };
+#else
+    struct utsname arch;
+    if (uname(&arch) != 0) {
+        return std::nullopt;
+    }
+    std::ostringstream os;
+    os << arch.sysname << " " << arch.machine << " (Kernel: " << arch.release
+       << ", " << arch.version << " )";
+    return SystemDescription { arch.nodename, os.str() };
+#endif
 }
 
 }
@@ -59,8 +128,11 @@ void printPRTHeader(const std::size_t nprocs,
 {
     const double megabyte = 1024 * 1024;
     unsigned num_cpu = std::thread::hardware_concurrency();
-    struct utsname arch;
+#if defined(_WIN32)
+    const char* user = std::getenv("USERNAME");  // no getlogin() on Windows
+#else
     const char* user = getlogin();
+#endif
     std::time_t now = std::time(nullptr);
     struct std::tm  tstruct;
     std::array<char,80>  tmstr;
@@ -77,12 +149,11 @@ void printPRTHeader(const std::size_t nprocs,
     ss << "Flow is a simulator for fully implicit three-phase black-oil flow,";
     ss << " and is part of OPM.\nFor more information visit: https://opm-project.org \n\n";
     ss << "Flow Version     =  " << moduleVersion << "\n";
-    if (uname(&arch) == 0) {
-       ss << "Machine name     =  " << arch.nodename << " (Number of logical cores: " << num_cpu;
-       ss << ", Memory size: " << std::fixed << std::setprecision (2) << mem_size << " MB) \n";
-       ss << "Operating system =  " << arch.sysname << " " << arch.machine << " (Kernel: " << arch.release;
-       ss << ", " << arch.version << " )\n";
-       ss << "Build time       =  " << compileTimestamp << "\n";
+    if (const auto sys = getSystemDescription()) {
+        ss << "Machine name     =  " << sys->nodename << " (Number of logical cores: " << num_cpu;
+        ss << ", Memory size: " << std::fixed << std::setprecision (2) << mem_size << " MB) \n";
+        ss << "Operating system =  " << sys->os << "\n";
+        ss << "Build time       =  " << compileTimestamp << "\n";
     }
     if (user != nullptr) {
        ss << "User             =  " << user << std::endl;
