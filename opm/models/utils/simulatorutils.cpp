@@ -35,8 +35,11 @@
 #include <sstream>
 #include <stdexcept>
 #include <system_error>
-#include <unistd.h>
 #include <vector>
+
+#if !defined(_WIN32)
+#include <unistd.h>  // access()
+#endif
 
 #if HAVE_QUAD
 #include <opm/material/common/quad.hpp>
@@ -140,10 +143,17 @@ std::string simulatorOutputDir()
                                  "' exists but is not a directory");
     }
 
+#if !defined(_WIN32)
+    // No Windows counterpart. The nearest thing, _access(dir, 2), only tests
+    // that a directory exists - Windows ignores the mode for directories, so
+    // it returns 0 for one carrying the read-only attribute and never looks
+    // at the ACL - and would pass a directory this process cannot write to.
+    // The first file opened there reports the real error instead.
     if (access(outputDir.c_str(), W_OK) != 0) {
         throw std::runtime_error("Output directory '" + outputDir +
                                  "' exists but is not writeable");
     }
+#endif
 
     return outputDir;
 }

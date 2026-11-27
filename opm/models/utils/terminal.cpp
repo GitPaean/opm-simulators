@@ -34,8 +34,13 @@
 #include <iostream>
 #include <thread>
 #include <unordered_map>
+
+#if defined(_WIN32)
+#include <io.h>  // _isatty, _fileno
+#else
 #include <sys/ioctl.h>
 #include <unistd.h>
+#endif
 
 namespace {
 
@@ -63,7 +68,16 @@ namespace Opm {
 
 bool isTty(std::FILE* stream)
 {
+#if defined(_WIN32)
+    // _fileno() returns a negative descriptor (-2) for a standard stream that
+    // is attached to nothing - a process started by a service or a process
+    // manager without a console - and _isatty() on that is an invalid
+    // parameter, which the CRT may treat as fatal. No descriptor, no terminal.
+    const int fd = _fileno(stream);
+    return fd >= 0 && _isatty(fd) != 0;
+#else
     return isatty(fileno(stream)) != 0;
+#endif
 }
 
 std::string breakLines(const std::string& msg,
@@ -163,6 +177,7 @@ void resetTerminal()
     std::cout << "    \r\n";
     std::cout.flush();
 
+#if !defined(_WIN32)
     // it seems like some terminals sometimes takes their time to react, so let's
     // accommodate them.
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -174,6 +189,7 @@ void resetTerminal()
         std::cout << "Executing the 'stty' command failed."
                   << " Terminal might be left in an undefined state!\n";
     }
+#endif
 }
 
 void resetTerminal(int signum)
